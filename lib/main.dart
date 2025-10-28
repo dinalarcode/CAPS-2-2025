@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 // 1. Impor file homepage.dart
-import 'package:nutrilink/homepage.dart'; // Ganti 'nutrilink' jika nama project Anda berbeda
+import 'package:nutrilink/home_page.dart'; // Ganti 'nutrilink' jika nama project Anda berbeda
 
 void main() {
   // Pastikan Anda memanggil class MyApp yang akan menampung MaterialApp
