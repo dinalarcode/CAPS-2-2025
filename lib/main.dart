@@ -1,11 +1,11 @@
 // main.dart
 
 import 'package:flutter/material.dart';
-// 1. Impor file homepage.dart
-import 'package:nutrilink/homepage.dart'; // Ganti 'nutrilink' jika nama project Anda berbeda
+// 1. Import halaman utama aplikasi
+import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
 
 void main() {
-  // Pastikan Anda memanggil class MyApp yang akan menampung MaterialApp
+  // Jalankan aplikasi Flutter
   runApp(const MyApp());
 }
 
@@ -15,22 +15,23 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Health App UI',
+      title: 'NutriLink x HealthyGo',
       debugShowCheckedModeBanner: false,
-      // Tambahkan tema dasar agar sesuai dengan desain
+
+      // Tema global aplikasi
       theme: ThemeData(
         primarySwatch: Colors.green,
-        // Sesuaikan warna latar belakang
         scaffoldBackgroundColor: Colors.white,
+        fontFamily: 'Funnel Display', // opsional, agar konsisten dengan Figma
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           elevation: 0,
           foregroundColor: Colors.black,
         ),
       ),
-      // 2. Ganti 'home' dengan widget HomeScreen
-      home: const HomeScreen(), 
-      // Pastikan class HomeScreen sudah dibuat di homepage.dart
+
+      // 2. Ganti 'home' dengan halaman awal aplikasi
+      home: const HomeScreen(), // Pastikan ada class HomeScreen di homepage.dart
     );
   }
 }
