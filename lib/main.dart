@@ -1,20 +1,36 @@
+// main.dart
+
 import 'package:flutter/material.dart';
+// 1. Impor file homepage.dart
+import 'package:nutrilink/homepage.dart'; // Ganti 'nutrilink' jika nama project Anda berbeda
 
 void main() {
-  runApp(const MainApp());
+  // Pastikan Anda memanggil class MyApp yang akan menampung MaterialApp
+  runApp(const MyApp());
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: Text('Hello World!'),
+    return MaterialApp(
+      title: 'Health App UI',
+      debugShowCheckedModeBanner: false,
+      // Tambahkan tema dasar agar sesuai dengan desain
+      theme: ThemeData(
+        primarySwatch: Colors.green,
+        // Sesuaikan warna latar belakang
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          foregroundColor: Colors.black,
         ),
       ),
+      // 2. Ganti 'home' dengan widget HomeScreen
+      home: const HomeScreen(), 
+      // Pastikan class HomeScreen sudah dibuat di homepage.dart
     );
   }
 }
