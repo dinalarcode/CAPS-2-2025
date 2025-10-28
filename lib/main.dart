@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 // 1. Import halaman utama aplikasi
-import 'package:nutrilink/home_page.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
 
 void main() {
   // Jalankan aplikasi Flutter
