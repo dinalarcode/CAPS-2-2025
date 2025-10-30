@@ -2,7 +2,8 @@
 
 import 'package:flutter/material.dart';
 // 1. Import halaman utama aplikasi
-import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+// import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+import 'package:nutrilink/meal/recomendation.dart';
 
 void main() {
   // Jalankan aplikasi Flutter
@@ -31,7 +32,9 @@ class MyApp extends StatelessWidget {
       ),
 
       // 2. Ganti 'home' dengan halaman awal aplikasi
-      home: const HomeScreen(), // Pastikan ada class HomeScreen di homepage.dart
+      // home: const HomeScreen(), // Pastikan ada class HomeScreen di homepage.dart
+      home: const RecommendationScreen(),
+    
     );
   }
 }

@@ -24,6 +24,8 @@ class FigmaToCodeApp extends StatelessWidget {
 }
 
 class WelcomePage extends StatelessWidget {
+  const WelcomePage({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -38,7 +40,7 @@ class WelcomePage extends StatelessWidget {
               Positioned(
                 left: 130,
                 top: 840,
-                child: Container(
+                child: SizedBox(
                   width: 134,
                   height: 5,
                   child: Stack(
@@ -193,7 +195,7 @@ class WelcomePage extends StatelessWidget {
               Positioned(
                 left: 86,
                 top: 111,
-                child: Container(
+                child: SizedBox(
                   width: 220,
                   height: 210,
                   child: Stack(
@@ -219,7 +221,7 @@ class WelcomePage extends StatelessWidget {
               Positioned(
                 left: 2,
                 top: 0,
-                child: Container(
+                child: SizedBox(
                   width: 390,
                   height: 38,
                   child: Stack(
@@ -227,7 +229,7 @@ class WelcomePage extends StatelessWidget {
                       Positioned(
                         left: 0,
                         top: 0,
-                        child: Container(
+                        child: SizedBox(
                           width: 390,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
