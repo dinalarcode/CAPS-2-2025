@@ -1,10 +1,14 @@
 // main.dart
 
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 // 1. Import halaman utama aplikasi
-import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+import 'homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+import 'reportPage.dart';
 
-void main() {
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id_ID', null);
   // Jalankan aplikasi Flutter
   runApp(const MyApp());
 }
@@ -31,7 +35,7 @@ class MyApp extends StatelessWidget {
       ),
 
       // 2. Ganti 'home' dengan halaman awal aplikasi
-      home: const HomeScreen(), // Pastikan ada class HomeScreen di homepage.dart
+      home: const ReportScreen(), // Pastikan ada class ReportScreen di reportScreen.dart
     );
   }
 }
