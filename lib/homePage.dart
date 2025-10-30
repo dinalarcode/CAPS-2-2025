@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-
-// --- Constants (for illustrative purposes) ---
-const Color kPrimaryColor = Color(0xFF54D3C5); // Example color for highlights/icons
-const Color kBackgroundColor = Colors.white;
-const Color kTextColor = Colors.black;
-const Color kAccentGreen = Color(0xFF4CAF50);
-const Color kAccentRed = Color(0xFFF44336);
+import 'constants.dart';
+import 'NutritionCalculation_ProfileRecap.dart';
+import 'ProfilePage.dart';
+import 'widgets/bottom_navbar.dart';
 
 void main() {
   runApp(const MyApp());
@@ -47,7 +44,8 @@ class HomeScreen extends StatelessWidget {
         leading: const Padding(
           padding: EdgeInsets.only(left: 10.0),
           child: CircleAvatar(
-            backgroundColor: kAccentRed, // Placeholder for the avatar background
+            backgroundColor:
+                kAccentRed, // Placeholder for the avatar background
             // child: Icon(Icons.person, color: Colors.white), // Placeholder for image
             // You would use an Image.asset or NetworkImage here
           ),
@@ -58,18 +56,12 @@ class HomeScreen extends StatelessWidget {
           children: const [
             Text(
               'John Cena',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             SizedBox(height: 2),
             Text(
               '2384 kcal/day (1130 kcal)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),
@@ -83,17 +75,11 @@ class HomeScreen extends StatelessWidget {
               children: const [
                 Text(
                   '77,0 kg',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 Text(
                   'Target: 65,0 kg (+12,0 kg)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
@@ -102,7 +88,7 @@ class HomeScreen extends StatelessWidget {
         // The prototype seems to use a custom app bar or a body that starts high.
         // For simplicity, we use a standard AppBar and put the rest in the body.
       ),
-      
+
       // 2. Body Content (Scrollable)
       body: SingleChildScrollView(
         padding: const EdgeInsets.only(top: 10.0, bottom: 20.0),
@@ -145,7 +131,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 15),
-            
+
             // Daily Stats Cards
             const DailyStatsRow(),
             const SizedBox(height: 30),
@@ -178,7 +164,7 @@ class HomeScreen extends StatelessWidget {
       ),
 
       // 3. Bottom Navigation Bar
-      bottomNavigationBar: const CustomBottomNavBar(),
+      bottomNavigationBar: const CustomBottomNavBar(currentIndex: 2),
     );
   }
 }
@@ -189,8 +175,6 @@ class BmiSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // This part is simplified. A real implementation would use a
-    // custom painter or a package like 'sleek_circular_slider' for the gauge.
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
@@ -212,16 +196,12 @@ class BmiSection extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
                   'IMT saat ini',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[700],
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          // Placeholder for the progress bar/gauge
           Container(
             height: 40,
             decoration: BoxDecoration(
@@ -238,25 +218,37 @@ class BmiSection extends StatelessWidget {
             ),
             child: Stack(
               children: [
-                // Current BMI Marker (26.6 is in the Overweight section)
                 Positioned(
-                  left: MediaQuery.of(context).size.width * 0.55, // Approximate position for 26.6
+                  left: MediaQuery.of(context).size.width * 0.55,
                   top: 0,
                   bottom: 0,
-                  child: Container(
-                    width: 4,
-                    color: kTextColor,
+                  child: Container(width: 4, color: kTextColor),
+                ),
+                const Positioned(
+                  left: 0,
+                  child: Text(
+                    'Underweight',
+                    style: TextStyle(fontSize: 10, color: Colors.white),
                   ),
                 ),
-                // Text labels (Simplified)
-                const Positioned(left: 0, child: Text('Underweight', style: TextStyle(fontSize: 10, color: Colors.white))),
-                const Positioned(left: 100, child: Text('Normal', style: TextStyle(fontSize: 10, color: Colors.white))),
-                const Positioned(right: 50, child: Text('Obese', style: TextStyle(fontSize: 10, color: Colors.white))),
+                const Positioned(
+                  left: 100,
+                  child: Text(
+                    'Normal',
+                    style: TextStyle(fontSize: 10, color: Colors.white),
+                  ),
+                ),
+                const Positioned(
+                  right: 20,
+                  child: Text(
+                    'Obese',
+                    style: TextStyle(fontSize: 10, color: Colors.white),
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 10),
-          // Description text
           Text(
             'Berat badan sedikit melebihi ideal, berpotensi meningkatkan risiko gangguan metabolik jika tidak dikontrol.',
             style: TextStyle(color: Colors.grey[700], fontSize: 12),
@@ -280,11 +272,7 @@ class DailyStatsRow extends StatelessWidget {
         children: const [
           // Stat Card 1: Makan
           Expanded(
-            child: StatCard(
-              title: 'Makan',
-              value: '2/3 kali',
-              delta: '',
-            ),
+            child: StatCard(title: 'Makan', value: '2/3 kali', delta: ''),
           ),
           SizedBox(width: 10),
           // Stat Card 2: Kalori
@@ -341,13 +329,7 @@ class StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
-          ),
+          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 5),
           Text(
             value,
@@ -415,10 +397,7 @@ class MealCardsSection extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: 16.0),
           child: Text(
             'Rekomendasi Menu',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(height: 15),
@@ -456,10 +435,7 @@ class MealCard extends StatelessWidget {
           // Meal Time Label
           Text(
             meal['time'] as String,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           const SizedBox(height: 8),
 
@@ -487,7 +463,9 @@ class MealCard extends StatelessWidget {
                       height: 120,
                       decoration: BoxDecoration(
                         color: Colors.grey[300], // Placeholder background
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(10),
+                        ),
                         // Use DecorationImage for the actual image
                         // image: DecorationImage(image: AssetImage(meal['imagePath']), fit: BoxFit.cover),
                       ),
@@ -496,7 +474,10 @@ class MealCard extends StatelessWidget {
                         child: Text(
                           'Image of ${meal['name']}',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12, color: kTextColor),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: kTextColor,
+                          ),
                         ),
                       ),
                     ),
@@ -505,7 +486,10 @@ class MealCard extends StatelessWidget {
                       top: 8,
                       left: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: kAccentGreen.withOpacity(0.8),
                           borderRadius: BorderRadius.circular(20),
@@ -568,37 +552,50 @@ class MealCard extends StatelessWidget {
 
 // --- Component 4: Custom Bottom Navigation Bar ---
 class CustomBottomNavBar extends StatelessWidget {
-  const CustomBottomNavBar({super.key});
+  final int currentIndex;
+
+  const CustomBottomNavBar({super.key, required this.currentIndex});
 
   @override
   Widget build(BuildContext context) {
     return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed, // To show all items
-      selectedItemColor: kAccentGreen, // Highlight color for the active item
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: kAccentGreen,
       unselectedItemColor: Colors.grey,
-      currentIndex: 2, // 'Home' is the active item
-      showUnselectedLabels: true,
+      currentIndex: currentIndex,
+      onTap: (index) {
+        if (index != currentIndex) {
+          switch (index) {
+            case 0: // Schedule
+              // Navigate to Schedule
+              break;
+            case 1: // Meal
+              // Navigate to Meal
+              break;
+            case 2: // Home
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+              );
+              break;
+            case 3: // Report
+              // Navigate to Report
+              break;
+            case 4: // Profile
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+              break;
+          }
+        }
+      },
       items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.schedule),
-          label: 'Schedule',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.restaurant),
-          label: 'Meal',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home', // Active item
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.bar_chart),
-          label: 'Report',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.schedule), label: 'Schedule'),
+        BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: 'Meal'),
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Report'),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
       ],
     );
   }

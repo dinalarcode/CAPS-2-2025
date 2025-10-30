@@ -2,7 +2,13 @@
 
 import 'package:flutter/material.dart';
 // 1. Import halaman utama aplikasi
-import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+import 'package:nutrilink/homePage.dart'; // Ganti jika perlu
+import 'tdee_calculation.dart';
+import 'NutritionCalculation_ProfileRecap.dart';
+import 'bmr_calculation.dart';
+import 'ProfilePage.dart';
+import 'widgets/bottom_navbar.dart';
+import 'constants.dart';
 
 void main() {
   // Jalankan aplikasi Flutter
@@ -17,21 +23,24 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'NutriLink x HealthyGo',
       debugShowCheckedModeBanner: false,
-
-      // Tema global aplikasi
       theme: ThemeData(
         primarySwatch: Colors.green,
-        scaffoldBackgroundColor: Colors.white,
-        fontFamily: 'Funnel Display', // opsional, agar konsisten dengan Figma
+        scaffoldBackgroundColor: kBackgroundColor,
+        fontFamily: 'Funnel Display',
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           elevation: 0,
           foregroundColor: Colors.black,
         ),
       ),
-
-      // 2. Ganti 'home' dengan halaman awal aplikasi
-      home: const HomeScreen(), // Pastikan ada class HomeScreen di homepage.dart
+      home: const HomeScreen(),
+      routes: {
+        '/bmr': (ctx) => const BMRCalculationPage(),
+        '/tdee': (ctx) => const TDEECalculationPage(),
+        '/nutritionRecap': (ctx) => const NutritionRecapPage(),
+        '/profile': (ctx) => const ProfilePage(),
+        // tambahkan route lain jika perlu
+      },
     );
   }
 }

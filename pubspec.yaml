@@ -17,3 +17,12 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/roti.jpg
+    - assets/images/NutriLinkXhealtygoLogo.png
+    - assets/images/NutriLinkLogo.png
+    - assets/images/celebration.png
+  fonts:
+    - family: FunnelDisplay
+      fonts:
+        - asset: assets/fonts/FunnelDisplay.ttf
