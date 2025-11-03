@@ -2,12 +2,11 @@
 
 import 'package:flutter/material.dart';
 // 1. Import halaman utama aplikasi
-import 'package:nutrilink/homePage.dart'; // Ganti jika perlu
+import 'homePage.dart'; // Ganti jika perlu
 import 'tdee_calculation.dart';
 import 'NutritionCalculation_ProfileRecap.dart';
-import 'bmr_calculation.dart';
+import 'bmr_calculation_clean.dart';
 import 'ProfilePage.dart';
-import 'widgets/bottom_navbar.dart';
 import 'constants.dart';
 
 void main() {
@@ -35,7 +34,7 @@ class MyApp extends StatelessWidget {
       ),
       home: const HomeScreen(),
       routes: {
-        '/bmr': (ctx) => const BMRCalculationPage(),
+        '/bmr': (ctx) => const BMRCalculationCleanPage(),
         '/tdee': (ctx) => const TDEECalculationPage(),
         '/nutritionRecap': (ctx) => const NutritionRecapPage(),
         '/profile': (ctx) => const ProfilePage(),

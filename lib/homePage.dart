@@ -1,54 +1,19 @@
 import 'package:flutter/material.dart';
-import 'constants.dart';
-import 'NutritionCalculation_ProfileRecap.dart';
 import 'ProfilePage.dart';
 import 'widgets/bottom_navbar.dart';
+import 'constants.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class HomePage extends StatelessWidget {
+  const HomePage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Health App UI',
-      theme: ThemeData(
-        primarySwatch: Colors.green, // Can be customized further
-        scaffoldBackgroundColor: kBackgroundColor,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: kBackgroundColor,
-          elevation: 0,
-          foregroundColor: kTextColor,
-        ),
-      ),
-      home: const HomeScreen(),
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // Note: The prototype uses a custom, non-standard system status bar.
-    // In Flutter, you usually let the system handle this or use the
-    // AnnotatedRegion<SystemUiOverlayStyle> for deep customization.
     return Scaffold(
-      // 1. App Bar (Profile and Weight Info)
+      backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        // Leading: Profile Icon/Avatar
         leading: const Padding(
           padding: EdgeInsets.only(left: 10.0),
-          child: CircleAvatar(
-            backgroundColor:
-                kAccentRed, // Placeholder for the avatar background
-            // child: Icon(Icons.person, color: Colors.white), // Placeholder for image
-            // You would use an Image.asset or NetworkImage here
-          ),
+          child: CircleAvatar(backgroundColor: kAccentRed),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,7 +30,6 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
-        // Actions: Current Weight, Target Weight
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -85,17 +49,12 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
         ],
-        // The prototype seems to use a custom app bar or a body that starts high.
-        // For simplicity, we use a standard AppBar and put the rest in the body.
       ),
-
-      // 2. Body Content (Scrollable)
       body: SingleChildScrollView(
         padding: const EdgeInsets.only(top: 10.0, bottom: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // Location
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Align(
@@ -158,12 +117,9 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             ),
-            // (A list of upcoming meals would go here)
           ],
         ),
       ),
-
-      // 3. Bottom Navigation Bar
       bottomNavigationBar: const CustomBottomNavBar(currentIndex: 2),
     );
   }
@@ -226,9 +182,12 @@ class BmiSection extends StatelessWidget {
                 ),
                 const Positioned(
                   left: 0,
-                  child: Text(
-                    'Underweight',
-                    style: TextStyle(fontSize: 10, color: Colors.white),
+                  child: Padding(
+                    padding: EdgeInsets.only(left: 4.0),
+                    child: Text(
+                      'Underweight',
+                      style: TextStyle(fontSize: 10, color: Colors.white),
+                    ),
                   ),
                 ),
                 const Positioned(
@@ -356,11 +315,10 @@ class StatCard extends StatelessWidget {
   }
 }
 
-// --- Component 3: Meal Cards Section (Horizontal Scroll) ---
+// --- Component 3: Meal Cards Section ---
 class MealCardsSection extends StatelessWidget {
   const MealCardsSection({super.key});
 
-  // Dummy data for the meals
   final List<Map<String, dynamic>> meals = const [
     {
       'time': 'Sarapan',
@@ -368,7 +326,7 @@ class MealCardsSection extends StatelessWidget {
       'tag': 'Sayuran',
       'calories': '450 kcal',
       'price': 'Rp 40.000',
-      'imagePath': 'assets/caesar_salad.png', // Placeholder
+      'imagePath': 'assets/caesar_salad.png',
     },
     {
       'time': 'Makan Siang',
@@ -376,7 +334,7 @@ class MealCardsSection extends StatelessWidget {
       'tag': 'Udang',
       'calories': '510 kcal',
       'price': 'Rp 42.000',
-      'imagePath': 'assets/udang_saos_tiram.png', // Placeholder
+      'imagePath': 'assets/udang_saos_tiram.png',
     },
     {
       'time': 'Makan Malam',
@@ -384,7 +342,7 @@ class MealCardsSection extends StatelessWidget {
       'tag': 'Ayam',
       'calories': '430 kcal',
       'price': 'Rp 35.000',
-      'imagePath': 'assets/sandwich_ayam.png', // Placeholder
+      'imagePath': 'assets/sandwich_ayam.png',
     },
   ];
 
@@ -402,7 +360,7 @@ class MealCardsSection extends StatelessWidget {
         ),
         const SizedBox(height: 15),
         SizedBox(
-          height: 300, // Adjust height based on card size
+          height: 300,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: meals.length,
@@ -425,21 +383,17 @@ class MealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A simplified Card to represent the meal item
     return Container(
-      width: 150, // Fixed width as per prototype style
+      width: 150,
       margin: const EdgeInsets.only(right: 15.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Meal Time Label
           Text(
             meal['time'] as String,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           const SizedBox(height: 8),
-
-          // The main Card/Container with Image and Details
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -456,20 +410,16 @@ class MealCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Image Placeholder
                 Stack(
                   children: [
                     Container(
                       height: 120,
                       decoration: BoxDecoration(
-                        color: Colors.grey[300], // Placeholder background
+                        color: Colors.grey[300],
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(10),
                         ),
-                        // Use DecorationImage for the actual image
-                        // image: DecorationImage(image: AssetImage(meal['imagePath']), fit: BoxFit.cover),
                       ),
-                      // For a real app, replace this with a real image widget
                       child: Center(
                         child: Text(
                           'Image of ${meal['name']}',
@@ -481,7 +431,6 @@ class MealCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // Tag/Chip
                     Positioned(
                       top: 8,
                       left: 8,
@@ -506,7 +455,6 @@ class MealCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Details
                 Padding(
                   padding: const EdgeInsets.all(10.0),
                   child: Column(
@@ -550,53 +498,11 @@ class MealCard extends StatelessWidget {
   }
 }
 
-// --- Component 4: Custom Bottom Navigation Bar ---
-class CustomBottomNavBar extends StatelessWidget {
-  final int currentIndex;
-
-  const CustomBottomNavBar({super.key, required this.currentIndex});
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: kAccentGreen,
-      unselectedItemColor: Colors.grey,
-      currentIndex: currentIndex,
-      onTap: (index) {
-        if (index != currentIndex) {
-          switch (index) {
-            case 0: // Schedule
-              // Navigate to Schedule
-              break;
-            case 1: // Meal
-              // Navigate to Meal
-              break;
-            case 2: // Home
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const HomeScreen()),
-              );
-              break;
-            case 3: // Report
-              // Navigate to Report
-              break;
-            case 4: // Profile
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-              break;
-          }
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.schedule), label: 'Schedule'),
-        BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: 'Meal'),
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Report'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-      ],
-    );
+    return const HomePage();
   }
 }
