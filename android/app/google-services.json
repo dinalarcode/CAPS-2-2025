@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1599486853",
+    "project_id": "nutrilink-5f07f",
+    "storage_bucket": "nutrilink-5f07f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1599486853:android:d69e3594599b5a0f5b62ec",
+        "android_client_info": {
+          "package_name": "com.nutrilink.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1599486853-r0l4f6oa2e93iecaiae5fip4q73c944t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nutrilink.app",
+            "certificate_hash": "b1cbf73575f6372ca3bfcf5e48effdf549ab3b65"
+          }
+        },
+        {
+          "client_id": "1599486853-hh2s4clnru22fvl7j7jd3p5rdkc88gb5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6m7AS7ZL-1v3HCjCTMkygGFIk2Aihqr4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1599486853-hh2s4clnru22fvl7j7jd3p5rdkc88gb5.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
