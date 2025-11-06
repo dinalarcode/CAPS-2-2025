@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'constants.dart'; // use constants here
 
 class NutritionRecapPage extends StatelessWidget {
-  const NutritionRecapPage({super.key});
+  final double? bmr;
+  final double? tdee;
+
+  const NutritionRecapPage({super.key, this.bmr, this.tdee});
 
   Widget _buildProfileSection({
     required String title,
@@ -185,6 +188,27 @@ class NutritionRecapPage extends StatelessWidget {
                       ],
                     ),
 
+                    // Nutrition Info Section
+                    _buildProfileSection(
+                      title: 'Informasi Nutrisi',
+                      icon: Icons.local_fire_department,
+                      iconColor: kAccentGreen,
+                      children: [
+                        _buildInfoItem(
+                          'BMR (Basal Metabolic Rate)',
+                          bmr != null
+                              ? '${bmr!.toStringAsFixed(1)} kal'
+                              : 'Belum dihitung',
+                        ),
+                        _buildInfoItem(
+                          'TDEE (Total Daily Energy Expenditure)',
+                          tdee != null
+                              ? '${tdee!.toStringAsFixed(1)} kal'
+                              : 'Belum dihitung',
+                        ),
+                      ],
+                    ),
+
                     // Health Info Section
                     _buildProfileSection(
                       title: 'Informasi Kesehatan',
@@ -208,7 +232,7 @@ class NutritionRecapPage extends StatelessWidget {
                     // Spacer before button
                     const SizedBox(height: 12),
 
-                    // Confirmation Button
+                    // Calculate BMR/TDEE Button
                     ElevatedButton(
                       onPressed: () {
                         Navigator.pushNamed(context, '/bmr');
@@ -222,9 +246,11 @@ class NutritionRecapPage extends StatelessWidget {
                         ),
                         elevation: 4,
                       ),
-                      child: const Text(
-                        'Ya, sudah sesuai',
-                        style: TextStyle(
+                      child: Text(
+                        bmr == null
+                            ? 'Hitung BMR dan TDEE'
+                            : 'Hitung Ulang BMR dan TDEE',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),

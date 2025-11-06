@@ -3,11 +3,10 @@
 import 'package:flutter/material.dart';
 // 1. Import halaman utama aplikasi
 import 'homePage.dart'; // Ganti jika perlu
-import 'tdee_calculation.dart';
-import 'NutritionCalculation_ProfileRecap.dart';
 import 'bmr_calculation_clean.dart';
 import 'ProfilePage.dart';
 import 'constants.dart';
+import 'EatHourCalculationPage.dart';
 
 void main() {
   // Jalankan aplikasi Flutter
@@ -35,10 +34,13 @@ class MyApp extends StatelessWidget {
       home: const HomeScreen(),
       routes: {
         '/bmr': (ctx) => const BMRCalculationCleanPage(),
-        '/tdee': (ctx) => const TDEECalculationPage(),
-        '/nutritionRecap': (ctx) => const NutritionRecapPage(),
         '/profile': (ctx) => const ProfilePage(),
-        // tambahkan route lain jika perlu
+        // TDEE and NutritionRecap pages require parameters and will be navigated to directly
+        '/eatHour': (context) => EatHourCalculationPage(
+          wakeTime: const TimeOfDay(hour: 6, minute: 0),
+          bedTime: const TimeOfDay(hour: 22, minute: 0),
+          mealsPerDay: 3,
+        ),
       },
     );
   }

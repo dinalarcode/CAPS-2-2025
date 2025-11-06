@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'constants.dart';
-import 'MacroNutrient.dart';
+import 'NutritionCalculation_ProfileRecap.dart';
 
 class TDEECalculationPage extends StatefulWidget {
   final double bmr;
@@ -275,10 +275,11 @@ class _TDEECalculationPageState extends State<TDEECalculationPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => MacroNutrientCalculationPage(
-                            bmr: widget.bmr,
-                            tdee: tdee!,
-                          ),
+                          builder: (context) =>
+                              NutritionCalculationProfileRecap(
+                                bmr: widget.bmr,
+                                tdee: tdee!,
+                              ),
                         ),
                       );
                     }

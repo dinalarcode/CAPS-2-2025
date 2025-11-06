@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-
 import 'constants.dart';
+import 'tdee_calculation.dart';
 
 /// Clean BMR page implementation (keeps UI/UX, new class name to avoid duplicate symbols).
 class BMRCalculationCleanPage extends StatefulWidget {
@@ -354,9 +354,17 @@ class _BMRCalculationCleanPageState extends State<BMRCalculationCleanPage>
                                         backgroundColor: Colors.white,
                                         foregroundColor: kAccentGreen,
                                       ),
-                                      onPressed: () => Navigator.of(
-                                        context,
-                                      ).pushNamed('/tdee'),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                TDEECalculationPage(
+                                                  bmr: _bmrValue,
+                                                ),
+                                          ),
+                                        );
+                                      },
                                       child: const Text('Lanjut ke TDEE'),
                                     ),
                                   ],
@@ -367,7 +375,7 @@ class _BMRCalculationCleanPageState extends State<BMRCalculationCleanPage>
 
                               _infoCard(
                                 'Apa itu BMR?',
-                                'BMR adalah jumlah kalori yang diperlukan tubuh untuk fungsi dasar saat istirahat.',
+                                'BMR (Basal Metabolic Rate) adalah jumlah kalori minimal yang dibutuhkan tubuh Anda hanya untuk menjalankan fungsi-fungsi dasarnya agar tetap hidup saat sedang istirahat total—seperti bernapas, memompa darah, mengatur suhu tubuh, dan menjaga fungsi organ vital. Angka ini tidak termasuk kalori yang dibakar melalui aktivitas fisik atau pencernaan. Mengetahui BMR Anda adalah langkah pertama yang penting untuk memahami kebutuhan kalori harian Anda, yang dapat membantu Anda mengatur pola makan untuk mencapai tujuan, baik itu menurunkan, mempertahankan, atau menambah berat badan.',
                               ),
 
                               const SizedBox(height: 8),

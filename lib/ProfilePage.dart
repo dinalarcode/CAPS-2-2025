@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'widgets/bottom_navbar.dart';
-import 'NutritionCalculation_ProfileRecap.dart'; // Add this import
+import 'NutritionCalculation_ProfileRecap.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -108,7 +108,7 @@ class ProfilePage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const NutritionRecapPage(),
+                      builder: (context) => const NutritionRecapPage(),
                     ),
                   );
                 },
