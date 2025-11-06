@@ -6,7 +6,6 @@ import 'homePage.dart'; // Ganti jika perlu
 import 'bmr_calculation_clean.dart';
 import 'ProfilePage.dart';
 import 'constants.dart';
-import 'EatHourCalculationPage.dart';
 
 void main() {
   // Jalankan aplikasi Flutter
@@ -35,12 +34,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/bmr': (ctx) => const BMRCalculationCleanPage(),
         '/profile': (ctx) => const ProfilePage(),
-        // TDEE and NutritionRecap pages require parameters and will be navigated to directly
-        '/eatHour': (context) => EatHourCalculationPage(
-          wakeTime: const TimeOfDay(hour: 6, minute: 0),
-          bedTime: const TimeOfDay(hour: 22, minute: 0),
-          mealsPerDay: 3,
-        ),
+        // Pages requiring parameters will be navigated to directly using MaterialPageRoute
       },
     );
   }

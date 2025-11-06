@@ -6,9 +6,13 @@ class EatHourCalculationPage extends StatelessWidget {
   final TimeOfDay wakeTime;
   final TimeOfDay bedTime;
   final int mealsPerDay;
+  final double bmr;
+  final double tdee;
 
   const EatHourCalculationPage({
     super.key,
+    required this.bmr,
+    required this.tdee,
     this.wakeTime = const TimeOfDay(hour: 6, minute: 0),
     this.bedTime = const TimeOfDay(hour: 22, minute: 0),
     this.mealsPerDay = 3,
@@ -253,7 +257,8 @@ class EatHourCalculationPage extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const NutritionRecapPage(),
+                            builder: (context) =>
+                                NutritionRecapPage(bmr: bmr, tdee: tdee),
                           ),
                         );
                       },

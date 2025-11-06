@@ -170,6 +170,8 @@ class MacroNutrientCalculationPage extends StatelessWidget {
                         wakeTime: const TimeOfDay(hour: 6, minute: 0),
                         bedTime: const TimeOfDay(hour: 22, minute: 0),
                         mealsPerDay: 3,
+                        bmr: bmr,
+                        tdee: tdee,
                       ),
                     ),
                   );

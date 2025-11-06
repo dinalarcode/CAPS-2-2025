@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'constants.dart'; // use constants here
+import 'constants.dart';
+import 'widgets/standard_header.dart';
+import 'widgets/navigation_buttons.dart';
 
 class NutritionRecapPage extends StatelessWidget {
   final double? bmr;
@@ -97,56 +99,12 @@ class NutritionRecapPage extends StatelessWidget {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            // White header with back button, logo and title
+            // Standard header
             SliverToBoxAdapter(
-              child: Container(
-                color: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                child: Row(
-                  children: [
-                    // Back button to the left of logo
-                    SizedBox(
-                      width: 48,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.arrow_back),
-                        color: kAccentGreen,
-                        onPressed: () => Navigator.of(context).maybePop(),
-                        tooltip: 'Kembali',
-                      ),
-                    ),
-
-                    // Logo
-                    SizedBox(
-                      width: 56,
-                      height: 56,
-                      child: Image.asset(
-                        'assets/images/NutriLinkLogo.png',
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // Title (spans remaining space)
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Perhitungan Kebutuhan Kalori dan Gizi',
-                          textAlign: TextAlign.left,
-                          style: TextStyle(
-                            color: kAccentGreen,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              child: StandardHeader(
+                title: 'Perhitungan Kebutuhan Kalori dan Gizi',
+                showBackButton: true,
+                onBackPressed: () => Navigator.of(context).maybePop(),
               ),
             ),
 
@@ -232,29 +190,13 @@ class NutritionRecapPage extends StatelessWidget {
                     // Spacer before button
                     const SizedBox(height: 12),
 
-                    // Calculate BMR/TDEE Button
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/bmr');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kAccentGreen,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 4,
-                      ),
-                      child: Text(
-                        bmr == null
-                            ? 'Hitung BMR dan TDEE'
-                            : 'Hitung Ulang BMR dan TDEE',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    // Navigation buttons
+                    NavigationButtons(
+                      nextText: bmr == null
+                          ? 'Hitung BMR dan TDEE'
+                          : 'Hitung Ulang BMR dan TDEE',
+                      showBackButton: false,
+                      onNext: () => Navigator.pushNamed(context, '/bmr'),
                     ),
                     // (footer removed as requested)
                   ],
