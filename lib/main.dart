@@ -5,6 +5,9 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
+// 1. Import halaman utama aplikasi
+// import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+import 'package:nutrilink/meal/recomendation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:firebase_core/firebase_core.dart';
