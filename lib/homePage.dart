@@ -109,7 +109,6 @@ class HomePageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 1. App Bar (Profile and Weight Info)
       appBar: AppBar(
         leading: const Padding(
           padding: EdgeInsets.only(left: 10.0),
@@ -117,69 +116,40 @@ class HomePageContent extends StatelessWidget {
             backgroundColor: kAccentRed, 
           ),
         ),
-        title: Column(
+        title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-          children: const [
-            Text(
-              'John Cena',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
+          children: [
+            Text('John Cena', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             SizedBox(height: 2),
-            Text(
-              '2384 kcal/day (1130 kcal)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
+            Text('2384 kcal/day (1130 kcal)', style: TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16.0),
+            padding: EdgeInsets.only(right: 16.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: const [
-                Text(
-                  '77,0 kg',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-                Text(
-                  'Target: 65,0 kg (+12,0 kg)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
+              children: [
+                Text('77,0 kg', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                Text('Target: 65,0 kg (+12,0 kg)', style: TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
           ),
         ],
       ),
-      
-      // 2. Body Content (Scrollable)
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(top: 10.0, bottom: 20.0),
+      body: const SingleChildScrollView(
+        padding: EdgeInsets.only(top: 10.0, bottom: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // Location
-            const Padding(
+          children: [
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Align(
                 alignment: Alignment.centerRight,
-                child: Text(
-                  'Lokasi: Surabaya, Jawa Timur',
-                  style: TextStyle(color: kAccentGreen, fontSize: 13),
-                ),
+                child: Text('Lokasi: Surabaya, Jawa Timur',
+                    style: TextStyle(color: kAccentGreen, fontSize: 13)),
               ),
             ),
             const SizedBox(height: 30),
@@ -230,7 +200,26 @@ class HomePageContent extends StatelessWidget {
   }
 }
 
-// --- Component 1: BMI/IMT Section ---
+class _Header extends StatelessWidget {
+  final String title;
+  const _Header({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kTextColor)),
+          const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+        ],
+      ),
+    );
+  }
+}
+
 class BmiSection extends StatelessWidget {
   const BmiSection({super.key});
 
@@ -241,32 +230,18 @@ class BmiSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '26,6',
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: kTextColor,
-                ),
-              ),
-              const SizedBox(width: 5),
+              Text('26,6', style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: kTextColor)),
+              SizedBox(width: 5),
               Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  'IMT saat ini',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[700],
-                  ),
-                ),
+                padding: EdgeInsets.only(top: 8.0),
+                child: Text('IMT saat ini', style: TextStyle(fontSize: 16, color: Colors.grey)),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          // Placeholder for the progress bar/gauge
           Container(
             height: 40,
             decoration: BoxDecoration(
@@ -299,7 +274,6 @@ class BmiSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          // Description text
           Text(
             'Berat badan sedikit melebihi ideal, berpotensi meningkatkan risiko gangguan metabolik jika tidak dikontrol.',
             style: TextStyle(color: Colors.grey[700], fontSize: 12),
@@ -344,23 +318,9 @@ class DailyStatsRow extends StatelessWidget {
               delta: '+Rp 42.000',
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String delta;
-
-  const StatCard({
-    required this.title,
-    required this.value,
-    required this.delta,
-    super.key,
-  });
+        ),
+      );
+    }
 
   @override
   Widget build(BuildContext context) {
@@ -453,25 +413,16 @@ class MealCardsSection extends StatelessWidget {
       children: [
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            'Rekomendasi Menu',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          child: Text('Rekomendasi Menu', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(height: 15),
         SizedBox(
           height: 300, 
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: meals.length,
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            itemBuilder: (context, index) {
-              final meal = meals[index];
-              return MealCard(meal: meal);
-            },
+            itemCount: meals.length,
+            itemBuilder: (context, i) => _MealCard(meal: meals[i]),
           ),
         ),
       ],
@@ -479,10 +430,9 @@ class MealCardsSection extends StatelessWidget {
   }
 }
 
-class MealCard extends StatelessWidget {
-  final Map<String, dynamic> meal;
-
-  const MealCard({required this.meal, super.key});
+class _MealCard extends StatelessWidget {
+  final Map<String, String> meal;
+  const _MealCard({required this.meal});
 
   @override
   Widget build(BuildContext context) {
@@ -492,34 +442,17 @@ class MealCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Meal Time Label
-          Text(
-            meal['time'] as String,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
+          Text(meal['time']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
-
-          // The main Card/Container with Image and Details
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+              color: Colors.white, borderRadius: BorderRadius.circular(10),
+              boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.2), spreadRadius: 1, blurRadius: 5, offset: const Offset(0, 3))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Image Placeholder
+                // placeholder image
                 Stack(
                   children: [
                     Container(
@@ -529,67 +462,29 @@ class MealCard extends StatelessWidget {
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
                       ),
                       child: Center(
-                        child: Text(
-                          'Image of ${meal['name']}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12, color: kTextColor),
-                        ),
+                        child: Text('Image of ${meal['name']}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: kTextColor)),
                       ),
                     ),
-                    // Tag/Chip
                     Positioned(
-                      top: 8,
-                      left: 8,
+                      top: 8, left: 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: kAccentGreen.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          meal['tag'] as String,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        decoration: BoxDecoration(color: kAccentGreen.withValues(alpha: 0.8), borderRadius: BorderRadius.circular(20)),
+                        child: Text(meal['tag']!, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
                 ),
-                // Details
                 Padding(
                   padding: const EdgeInsets.all(10.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        meal['name'] as String,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      Text(meal['name']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 5),
-                      Text(
-                        meal['calories'] as String,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
+                      Text(meal['calories']!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                       const Divider(height: 15),
-                      Text(
-                        meal['price'] as String,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: kTextColor,
-                        ),
-                      ),
+                      Text(meal['price']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: kTextColor)),
                     ],
                   ),
                 ),
