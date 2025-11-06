@@ -45,30 +45,46 @@ class _ReportScreenState extends State<ReportScreen> {
   // --- DUMMY DATA STATE ---
   // Nantinya, data ini akan datang dari State Management (BLoC/Riverpod)
   
-  // Tanggal yang sedang dilihat (default-nya hari ini)
+  // Tanggal yang sedang dilihat (default-nya hari ini)// Tanggal yang sedang dilihat (default-nya hari ini)
   DateTime _selectedDate = DateTime(2025, 4, 15);
 
-  // Data untuk kalori harian (dummy)
+  // Data untuk kalori harian (tetap sama)
   final Map<int, double> _monthlyCalorieLogs = {
-    7: 1560, 8: 1200, 9: 1400, 10: 1300,
-    11: 1500, 12: 1450, 13: 1350, 14: 1100,
+    7: 1560, 8: 1200, 9: 1400, 10: 1300, 11: 1500, 12: 1450, 13: 1350,
+    14: 1850, // Data untuk tanggal 14
     15: 1240, // data hari ini
-    // ... data lainnya
   };
 
-  // Data untuk Pie Chart hari ini
-  final DailyReportData _todayReportData = DailyReportData(
-    totalKcal: 1240,
-    carbPercent: 45,
-    proteinPercent: 25,
-    fatPercent: 20,
-    othersPercent: 10,
+  // 1. "DATABASE" DUMMY UNTUK PIE CHART
+  // Kunci (int) adalah hari, Value adalah data nutrisinya.
+  final Map<int, DailyReportData> _monthlyReportData = {
+    14: DailyReportData( // Data untuk tanggal 14
+      totalKcal: 1850,
+      carbPercent: 50,
+      proteinPercent: 20,
+      fatPercent: 25,
+      othersPercent: 5,
+    ),
+    15: DailyReportData( // Data untuk tanggal 15
+      totalKcal: 1240,
+      carbPercent: 45,
+      proteinPercent: 25,
+      fatPercent: 20,
+      othersPercent: 10,
+    ),
+  };
+
+  // Data default jika tidak ada log di tanggal tersebut
+  final DailyReportData _defaultReportData = DailyReportData(
+    totalKcal: 0, carbPercent: 0, proteinPercent: 0, fatPercent: 0, othersPercent: 0,
   );
 
-  // Data untuk kartu berat badan hari ini
-  final double _todayWeight = 75.0;
+  // 2. UBAH VARIABEL STATE MENJADI TIDAK FINAL
+  // Ini adalah variabel yang akan kita update dan akan ditampilkan di UI.
+  late DailyReportData _selectedReportData;
+  late double _selectedWeight;
 
-  // Data untuk pop-up chart berat badan
+  // Data untuk pop-up chart berat badan (tetap sama)
   final List<WeightLog> _monthlyWeightLogs = [
     WeightLog(date: DateTime(2025, 4, 10), weight: 77.0),
     WeightLog(date: DateTime(2025, 4, 11), weight: 76.5),
@@ -78,9 +94,31 @@ class _ReportScreenState extends State<ReportScreen> {
     WeightLog(date: DateTime(2025, 4, 15), weight: 75.0),
   ];
 
-  // Data untuk Makanan Favorit
-  final String _favoriteFoodImageUrl = "https://placeholder.images/600x400"; // Placeholder URL
-  final String _favoriteFoodName = "Roti Lapis Keju"; // Dummy name
+  // Data Makanan Favorit (tetap sama)
+  final String _favoriteFoodImageUrl = "https://placeholder.images/600x400";
+  final String _favoriteFoodName = "Roti Lapis Keju";
+  
+  // 3. INISIALISASI STATE AWAL
+  @override
+  void initState() {
+    super.initState();
+    // Saat screen pertama kali dimuat, panggil fungsi untuk set data awal
+    _updateSelectedData(_selectedDate.day);
+  }
+
+  // Fungsi helper untuk mengambil data berdasarkan hari
+  void _updateSelectedData(int day) {
+    // Ambil data dari "database" dummy. Jika tidak ada, gunakan data default.
+    _selectedReportData = _monthlyReportData[day] ?? _defaultReportData;
+    
+    // Ambil data berat badan untuk hari yang dipilih
+    // 'firstWhere' akan error jika tidak ada, 'firstWhereOrNull' (dari package collection) lebih aman
+    _selectedWeight = _monthlyWeightLogs
+        .firstWhere(
+            (log) => log.date.day == day,
+            orElse: () => WeightLog(date: _selectedDate, weight: 0.0) // fallback
+        ).weight;
+  }
 
   // --- END DUMMY DATA ---
 
@@ -146,8 +184,8 @@ class _ReportScreenState extends State<ReportScreen> {
                             _selectedDate.month,
                             day,
                           );
-                          // Di sini Anda akan memanggil BLoC/Firebase
-                          // untuk mengambil data di tanggal 'day'
+                          // 4. PANGGIL FUNGSI UNTUK UPDATE DATA
+                          _updateSelectedData(day);
                         });
                       },
                     );
@@ -158,7 +196,7 @@ class _ReportScreenState extends State<ReportScreen> {
             const SizedBox(height: 16),
 
             // 3. Dashboard Pie Chart (Monitor Makanan)
-            _NutritionMonitorCard(data: _todayReportData),
+            _NutritionMonitorCard(data: _selectedReportData), // <-- DIUBAH
             const SizedBox(height: 16),
 
             // 4 & 5. Kartu Berat Badan dan Makanan Favorit
@@ -167,7 +205,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 // 4. Kartu Berat Badan (Kiri Bawah)
                 Expanded(
                   child: _WeightCard(
-                    weight: _todayWeight,
+                    weight: _selectedWeight,
                     onTap: () => _showWeightPopup(context),
                   ),
                 ),
