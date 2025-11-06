@@ -96,11 +96,6 @@ Future<void> main() async {
     return true;
   };
 
-void main() {
-  // Jalankan aplikasi Flutter
-  runApp(const MyApp());
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
   // 6) Sembunyikan system UI di mobile
   if (!kIsWeb) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -139,8 +134,6 @@ class NutriLinkApp extends StatelessWidget {
         '/welcome'        : (_) => const welcome.WelcomePage(),
         '/terms'          : (_) => const terms.TermsAndConditionsPage(),
 
-      // 2. Ganti 'home' dengan halaman awal aplikasi
-      home: const HomePage(), // Pastikan ada class HomeScreen di homepage.dart
         // ── Onboarding steps (sesuai urutan Figma) ──
         '/name-input'     : (_) => const name_input.NameInputPage(),
         '/target-selection': (_) => const target_sel.TargetSelectionPage(),
