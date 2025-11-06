@@ -7,6 +7,8 @@ import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folde
 void main() {
   // Jalankan aplikasi Flutter
   runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
 }
 
 class MyApp extends StatelessWidget {
@@ -31,7 +33,7 @@ class MyApp extends StatelessWidget {
       ),
 
       // 2. Ganti 'home' dengan halaman awal aplikasi
-      home: const HomeScreen(), // Pastikan ada class HomeScreen di homepage.dart
+      home: const HomePage(), // Pastikan ada class HomeScreen di homepage.dart
     );
   }
 }
