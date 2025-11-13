@@ -10,50 +10,45 @@ class WelcomePage extends StatelessWidget {
     const Color greenLight = Color(0xFF7BB662);
     const Color gray = Color(0xFFBDBDBD);
 
-    // Kanvas Figma asli
-    const double baseW = 393.0;
-    const double baseH = 850.0;
+class WelcomePage extends StatelessWidget {
+  const WelcomePage({super.key});
 
-    // Dimensi tombol dari desain Figma
-    const double btnWFig = 313.0;
-    const double btnHFig = 46.22;
-    const double btnLeftFig = 40.0;
-
-    // Di Figma: login di bawah, register di atasnya
-    const double loginTopFig = 606.43;
-    const double gapFig = 13.2; // jarak di Figma antara 2 tombol (biar rapat)
-    final double registerTopFig = loginTopFig - btnHFig - gapFig;
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final double screenW = c.maxWidth;
-            final double screenH = c.maxHeight;
-
-            // Skala proporsional terhadap kanvas Figma
-            final double scale =
-                (screenW / baseW < screenH / baseH) ? (screenW / baseW) : (screenH / baseH);
-
-            // Ukuran kanvas terskala + center di layar
-            final double canvasW = baseW * scale;
-            final double canvasH = baseH * scale;
-            final double padLeft = (screenW - canvasW) / 2;
-            final double padTop = (screenH - canvasH) / 2;
-
-            // Helper konversi koordinat Figma → layar
-            double fx(double figLeft) => padLeft + figLeft * scale;
-            double fy(double figTop) => padTop + figTop * scale;
-            double fw(double figW) => figW * scale;
-            double fh(double figH) => figH * scale;
-
-            // Shadow lembut (gunakan withValues, bukan withOpacity yang deprecated)
-            final List<BoxShadow> softShadow = [
-              BoxShadow(
-                color: const Color(0xFF000000).withValues(alpha: 0.12),
-                offset: const Offset(0, 6),
-                blurRadius: 12,
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 393,
+          height: 850,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(color: Colors.white),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 130,
+                top: 840,
+                child: SizedBox(
+                  width: 134,
+                  height: 5,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        child: Container(
+                          width: 134,
+                          height: 5,
+                          decoration: ShapeDecoration(
+                            color: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ];
 
@@ -181,6 +176,107 @@ class WelcomePage extends StatelessWidget {
                     ),
                   ),
                 ),
+<<<<<<< recommendation
+              ),
+              Positioned(
+                left: 86,
+                top: 111,
+                child: SizedBox(
+                  width: 220,
+                  height: 210,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        child: Container(
+                          width: 220,
+                          height: 210,
+                          decoration: BoxDecoration(
+                            image: DecorationImage(
+                              image: NetworkImage("https://placehold.co/220x210"),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 2,
+                top: 0,
+                child: SizedBox(
+                  width: 390,
+                  height: 38,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        child: SizedBox(
+                          width: 390,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                height: 38,
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.20),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Positioned(
+                                      left: 30,
+                                      top: 7,
+                                      child: Container(
+                                        width: 54,
+                                        height: 21,
+                                        decoration: ShapeDecoration(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(24),
+                                          ),
+                                        ),
+                                        child: Stack(
+                                          children: [
+                                            Positioned(
+                                              left: 0,
+                                              top: 1,
+                                              child: SizedBox(
+                                                width: 54,
+                                                height: 20,
+                                                child: Text(
+                                                  '9:41',
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    color: const Color(0xFF010101),
+                                                    fontSize: 17,
+                                                    fontFamily: 'SF Pro Text',
+                                                    fontWeight: FontWeight.w600,
+                                                    height: 1.29,
+                                                    letterSpacing: -0.41,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+=======
 
                 // ===== LOGO NUTRILINK (atas) =====
                 Positioned(
@@ -191,6 +287,7 @@ class WelcomePage extends StatelessWidget {
                   child: Image.asset(
                     'assets/images/Logo NutriLink.png',
                     fit: BoxFit.contain,
+>>>>>>> master
                   ),
                 ),
               ],

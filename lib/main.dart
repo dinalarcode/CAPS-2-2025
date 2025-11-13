@@ -1,16 +1,18 @@
-// lib/main.dart
-
 import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
+// 1. Import halaman utama aplikasi
+// import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+import 'package:nutrilink/meal/recomendation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in/google_sign_in.dart'; 
+import 'package:intl/date_symbol_data_local.dart'; // Import ini sudah benar
 
 import 'firebase_options.dart';
 
@@ -21,7 +23,7 @@ import 'package:nutrilink/loginPage.dart' as login;
 import 'package:nutrilink/termsAndConditionsPage.dart' as terms;
 import 'package:nutrilink/firestore_test.dart';
 
-// Onboarding sequence (16 files total: 1 terms + 14 step + register + login)
+// Onboarding sequence
 import 'package:nutrilink/nameInputPage.dart' as name_input;
 import 'package:nutrilink/targetSelectionPage.dart' as target_sel;
 import 'package:nutrilink/healthGoalPage.dart' as health_goal;
@@ -35,7 +37,8 @@ import 'package:nutrilink/dailyActivityPage.dart' as daily_activity;
 import 'package:nutrilink/allergyPage.dart' as allergy_page;
 import 'package:nutrilink/eatFrequencyPage.dart' as eat_freq;
 import 'package:nutrilink/sleepSchedulePage.dart' as sleep_sched;
-import 'package:nutrilink/registerPage.dart' as register_page;
+import 'package:nutrilink/summaryPage.dart' as summary_page; 
+import 'package:nutrilink/registerPage.dart' as register; 
 
 // ── reCAPTCHA v3 (Web) ───────────────────────────────────────────────────────
 const String kRecaptchaV3SiteKey = '6Lf2pQMsAAAAALiEdH2KdQ3ThKzZ2IlJQAw7HJxG';
@@ -52,19 +55,22 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // 2) App Check
+  // 2) App Check Activation
   await FirebaseAppCheck.instance.activate(
-    androidProvider:
-        useDebugAppCheck ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-    webProvider: ReCaptchaV3Provider(kRecaptchaV3SiteKey),
+    // KODE ANDROID (gunakan salah satu tergantung kebutuhan)
+    // providerAndroid: 
+    //     useDebugAppCheck ? AndroidAppCheckProvider.debug : AndroidAppCheckProvider.playIntegrity,
+    
+    // PERBAIKAN NAMA PROPERTI: webProvider -> providerWeb
+    providerWeb: ReCaptchaV3Provider(kRecaptchaV3SiteKey),
   );
 
   // 3) Auto-refresh token
   await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
 
-  // 4) Warm-up token (non-fatal) — kompatibel versi lama/baru
+  // 4) Warm-up token (Logika dipertahankan)
   try {
-    final dynamic t = await FirebaseAppCheck.instance.getToken(); // String? (lama) / AppCheckToken? (baru)
+    final dynamic t = await FirebaseAppCheck.instance.getToken();
     String? value;
     if (t is String) {
       value = t;
@@ -86,19 +92,31 @@ Future<void> main() async {
     debugPrint('AppCheck warmup error: $e');
   }
 
-  // 5) Global error handler
+  // 5) Global error handler (dipertahankan)
   FlutterError.onError = (details) => FlutterError.presentError(details);
   PlatformDispatcher.instance.onError = (error, stack) {
     debugPrint('UNCAUGHT PLATFORM ERROR: $error\n$stack');
     return true;
   };
 
+void main() {
+  // Jalankan aplikasi Flutter
+  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   // 6) Sembunyikan system UI di mobile
   if (!kIsWeb) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
-  // 7) Run
+  // ──────────────────────────────────────────────────────────────────
+  // 7) PERBAIKAN UTAMA: Inisialisasi data lokal untuk DateFormat
+  // Error di SummaryPage karena DateFormat('...', 'id') belum siap.
+  await initializeDateFormatting('id', null);
+  // ──────────────────────────────────────────────────────────────────
+  
+
+  // 8) Run App dengan zone guarding
   runZonedGuarded(() => runApp(const NutriLinkApp()), (e, s) {
     debugPrint('UNCAUGHT ZONE ERROR: $e\n$s');
   });
@@ -115,7 +133,7 @@ class NutriLinkApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.green,
         scaffoldBackgroundColor: Colors.white,
-        fontFamily: 'Funnel Display',
+        fontFamily: 'Funnel Display', 
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           elevation: 0,
@@ -128,61 +146,37 @@ class NutriLinkApp extends StatelessWidget {
 
       // Semua named routes
       routes: {
-        '/welcome'        : (_) => const welcome.WelcomePage(),
-        '/terms'          : (_) => const terms.TermsAndConditionsPage(),
+        '/welcome': (_) => const welcome.WelcomePage(),
+        '/terms': (_) => const terms.TermsAndConditionsPage(),
 
+      // 2. Ganti 'home' dengan halaman awal aplikasi
+      home: const HomePage(), // Pastikan ada class HomeScreen di homepage.dart
         // ── Onboarding steps (sesuai urutan Figma) ──
         '/name-input'     : (_) => const name_input.NameInputPage(),
         '/target-selection': (_) => const target_sel.TargetSelectionPage(),
-        '/health-goal'    : (_) => const health_goal.HealthGoalPage(),
-        '/challenge'      : (_) => const challenge.ChallengePage(),
-        '/height-input'   : (_) => const height_input.HeightInputPage(),
-        '/weight-input'   : (_) => const weight_input.WeightInputPage(),
-        '/target-weight'  : (_) => const target_weight.TargetWeightInputPage(),
-        '/birth-date'     : (_) => const birth_date.BirthDatePage(),
-        '/sex'            : (_) => const sex_page.SexPage(),
-        '/daily-activity' : (_) => const daily_activity.DailyActivityPage(),
-        '/allergy'        : (_) => const allergy_page.AllergyPage(),
-        '/eat-frequency'  : (_) => const eat_freq.EatFrequencyPage(),
-        '/sleep-schedule' : (_) => const sleep_sched.SleepSchedulePage(),
+        '/health-goal': (_) => const health_goal.HealthGoalPage(),
+        '/challenge': (_) => const challenge.ChallengePage(),
+        '/height-input': (_) => const height_input.HeightInputPage(),
+        '/weight-input': (_) => const weight_input.WeightInputPage(),
+        '/target-weight': (_) => const target_weight.TargetWeightInputPage(),
+        '/birth-date': (_) => const birth_date.BirthDatePage(),
+        '/sex': (_) => const sex_page.SexPage(),
+        '/daily-activity': (_) => const daily_activity.DailyActivityPage(),
+        '/allergy': (_) => const allergy_page.AllergyPage(),
+        '/eat-frequency': (_) => const eat_freq.EatFrequencyPage(),
+        '/sleep-schedule': (_) => const sleep_sched.SleepSchedulePage(), 
+        
+        // Rute untuk Summary Page
+        '/summary': (_) => const summary_page.SummaryPage(), 
 
         // ── Auth & app ──
-        '/register'       : (_) => const register_page.RegisterPage(),
-        '/login'          : (_) => const login.LoginPage(),
-        '/home'           : (_) => const home.HomeScreen(),
+        '/register': (_) => const register.RegisterPage(), 
+        '/login': (_) => const login.LoginPage(),
+        '/home': (_) => const home.HomePage(),
 
         // opsional
-        '/firestore-test' : (_) => const FirestoreTestPage(),
+        '/firestore-test': (_) => const FirestoreTestPage(),
       },
     );
   }
-}
-
-// ============== Google Sign-In util ==============
-Future<UserCredential> signInWithGoogle() async {
-  if (kIsWeb) {
-    final provider = GoogleAuthProvider();
-    return FirebaseAuth.instance.signInWithPopup(provider);
-  }
-  final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
-  final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-  if (googleUser == null) {
-    throw Exception('Login dibatalkan pengguna.');
-  }
-  final googleAuth = await googleUser.authentication;
-  final credential = GoogleAuthProvider.credential(
-    accessToken: googleAuth.accessToken,
-    idToken: googleAuth.idToken,
-  );
-  return FirebaseAuth.instance.signInWithCredential(credential);
-}
-
-Future<void> signOutGoogle() async {
-  if (!kIsWeb) {
-    final googleSignIn = GoogleSignIn();
-    if (await googleSignIn.isSignedIn()) {
-      await googleSignIn.signOut();
-    }
-  }
-  await FirebaseAuth.instance.signOut();
 }

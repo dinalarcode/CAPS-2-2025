@@ -1,14 +1,16 @@
+
 name: nutrilink
 description: "Recommender System for Dynamic Meal Scheduling and Caloric Intake Management."
 publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: ^3.8.0
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
+  intl: ^0.19.0
   firebase_core: ^3.15.2
   firebase_auth: ^5.7.0
   firebase_app_check: ^0.3.2+10
@@ -18,7 +20,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
@@ -29,6 +31,12 @@ flutter:
     - assets/images/Logo Google.png
     - assets/images/Logo HealthyGo.png
     - assets/images/Logo NutriLink.png
+    - assets/images/Seafood.png
+    - assets/images/Fish.png
+    - assets/images/Shrimp.png
+    - assets/images/Beef.png
+    - assets/images/Chicken.png
+
 
   fonts:
     - family: Funnel Display

@@ -61,6 +61,9 @@ class _SexPageState extends State<SexPage> {
             },
             multiSelectionEnabled: false,
             showSelectedIcon: false,
+            // --- KUNCI: MENGIZINKAN SET KOSONG SAAT INITAL LOAD ---
+            emptySelectionAllowed: true, 
+            // ------------------------------------
           ),
 
           const SizedBox(height: 12),

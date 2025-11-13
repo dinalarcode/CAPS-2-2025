@@ -1,10 +1,9 @@
-// lib/nameInputPage.dart
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:nutrilink/models/user_profile_draft.dart';
-import 'package:nutrilink/_onb_helpers.dart';
+import 'package:nutrilink/_onb_helpers.dart'; // Mengandung helper next()
 
-// Palet
+// Palet (Dipertahankan)
 const kGreen = Color(0xFF5F9C3F);
 const kGreenLight = Color(0xFF7BB662);
 const kGreyText = Color(0xFF494949);
@@ -55,12 +54,27 @@ class _NameInputPageState extends State<NameInputPage> {
     super.dispose();
   }
 
-  void _backToTerms() => Navigator.pushReplacementNamed(context, '/terms');
+  // REVISI: Mengubah pushReplacementNamed menjadi pushNamed biasa
+  // Namun, karena ini adalah langkah pertama setelah Terms, 
+  // pushReplacementNamed ke '/terms' saat kembali tidak ideal. 
+  // Kita akan biarkan kosong karena tombol back di AppBar memang dinonaktifkan.
+  void _backToTerms() {
+    // Navigasi mundur dari NameInputPage seharusnya kembali ke Terms (jika ada).
+    // Tapi karena tombol di AppBar dinonaktifkan (onPressed: null), kita tidak perlu ini.
+    // Jika tombol 'Kembali' di footer ditekan, kita navigasi ke '/terms'.
+    Navigator.pushNamed(context, '/terms');
+  }
 
+  // REVISI UTAMA: Menggunakan helper 'next' untuk meneruskan draft
   void _next() {
     if (!_formKey.currentState!.validate()) return;
+    
+    // 1. Simpan nama ke draft
     draft.name = _c.text.trim();
-    Navigator.pushReplacementNamed(context, '/target-selection');
+    
+    // 2. Gunakan helper `next` untuk navigasi ke Target Selection
+    // Helper `next` akan memanggil pushNamed(context, route, arguments: draft)
+    next(context, '/target-selection', draft); 
   }
 
   @override
@@ -83,7 +97,7 @@ class _NameInputPageState extends State<NameInputPage> {
         body: SafeArea(
           child: Stack(
             children: [
-              // Panah back: DITAMPILKAN tapi DISABLED (tidak berfungsi)
+              // Panah back: DITAMPILKAN tapi DISABLED 
               Positioned(
                 left: 8,
                 top: 0,
@@ -205,7 +219,7 @@ class _NameInputPageState extends State<NameInputPage> {
                 ),
               ),
 
-              // Footer tombol
+              // Footer tombol (Dipertahankan)
               Positioned(
                 left: 0,
                 right: 0,
@@ -311,7 +325,7 @@ class _HoverButtonState extends State<HoverButton> {
           border: Border.all(color: borderColor, width: 2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: Colors.black.withOpacity(0.08), // Perbaikan: menggunakan withOpacity karena withValues tidak ada
               blurRadius: 6,
               offset: const Offset(0, 3),
             )
