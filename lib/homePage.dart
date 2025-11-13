@@ -434,7 +434,7 @@ class MealCardsSection extends StatelessWidget {
       'tag': 'Udang',
       'calories': '510 kcal',
       'price': 'Rp 42.000',
-      'imagePath': 'assets/udang_saos_tiram.png', 
+      'imagePath': 'assets/udang_simageaos_tiram.png', 
     },
     {
       'time': 'Makan Malam',

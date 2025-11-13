@@ -3,12 +3,13 @@
 import 'package:flutter/material.dart';
 // 1. Import halaman utama aplikasi
 import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+// import 'package:firebase_core/firebase_core.dart';
 
-void main() {
+void main() async {
+  // WidgetsFlutterBinding.ensureInitialized();
+  // await Firebase.initializeApp();
   // Jalankan aplikasi Flutter
   runApp(const MyApp());
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
 }
 
 class MyApp extends StatelessWidget {
