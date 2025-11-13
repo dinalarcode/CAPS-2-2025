@@ -307,23 +307,9 @@ class DailyStatsRow extends StatelessWidget {
               delta: '+Rp 42.000',
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String delta;
-
-  const StatCard({
-    required this.title,
-    required this.value,
-    required this.delta,
-    super.key,
-  });
+        ),
+      );
+    }
 
   @override
   Widget build(BuildContext context) {

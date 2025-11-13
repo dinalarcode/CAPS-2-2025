@@ -3,6 +3,9 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
+// 1. Import halaman utama aplikasi
+// import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
+import 'package:nutrilink/meal/recomendation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -96,7 +99,12 @@ Future<void> main() async {
     return true;
   };
 
-  // 6) Sembunyikan system UI di mobile (dipertahankan)
+void main() {
+  // Jalankan aplikasi Flutter
+  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  // 6) Sembunyikan system UI di mobile
   if (!kIsWeb) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
@@ -136,13 +144,15 @@ class NutriLinkApp extends StatelessWidget {
       // Awal aplikasi
       initialRoute: '/welcome',
 
-      // Semua named routes (dipertahankan)
+      // Semua named routes
       routes: {
         '/welcome': (_) => const welcome.WelcomePage(),
         '/terms': (_) => const terms.TermsAndConditionsPage(),
 
-        // ── Onboarding steps ──
-        '/name-input': (_) => const name_input.NameInputPage(),
+      // 2. Ganti 'home' dengan halaman awal aplikasi
+      home: const HomePage(), // Pastikan ada class HomeScreen di homepage.dart
+        // ── Onboarding steps (sesuai urutan Figma) ──
+        '/name-input'     : (_) => const name_input.NameInputPage(),
         '/target-selection': (_) => const target_sel.TargetSelectionPage(),
         '/health-goal': (_) => const health_goal.HealthGoalPage(),
         '/challenge': (_) => const challenge.ChallengePage(),
