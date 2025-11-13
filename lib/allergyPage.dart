@@ -1,4 +1,4 @@
-// lib/allergyPage.dart
+// ignore: depend_on_referenced_packages
 import 'package:flutter/material.dart';
 import 'package:nutrilink/_onb_helpers.dart';
 import 'package:nutrilink/models/user_profile_draft.dart';
@@ -8,41 +8,175 @@ class AllergyPage extends StatefulWidget {
   @override
   State<AllergyPage> createState() => _AllergyPageState();
 }
+
 class _AllergyPageState extends State<AllergyPage> {
-  late final UserProfileDraft draft = getDraft(context);
-  final _c = TextEditingController();
+  // Menggunakan late final karena getDraft(context) perlu context
+  late UserProfileDraft draft;
+
+  // Daftar Opsi Alergi dengan placeholder gambar (gunakan assets/images/ di proyek Anda)
+  static const List<Map<String, String>> _allergyOptions = [
+    {'name': 'Seafood', 'image': 'assets/images/Seafood.png'},
+    {'name': 'Ikan', 'image': 'assets/images/Fish.png'},
+    {'name': 'Udang', 'image': 'assets/images/Shrimp.png'},
+    {'name': 'Sapi', 'image': 'assets/images/Beef.png'},
+    {'name': 'Ayam', 'image': 'assets/images/Chicken.png'},
+  ];
+
   @override
-  void dispose(){ _c.dispose(); super.dispose(); }
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Inisialisasi draft di sini
+    draft = getDraft(context);
+  }
+
+  // --- Widget Kustom untuk Pilihan Alergi ---
+  Widget _buildAllergyOption(Map<String, String> option) {
+    final name = option['name']!;
+    final isSelected = draft.allergies.contains(name);
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            if (isSelected) {
+              // Hapus alergi
+              draft.allergies.remove(name);
+            } else {
+              // Tambah alergi
+              draft.allergies.add(name);
+            }
+          });
+        },
+        // Tombol Pilihan Gaya Kartu
+        child: Container(
+          height: 80,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            // Border tebal jika terpilih
+            border: Border.all(
+              color: isSelected ? primaryColor : const Color(0xFFBDBDBD),
+              width: isSelected ? 3 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(isSelected ? 0.15 : 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Bagian Gambar (25% lebar)
+              Container(
+                width: 80,
+                height: 80,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(10),
+                    bottomLeft: Radius.circular(10),
+                  ),
+                  image: DecorationImage(
+                    image: AssetImage(option['image']!),
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.medium,
+                    // Menggelapkan gambar jika tidak terpilih agar teks lebih jelas
+                    colorFilter: ColorFilter.mode(
+                      Colors.black.withOpacity(isSelected ? 0.0 : 0.2),
+                      BlendMode.darken,
+                    ),
+                  ),
+                ),
+              ),
+              // Bagian Label Teks
+              Expanded(
+                child: Center(
+                  child: Text(
+                    name,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected ? primaryColor : Colors.black87,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  // --- Widget Peringatan (Hint Box) ---
+  Widget _buildHintBox() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FFF0), // Warna latar belakang hijau sangat muda
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFD0E0D0)), // Border hijau lembut
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Icon(Icons.info_outline, color: Color(0xFF5F9C3F), size: 20),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Jika kamu tidak memiliki pantangan makanan atau alergi apapun, kamu bisa langsung klik "Lewati".',
+              style: TextStyle(fontSize: 13, color: Colors.black87),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StepScaffold(
       title: 'Alergi Makanan',
+      onBack: () => back(context, draft),
+      // MENGHILANGKAN PARAMETER 'footer' YANG ERROR
+      onNext: () {
+        // Navigasi ke halaman selanjutnya
+        next(context, '/eat-frequency', draft);
+      },
+      
+      // CHILD MENGANDUNG SEMUA KOMPONEN
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            children: draft.allergies.map((a)=>Chip(
-              label: Text(a),
-              onDeleted: (){ setState(()=>draft.allergies.remove(a)); },
-            )).toList(),
+          const Text(
+            'Apa saja alergi kamu?',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF5F9C3F),
+            ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: TextField(controller: _c, decoration: const InputDecoration(hintText: 'Tambah alergi...', border: OutlineInputBorder()))),
-              const SizedBox(width: 8),
-              ElevatedButton(onPressed: (){
-                final t = _c.text.trim();
-                if (t.isEmpty) return;
-                setState((){ draft.allergies.add(t); _c.clear(); });
-              }, child: const Text('Tambah')),
-            ],
+          const SizedBox(height: 8),
+          const Text(
+            'Kami akan mempersonalisasikan menu makanan yang tidak mengandung alergi kamu.',
+            style: TextStyle(fontSize: 14, color: Colors.black54),
+          ),
+          const SizedBox(height: 24),
+
+          // Daftar Pilihan Alergi
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: _allergyOptions.map((opt) => _buildAllergyOption(opt)).toList(),
+            ),
           ),
         ],
       ),
-      onBack: () => back(context, draft),
-      onNext: () => next(context, '/eat-frequency', draft),
     );
   }
 }
