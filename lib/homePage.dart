@@ -1,9 +1,11 @@
+// ignore: depend_on_referenced_packages
 import 'package:flutter/material.dart';
-import 'package:nutrilink/navbar.dart';
+// Removed unused import 'navbar.dart'.
 // Ganti import ini menjadi impor file yang mendefinisikan SchedulePage yang asli
-import 'package:nutrilink/schedulePage.dart';
+import 'package:nutrilink/schedulePage.dart'; // Pastikan file ini ada
 
 // --- Constants ---
+// KONFLIK RESOLVED: Mengambil kPrimaryColor dari HEAD
 const Color kPrimaryColor = Color(0xFF54D3C5); 
 const Color kBackgroundColor = Colors.white;
 const Color kTextColor = Colors.black;
@@ -11,12 +13,11 @@ const Color kAccentGreen = Color(0xFF4CAF50); // Hijau untuk highlight
 const Color kAccentRed = Color(0xFFF44336); // Merah untuk delta negatif/avatar
 
 // Untuk menghindari error, kita harus mendefinisikan semua halaman yang dipanggil di _pages.
-
-
+// Ini adalah placeholder untuk halaman lain.
 class MealPage extends StatelessWidget {
   const MealPage({super.key});
   @override
-  Widget build(BuildContext context) => const Center(child: Text('Halaman Meal (Index 2)'));
+  Widget build(BuildContext context) => const Center(child: Text('Halaman Meal (Index 1)'));
 }
 
 class ReportPage extends StatelessWidget {
@@ -58,6 +59,7 @@ class MyApp extends StatelessWidget {
 
 // ===============================================
 // 🎯 KELAS UTAMA: HOMEPAGE (MENANGANI NAVIGASI)
+// KONFLIK RESOLVED: Mengambil struktur navigasi stateful dari HEAD
 // ===============================================
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -100,16 +102,15 @@ class _HomePageState extends State<HomePage> {
 }
 
 // ===============================================
-// 🏡 KELAS KONTEN: HOMEPAGECONTENT
+// 🏡 KELAS KONTEN: HOMEPAGECONTENT (Isi Halaman Home)
+// KONFLIK RESOLVED: Menggunakan HomePageContent
 // ===============================================
-// Ini adalah konten yang sebelumnya ada di dalam HomePage.build()
 class HomePageContent extends StatelessWidget {
   const HomePageContent({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 1. App Bar (Profile and Weight Info)
       appBar: AppBar(
         leading: const Padding(
           padding: EdgeInsets.only(left: 10.0),
@@ -117,83 +118,54 @@ class HomePageContent extends StatelessWidget {
             backgroundColor: kAccentRed, 
           ),
         ),
-        title: Column(
+        title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-          children: const [
-            Text(
-              'John Cena',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
+          children: [
+            Text('John Cena', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             SizedBox(height: 2),
-            Text(
-              '2384 kcal/day (1130 kcal)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
+            Text('2384 kcal/day (1130 kcal)', style: TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
-        actions: [
+        actions: const [
           Padding(
-            padding: const EdgeInsets.only(right: 16.0),
+            padding: EdgeInsets.only(right: 16.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: const [
-                Text(
-                  '77,0 kg',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-                Text(
-                  'Target: 65,0 kg (+12,0 kg)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
+              children: [
+                Text('77,0 kg', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                Text('Target: 65,0 kg (+12,0 kg)', style: TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
           ),
         ],
       ),
-      
-      // 2. Body Content (Scrollable)
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(top: 10.0, bottom: 20.0),
+      body: const SingleChildScrollView(
+        padding: EdgeInsets.only(top: 10.0, bottom: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // Location
-            const Padding(
+          children: [
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Align(
                 alignment: Alignment.centerRight,
-                child: Text(
-                  'Lokasi: Surabaya, Jawa Timur',
-                  style: TextStyle(color: kAccentGreen, fontSize: 13),
-                ),
+                child: Text('Lokasi: Surabaya, Jawa Timur',
+                    style: TextStyle(color: kAccentGreen, fontSize: 13)),
               ),
             ),
-            const SizedBox(height: 30),
+            SizedBox(height: 30),
 
             // BMI Section (IMT)
-            const BmiSection(),
-            const SizedBox(height: 30),
+            BmiSection(),
+            SizedBox(height: 30),
 
             // Daily Stats Section Header
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
+                children: [
                   Text(
                     'Statistik Harian',
                     style: TextStyle(
@@ -206,31 +178,30 @@ class HomePageContent extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 15),
+            SizedBox(height: 15),
             
             // Daily Stats Cards
-            const DailyStatsRow(),
-            const SizedBox(height: 30),
+            DailyStatsRow(),
+            SizedBox(height: 30),
 
             // Meal Cards (Horizontal Scroll)
-            const MealCardsSection(),
-            const SizedBox(height: 15),
+            MealCardsSection(),
+            SizedBox(height: 15),
 
-            // Upcoming Meals Header
-            const UpcomingMealsList(),
-            const SizedBox(height: 30),
-            // (A list of upcoming meals would go here)
+            // Upcoming Meals Header & List
+            UpcomingMealsList(),
+            SizedBox(height: 30),
           ],
-          
         ),
-        
       ),
-      // bottomNavigationBar dihapus karena sudah di-handle oleh HomePage (StatefulWidget)
+      // bottomNavigationBar sudah di-handle oleh HomePage (StatefulWidget)
     );
   }
 }
 
-// --- Component 1: BMI/IMT Section ---
+// ===============================================
+// 📈 KOMPONEN: BMI SECTION
+// ===============================================
 class BmiSection extends StatelessWidget {
   const BmiSection({super.key});
 
@@ -241,36 +212,23 @@ class BmiSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '26,6',
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: kTextColor,
-                ),
-              ),
-              const SizedBox(width: 5),
+              Text('26,6', style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: kTextColor)),
+              SizedBox(width: 5),
               Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  'IMT saat ini',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[700],
-                  ),
-                ),
+                padding: EdgeInsets.only(top: 8.0),
+                child: Text('IMT saat ini', style: TextStyle(fontSize: 16, color: Colors.grey)),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          // Placeholder for the progress bar/gauge
           Container(
             height: 40,
             decoration: BoxDecoration(
               gradient: LinearGradient(
+                // KONFLIK RESOLVED: Menggunakan List warna dari HEAD
                 colors: [
                   Colors.blue.shade200, 
                   kAccentGreen, 
@@ -284,7 +242,8 @@ class BmiSection extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned(
-                  left: MediaQuery.of(context).size.width * 0.55 - 16, // Approximate position for 26.6
+                  // Menggunakan kalkulasi posisi dari HEAD
+                  left: MediaQuery.of(context).size.width * 0.55 - 16, 
                   top: 0,
                   bottom: 0,
                   child: Container(
@@ -292,6 +251,7 @@ class BmiSection extends StatelessWidget {
                     color: kTextColor,
                   ),
                 ),
+                // KONFLIK RESOLVED: Menggunakan padding/posisi dari HEAD
                 const Positioned(left: 0, child: Padding(padding: EdgeInsets.all(5), child: Text('Underweight', style: TextStyle(fontSize: 10, color: Colors.white)))),
                 const Positioned(left: 100, child: Padding(padding: EdgeInsets.all(5), child: Text('Normal', style: TextStyle(fontSize: 10, color: Colors.white)))),
                 const Positioned(right: 0, child: Padding(padding: EdgeInsets.all(5), child: Text('Obese', style: TextStyle(fontSize: 10, color: Colors.white)))),
@@ -299,7 +259,6 @@ class BmiSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          // Description text
           Text(
             'Berat badan sedikit melebihi ideal, berpotensi meningkatkan risiko gangguan metabolik jika tidak dikontrol.',
             style: TextStyle(color: Colors.grey[700], fontSize: 12),
@@ -310,12 +269,16 @@ class BmiSection extends StatelessWidget {
   }
 }
 
-// --- Component 2: Daily Stats Row & StatCard ---
+// ===============================================
+// 📊 KOMPONEN: DAILY STATS ROW & STAT CARD
+// KONFLIK RESOLVED: Mengambil StatCard Class dari HEAD
+// ===============================================
 class DailyStatsRow extends StatelessWidget {
   const DailyStatsRow({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // StatCard adalah widget kecil yang reusable.
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
@@ -403,7 +366,7 @@ class StatCard extends StatelessWidget {
               delta,
               style: TextStyle(
                 fontSize: 10,
-                // Menggunakan kAccentRed untuk Kalori, kAccentGreen untuk Pengeluaran (sesuai logika umum)
+                // Merah untuk Kalori (defisit), Hijau untuk Pengeluaran (sesuai delta dari HEAD)
                 color: title == 'Kalori' ? kAccentRed : kAccentGreen, 
                 fontWeight: FontWeight.bold,
               ),
@@ -415,10 +378,13 @@ class StatCard extends StatelessWidget {
   }
 }
 
-// --- Component 3: Meal Cards Section (Horizontal Scroll) & MealCard ---
+// ===============================================
+// 🍽️ KOMPONEN: MEAL CARDS SECTION (Horizontal Scroll) & MEAL CARD
+// ===============================================
 class MealCardsSection extends StatelessWidget {
   const MealCardsSection({super.key});
 
+  // KONFLIK RESOLVED: Menggabungkan data meal
   final List<Map<String, dynamic>> meals = const [
     {
       'time': 'Sarapan',
@@ -453,25 +419,16 @@ class MealCardsSection extends StatelessWidget {
       children: [
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            'Rekomendasi Menu',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          child: Text('Rekomendasi Menu', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(height: 15),
         SizedBox(
           height: 300, 
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: meals.length,
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            itemBuilder: (context, index) {
-              final meal = meals[index];
-              return MealCard(meal: meal);
-            },
+            itemCount: meals.length,
+            itemBuilder: (context, i) => _MealCard(meal: meals[i]),
           ),
         ),
       ],
@@ -479,10 +436,10 @@ class MealCardsSection extends StatelessWidget {
   }
 }
 
-class MealCard extends StatelessWidget {
-  final Map<String, dynamic> meal;
-
-  const MealCard({required this.meal, super.key});
+class _MealCard extends StatelessWidget {
+  // Menggunakan tipe dynamic karena ada imagePath yang tipe string
+  final Map<String, dynamic> meal; 
+  const _MealCard({required this.meal});
 
   @override
   Widget build(BuildContext context) {
@@ -492,104 +449,49 @@ class MealCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Meal Time Label
-          Text(
-            meal['time'] as String,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
+          Text(meal['time'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
-
-          // The main Card/Container with Image and Details
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+              color: Colors.white, borderRadius: BorderRadius.circular(10),
+              boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), spreadRadius: 1, blurRadius: 5, offset: const Offset(0, 3))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Image Placeholder
+                // placeholder image
                 Stack(
                   children: [
                     Container(
                       height: 120,
                       decoration: BoxDecoration(
-                        color: Colors.grey[300], 
+                        color: Colors.grey[300], // Menggunakan warna abu-abu sebagai placeholder
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
                       ),
                       child: Center(
-                        child: Text(
-                          'Image of ${meal['name']}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12, color: kTextColor),
-                        ),
+                        child: Text('Image of ${meal['name']}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: kTextColor)),
                       ),
                     ),
-                    // Tag/Chip
                     Positioned(
-                      top: 8,
-                      left: 8,
+                      top: 8, left: 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: kAccentGreen.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          meal['tag'] as String,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        decoration: BoxDecoration(color: kAccentGreen.withOpacity(0.8), borderRadius: BorderRadius.circular(20)),
+                        child: Text(meal['tag'] as String, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
                 ),
-                // Details
                 Padding(
                   padding: const EdgeInsets.all(10.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        meal['name'] as String,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      Text(meal['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 5),
-                      Text(
-                        meal['calories'] as String,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
+                      Text(meal['calories'] as String, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                       const Divider(height: 15),
-                      Text(
-                        meal['price'] as String,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: kTextColor,
-                        ),
-                      ),
+                      Text(meal['price'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: kTextColor)),
                     ],
                   ),
                 ),
@@ -602,7 +504,10 @@ class MealCard extends StatelessWidget {
   }
 }
 
-// --- NEW Component: Upcoming Meals List ---
+// ===============================================
+// 📅 KOMPONEN: UPCOMING MEALS LIST
+// KONFLIK RESOLVED: Mengambil komponen UpcomingMealsList dan MealListItem dari HEAD
+// ===============================================
 class UpcomingMealsList extends StatelessWidget {
   const UpcomingMealsList({super.key});
 
@@ -746,7 +651,10 @@ class MealListItem extends StatelessWidget {
   }
 }
 
-// --- Component 4: Custom Bottom Navigation Bar ---
+// ===============================================
+// ⬇️ KOMPONEN: CUSTOM BOTTOM NAVIGATION BAR
+// KONFLIK RESOLVED: Mengambil CustomNavbar dari HEAD yang menerima currentIndex dan onTap
+// ===============================================
 class CustomNavbar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -757,14 +665,14 @@ class CustomNavbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed, 
-      selectedItemColor: const Color(0xFF4CAF50), 
+      selectedItemColor: kAccentGreen, 
       unselectedItemColor: Colors.grey,
       currentIndex: currentIndex, 
       onTap: onTap,
       showUnselectedLabels: true,
       items: const [
         BottomNavigationBarItem(
-          icon: Icon(Icons.access_time), // Mengganti ke ikon yang lebih umum untuk Schedule
+          icon: Icon(Icons.access_time),
           label: 'Schedule',
         ),
         BottomNavigationBarItem(
@@ -787,3 +695,5 @@ class CustomNavbar extends StatelessWidget {
     );
   }
 }
+
+// Catatan: Kelas _Header di versi 2 tidak digunakan karena header di HomePageContent sudah dibuat secara manual.

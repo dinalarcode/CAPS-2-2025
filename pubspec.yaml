@@ -5,23 +5,25 @@ publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: ^3.8.0
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
-  flutter:
-    sdk: flutter
-  # intl: ^0.19.0
-  # firebase_core: ^3.15.2
-  # firebase_auth: ^5.7.0
-  # firebase_app_check: ^0.3.2+10
-  # google_sign_in: ^6.3.0
-  # cloud_firestore: ^5.5.0
+  meta: ^1.17.0 
+  intl: ^0.19.0
+  cloud_firestore: ^6.1.0
+  firebase_core: ^4.2.1
+  firebase_app_check: ^0.4.1+2
+  google_sign_in: ^7.2.0
+  firebase_auth: ^6.1.2
+  flutter:
+    sdk: flutter
+
+
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
-  
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
@@ -32,6 +34,12 @@ flutter:
     - assets/images/Logo Google.png
     - assets/images/Logo HealthyGo.png
     - assets/images/Logo NutriLink.png
+    - assets/images/Seafood.png
+    - assets/images/Fish.png
+    - assets/images/Shrimp.png
+    - assets/images/Beef.png
+    - assets/images/Chicken.png
+
 
   fonts:
     - family: Funnel Display
