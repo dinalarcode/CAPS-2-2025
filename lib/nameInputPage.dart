@@ -54,18 +54,16 @@ class _NameInputPageState extends State<NameInputPage> {
     super.dispose();
   }
 
-  // 🔥 WAJIB: kembali ke halaman Terms
-  void _backToTerms() {
-    // Sederhana: pop saja untuk kembali ke halaman sebelumnya
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
-    } else {
-      // Fallback: jika tidak bisa pop, gunakan pushReplacementNamed
-      Navigator.pushReplacementNamed(context, '/terms');
-    }
+  // 👉 Back: balik ke /terms (aman, nggak tergantung stack)
+  void _back() {
+    Navigator.pushReplacementNamed(
+      context,
+      '/terms',
+      arguments: draft,
+    );
   }
 
-  // Lanjut
+  // 👉 Lanjut ke Target Selection
   void _next() {
     if (!_formKey.currentState!.validate()) return;
 
@@ -95,20 +93,10 @@ class _NameInputPageState extends State<NameInputPage> {
         body: SafeArea(
           child: Stack(
             children: [
-              // 🟩 PANAH BACK — sekarang berfungsi ke Terms
-              Positioned(
-                left: 8,
-                top: 0,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.black),
-                  onPressed: _backToTerms,
-                ),
-              ),
-
-              // 🟦 FORM
+              // 🟦 FORM (letakkan duluan)
               Positioned.fill(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 55, 24, 130),
+                  padding: const EdgeInsets.fromLTRB(24, 60, 24, 130),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -219,7 +207,7 @@ class _NameInputPageState extends State<NameInputPage> {
                 ),
               ),
 
-              // 🟨 TOMBOL LANJUT
+              // 🟨 TOMBOL LANJUT (gradient hijau)
               Positioned(
                 left: 0,
                 right: 0,
@@ -231,6 +219,20 @@ class _NameInputPageState extends State<NameInputPage> {
                     enabled: _valid,
                     onPressed: _next,
                   ),
+                ),
+              ),
+
+              // 🔙 PANAH BACK — DITARUH PALING AKHIR BIAR DI ATAS SEMUA
+              Positioned(
+                left: 12,
+                top: 10,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.black87,
+                    size: 24,
+                  ),
+                  onPressed: _back,
                 ),
               ),
             ],

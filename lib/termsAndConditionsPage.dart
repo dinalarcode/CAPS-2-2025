@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nutrilink/termsAndConditionsDetailPage.dart';
+import 'package:nutrilink/models/user_profile_draft.dart';
 
 class TermsAndConditionsPage extends StatelessWidget {
   const TermsAndConditionsPage({super.key});
@@ -79,7 +80,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ),
                 ),
 
-                // Paragraf (pakai Text.rich agar bisa bold bagian tertentu)
+                // Paragraf
                 Positioned(
                   left: fx(51.26),
                   top: fy(206.37),
@@ -143,7 +144,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ),
                 ),
 
-                // Link "Syarat & Ketentuan" → buka modal detail
+                // Link "Syarat & Ketentuan" → modal detail
                 Positioned(
                   left: fx(49.25),
                   top: fy(667.13),
@@ -189,8 +190,14 @@ class TermsAndConditionsPage extends StatelessWidget {
                   height: fh(31.80),
                   child: GradientHoverButton(
                     text: 'Ya, Saya setuju',
-                    onPressed: () =>
-                        Navigator.pushNamed(context, '/name-input'),
+                    onPressed: () {
+                      debugPrint('📍 Navigating from Terms to Name-Input');
+                      Navigator.pushNamed(
+                        context,
+                        '/name-input',
+                        arguments: UserProfileDraft(),
+                      );
+                    },
                     idleBorderColor: gray,
                     idleFillColor: Colors.white,
                     idleTextColor: Colors.black,
@@ -199,7 +206,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ),
                 ),
 
-                // Tombol "TIDAK" -> balik ke WelcomePage
+                // Tombol "TIDAK" -> balik ke halaman sebelumnya
                 Positioned(
                   left: fx(69.35),
                   top: fy(769.32),
@@ -224,7 +231,7 @@ class TermsAndConditionsPage extends StatelessWidget {
   }
 }
 
-// Tombol Gradient Hover + Press (mirip InteractiveButton di WelcomePage)
+// Tombol Gradient Hover
 class GradientHoverButton extends StatefulWidget {
   final String text;
   final VoidCallback onPressed;

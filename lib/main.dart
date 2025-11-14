@@ -15,8 +15,8 @@ import 'package:nutrilink/welcomePage.dart' as welcome;
 import 'package:nutrilink/homePage.dart' as home;
 import 'package:nutrilink/loginPage.dart' as login;
 import 'package:nutrilink/registerPage.dart' as register;
-import 'package:nutrilink/termsAndConditionsPage.dart' as terms;
 
+import 'package:nutrilink/termsAndConditionsPage.dart' as terms;
 import 'package:nutrilink/nameInputPage.dart' as name_input;
 import 'package:nutrilink/targetSelectionPage.dart' as target_sel;
 import 'package:nutrilink/healthGoalPage.dart' as health_goal;
@@ -42,44 +42,53 @@ const bool useDebugAppCheck =
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase init
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // App Check
-  await FirebaseAppCheck.instance.activate(
-    webProvider: ReCaptchaV3Provider(kRecaptchaV3SiteKey),
-    // kalau mau nanti: providerAndroid: ...
-  );
-  await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
-
-  // Warm-up token (boleh kamu buang kalau nggak perlu debug)
-  try {
-    final token = await FirebaseAppCheck.instance.getToken();
-    if (token != null && token.isNotEmpty) {
-      debugPrint('AppCheck token (preview): ${token.substring(0, 10)}...');
-    }
-  } catch (e) {
-    debugPrint('AppCheck warmup error: $e');
-  }
-
   // Global error handler
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
+    debugPrint('FLUTTER ERROR: ${details.exception}');
   };
   PlatformDispatcher.instance.onError = (error, stack) {
     debugPrint('UNCAUGHT PLATFORM ERROR: $error\n$stack');
     return true;
   };
 
-  // Sembunyikan system UI (fullscreen) di mobile
+  try {
+    // Firebase init
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    // App Check
+    if (kIsWeb) {
+      await FirebaseAppCheck.instance.activate(
+        webProvider: ReCaptchaV3Provider(kRecaptchaV3SiteKey),
+      );
+    } else {
+      await FirebaseAppCheck.instance.activate();
+    }
+
+    await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
+
+    // Warm-up token (opsional)
+    try {
+      final token = await FirebaseAppCheck.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        debugPrint('AppCheck token (preview): ${token.substring(0, 10)}...');
+      }
+    } catch (e, st) {
+      debugPrint('AppCheck warmup error: $e\n$st');
+    }
+
+    // Locale
+    await initializeDateFormatting('id', null);
+  } catch (e, st) {
+    debugPrint('INIT ERROR (Firebase / AppCheck / Intl): $e\n$st');
+  }
+
+  // Fullscreen di mobile
   if (!kIsWeb) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
-
-  // Init locale untuk DateFormat('...', 'id')
-  await initializeDateFormatting('id', null);
 
   runApp(const NutriLinkApp());
 }
@@ -104,11 +113,11 @@ class NutriLinkApp extends StatelessWidget {
         ),
       ),
 
-      // ⬇️ PENTING: ini route awal
       initialRoute: '/welcome',
 
       routes: {
         '/welcome': (_) => const welcome.WelcomePage(),
+        // ⬇️ ini sekarang pakai class langsung, TANPA prefix
         '/terms': (_) => const terms.TermsAndConditionsPage(),
         '/login': (_) => const login.LoginPage(),
         '/register': (_) => const register.RegisterPage(),

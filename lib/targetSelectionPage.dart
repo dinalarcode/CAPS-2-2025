@@ -46,6 +46,19 @@ class _TargetSelectionPageState extends State<TargetSelectionPage> {
     }
   }
 
+  void _updateSelection(TargetChoice choice) {
+    setState(() => selected = choice);
+
+    // Langsung simpan ke draft + Firebase (via helper)
+    draft.target = switch (choice) {
+      TargetChoice.lose => 'Menurunkan berat badan',
+      TargetChoice.maintain => 'Menjaga berat badan',
+      TargetChoice.gain => 'Menaikkan berat badan',
+    };
+
+    saveDraft(context, draft);
+  }
+
   void _backToName() {
     Navigator.pushReplacementNamed(context, '/name-input');
   }
@@ -53,15 +66,21 @@ class _TargetSelectionPageState extends State<TargetSelectionPage> {
   void _next() {
     if (selected == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pilih salah satu target terlebih dahulu.')),
+        const SnackBar(
+          content: Text('Pilih salah satu target terlebih dahulu.'),
+        ),
       );
       return;
     }
+
+    // draft.target sudah di-set di _updateSelection, tapi kita pastikan lagi
     draft.target = switch (selected!) {
       TargetChoice.lose => 'Menurunkan berat badan',
       TargetChoice.maintain => 'Menjaga berat badan',
       TargetChoice.gain => 'Menaikkan berat badan',
     };
+
+    saveDraft(context, draft);
     next(context, '/health-goal', draft);
   }
 
@@ -75,63 +94,83 @@ class _TargetSelectionPageState extends State<TargetSelectionPage> {
             // ======= KONTEN UTAMA =======
             Positioned.fill(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 56, 24, 120),
+                // Samain padding dengan NameInputPage
+                padding: const EdgeInsets.fromLTRB(24, 60, 24, 130),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Heading
+                    // Heading (ukuran & weight sama dengan NameInputPage)
                     RichText(
                       text: const TextSpan(
                         style: TextStyle(
                           fontFamily: 'Funnel Display',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
                           color: Colors.black,
                         ),
                         children: [
+                          TextSpan(text: 'Apa '),
                           TextSpan(
-                            text: 'Saya di sini untuk',
+                            text: 'tujuan utama',
                             style: TextStyle(color: kGreen),
                           ),
-                          TextSpan(text: ':'),
+                          TextSpan(text: ' kamu dengan NutriLink?'),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
+
                     const Text(
                       'Kita akan menggunakannya untuk mempersonalisasikan aplikasi NutriLink untuk kamu.',
                       style: TextStyle(
                         fontFamily: 'Funnel Display',
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: kGreyText,
                       ),
                     ),
                     const SizedBox(height: 24),
 
+                    const Text(
+                      'Pilih target utamamu',
+                      style: TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: kLightGreyText,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
                     // ==== PILIHAN TARGET ====
                     _ChoiceRow(
                       text: 'Menurunkan berat badan',
                       selected: selected == TargetChoice.lose,
-                      onTap: () => setState(() => selected = TargetChoice.lose),
+                      onTap: () => _updateSelection(TargetChoice.lose),
                     ),
                     const SizedBox(height: 16),
                     _ChoiceRow(
                       text: 'Menjaga berat badan',
                       selected: selected == TargetChoice.maintain,
-                      onTap: () => setState(() => selected = TargetChoice.maintain),
+                      onTap: () => _updateSelection(TargetChoice.maintain),
                     ),
                     const SizedBox(height: 16),
                     _ChoiceRow(
                       text: 'Menaikkan berat badan',
                       selected: selected == TargetChoice.gain,
-                      onTap: () => setState(() => selected = TargetChoice.gain),
+                      onTap: () => _updateSelection(TargetChoice.gain),
                     ),
                     const SizedBox(height: 32),
+
                     const Center(
                       child: Text(
                         'Pilih salah satu untuk melanjutkan',
-                        style: TextStyle(color: kLightGreyText, fontSize: 12),
+                        style: TextStyle(
+                          color: kLightGreyText,
+                          fontSize: 12,
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -139,49 +178,25 @@ class _TargetSelectionPageState extends State<TargetSelectionPage> {
               ),
             ),
 
-            // ======= FOOTER =======
+            // ======= FOOTER: tombol LANJUT (gradient hijau, sama kayak NameInput) =======
             Positioned(
               left: 0,
               right: 0,
-              bottom: 12,
+              bottom: 16,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: HoverButton(
-                        text: 'Kembali',
-                        onPressed: _backToName,
-                        borderColor: kDisabledGrey,
-                        hoverColor: kGreen,
-                        baseFillColor: kBaseGreyFill,
-                        baseTextColor: Colors.black54,
-                        enabled: true,
-                        filledWhenEnabled: false,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: HoverButton(
-                        text: 'Lanjut',
-                        onPressed: (selected != null) ? _next : () {},
-                        borderColor: (selected != null) ? kGreen : kDisabledGrey,
-                        hoverColor: (selected != null) ? kGreenLight : kDisabledGrey,
-                        baseFillColor: (selected != null) ? kGreen : kBaseGreyFill,
-                        baseTextColor: (selected != null) ? Colors.white : Colors.black54,
-                        enabled: selected != null,
-                        filledWhenEnabled: true,
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: GradientButton(
+                  text: 'Lanjut',
+                  enabled: selected != null,
+                  onPressed: _next,
                 ),
               ),
             ),
 
-            // ======= PANAH BACK (PALING ATAS, agar bisa diklik) =======
+            // ======= PANAH BACK (posisi sama pattern NameInput) - LETAKKAN PALING AKHIR =======
             Positioned(
-              left: 4,
-              top: 0,
+              left: 12,
+              top: 10,
               child: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.black87),
                 tooltip: 'Kembali',
@@ -196,7 +211,7 @@ class _TargetSelectionPageState extends State<TargetSelectionPage> {
 }
 
 // ============================================================================
-// PILIHAN CARD
+// PILIHAN CARD (gradient hijau ketika dipilih)
 // ============================================================================
 class _ChoiceRow extends StatefulWidget {
   const _ChoiceRow({
@@ -219,12 +234,15 @@ class _ChoiceRowState extends State<_ChoiceRow> {
   @override
   Widget build(BuildContext context) {
     final bool selected = widget.selected;
-    final Color fillColor = selected
-        ? kGreen
-        : (isHovered ? kGreen.withValues(alpha: 0.08) : Colors.white);
+    final bool useGradient = selected;
+
+    final Color fallbackFill =
+        isHovered ? kGreen.withValues(alpha: 0.08) : Colors.white;
+
     final Color borderColor = selected
         ? kGreen
         : (isHovered ? kGreenLight : const Color(0xFFA9ABAD));
+
     final Color textColor = selected ? Colors.white : kLightGreyText;
 
     return MouseRegion(
@@ -233,7 +251,14 @@ class _ChoiceRowState extends State<_ChoiceRow> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
-          color: fillColor,
+          gradient: useGradient
+              ? const LinearGradient(
+                  colors: [kGreenLight, kGreen],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: useGradient ? null : fallbackFill,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: borderColor, width: 1.4),
           boxShadow: [
@@ -268,81 +293,94 @@ class _ChoiceRowState extends State<_ChoiceRow> {
 }
 
 // ============================================================================
-// HOVER BUTTON (dipakai untuk tombol Kembali / Lanjut)
+// GRADIENT BUTTON ala NameInput / Welcome (tombol "Lanjut")
 // ============================================================================
-class HoverButton extends StatefulWidget {
+class GradientButton extends StatefulWidget {
   final String text;
-  final VoidCallback onPressed;
-  final Color borderColor;
-  final Color hoverColor;
-  final Color baseFillColor;
-  final Color baseTextColor;
   final bool enabled;
-  final bool filledWhenEnabled;
+  final VoidCallback onPressed;
 
-  const HoverButton({
+  const GradientButton({
     super.key,
     required this.text,
-    required this.onPressed,
-    required this.borderColor,
-    required this.hoverColor,
-    required this.baseFillColor,
-    required this.baseTextColor,
     required this.enabled,
-    required this.filledWhenEnabled,
+    required this.onPressed,
   });
 
   @override
-  State<HoverButton> createState() => _HoverButtonState();
+  State<GradientButton> createState() => _GradientButtonState();
 }
 
-class _HoverButtonState extends State<HoverButton> {
-  bool isHovered = false;
+class _GradientButtonState extends State<GradientButton> {
+  bool hover = false;
+  bool press = false;
 
   @override
   Widget build(BuildContext context) {
-    final bool filled = widget.enabled && widget.filledWhenEnabled;
-    final Color bg = isHovered
-        ? (widget.enabled ? widget.hoverColor : widget.baseFillColor)
-        : (filled ? widget.baseFillColor : Colors.white);
-    final Color border = isHovered
-        ? (widget.enabled ? widget.hoverColor : widget.borderColor)
-        : widget.borderColor;
-    final Color fg = isHovered
-        ? (widget.enabled ? Colors.white : widget.baseTextColor)
-        : (filled ? Colors.white : widget.baseTextColor);
+    final active = widget.enabled && (hover || press);
+
+    final gradient = widget.enabled
+        ? LinearGradient(
+            colors: active
+                ? const [kGreen, kGreenLight]
+                : const [kGreenLight, kGreen],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : null;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => isHovered = true),
-      onExit: (_) => setState(() => isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: border, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF000000).withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            )
-          ],
-        ),
-        child: TextButton(
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22),
+      onEnter: (_) => setState(() => hover = true),
+      onExit: (_) => setState(() {
+        hover = false;
+        press = false;
+      }),
+      child: GestureDetector(
+        onTapDown: (_) {
+          if (widget.enabled) setState(() => press = true);
+        },
+        onTapUp: (_) {
+          if (widget.enabled) setState(() => press = false);
+        },
+        onTapCancel: () {
+          if (widget.enabled) setState(() => press = false);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: gradient,
+            color: widget.enabled ? null : kBaseGreyFill,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: widget.enabled ? kGreen : kDisabledGrey,
+              width: 2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF000000).withValues(alpha: 0.08),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
+              )
+            ],
           ),
-          onPressed: widget.onPressed,
-          child: Text(
-            widget.text,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: fg,
+          child: TextButton(
+            onPressed: widget.enabled ? widget.onPressed : null,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            child: Center(
+              child: Text(
+                widget.text,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: widget.enabled ? Colors.white : Colors.black54,
+                ),
+              ),
             ),
           ),
         ),
