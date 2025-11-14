@@ -16,6 +16,7 @@ dependencies:
   google_sign_in: ^6.3.0
   cloud_firestore: ^5.5.0
   logger: ^2.6.2
+  flutter_cupertino_datetime_picker: ^3.0.0
 
 dev_dependencies:
   flutter_test:
