@@ -2,9 +2,9 @@
     package="com.nutrilink.app">
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="nutrilink"
+        android:label="NutriLink x HealthyGo"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
         <activity
             android:name=".MainActivity"
             android:exported="true"
