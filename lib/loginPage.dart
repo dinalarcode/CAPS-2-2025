@@ -45,11 +45,12 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
     try {
-      final ok = await _ensureAppCheckToken();
-      if (!ok) {
-        throw Exception('Verifikasi keamanan (App Check) belum siap. Coba lagi.');
-      }
+      // Lanjutkan langsung ke autentikasi
 
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailC.text.trim(),
+        password: _passC.text,
+      );
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailC.text.trim(),
         password: _passC.text,
@@ -291,32 +292,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
 
                     const SizedBox(height: 8),
-                    // Info App Check
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          _appCheckReady
-                              ? Icons.verified_user
-                              : Icons.shield_outlined,
-                          color: _appCheckReady
-                              ? Colors.green
-                              : Colors.orange,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _appCheckReady
-                                ? 'Perlindungan aktif (App Check).'
-                                : (_appCheckHint ??
-                                    'Mengaktifkan perlindungan…'),
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.black54),
-                          ),
-                        ),
-                      ],
-                    ),
+                    
 
                     const SizedBox(height: 22),
 
