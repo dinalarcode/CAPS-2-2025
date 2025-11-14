@@ -91,7 +91,7 @@ class _WeightInputPageState extends State<WeightInputPage> {
     final Color inputBorderColor = isInputValid ? kGreen : Colors.black;
 
     return StepScaffold(
-      title: 'Berat Badan (kg)',
+      title: '',
       onBack: _back,
       onNext: _next,
       // Tombol SELALU AKTIF agar fungsi _next selalu dijalankan dan dapat memicu alert.
