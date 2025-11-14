@@ -12,6 +12,10 @@ class AllergyPage extends StatefulWidget {
 class _AllergyPageState extends State<AllergyPage> {
   // Menggunakan late final karena getDraft(context) perlu context
   late UserProfileDraft draft;
+  _isSelectionValid() {
+    // Validasi: minimal satu alergi harus dipilih
+    return draft.allergies.isNotEmpty;
+  }
 
   // Daftar Opsi Alergi dengan placeholder gambar (gunakan assets/images/ di proyek Anda)
   static const List<Map<String, String>> _allergyOptions = [
@@ -116,6 +120,8 @@ class _AllergyPageState extends State<AllergyPage> {
   Widget build(BuildContext context) {
     return StepScaffold(
       title: 'Alergi Makanan',
+      // Mengaktifkan/menonaktifkan tombol 'Lanjut'
+      nextEnabled: _isSelectionValid(),
       onBack: () => back(context, draft),
       // MENGHILANGKAN PARAMETER 'footer' YANG ERROR
       onNext: () {
