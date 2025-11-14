@@ -62,7 +62,7 @@ class _AllergyPageState extends State<AllergyPage> {
             ),
             boxShadow: [
               BoxShadow(
-                color: primaryColor.withOpacity(isSelected ? 0.15 : 0.05),
+                color: primaryColor.withValues(alpha: isSelected ? 0.15 : 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -86,7 +86,7 @@ class _AllergyPageState extends State<AllergyPage> {
                     filterQuality: FilterQuality.medium,
                     // Menggelapkan gambar jika tidak terpilih agar teks lebih jelas
                     colorFilter: ColorFilter.mode(
-                      Colors.black.withOpacity(isSelected ? 0.0 : 0.2),
+                      Colors.black.withValues(alpha: isSelected ? 0.0 : 0.2),
                       BlendMode.darken,
                     ),
                   ),
@@ -108,32 +108,6 @@ class _AllergyPageState extends State<AllergyPage> {
             ],
           ),
         ),
-      ),
-    );
-  }
-  
-  // --- Widget Peringatan (Hint Box) ---
-  Widget _buildHintBox() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0FFF0), // Warna latar belakang hijau sangat muda
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFD0E0D0)), // Border hijau lembut
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Icon(Icons.info_outline, color: Color(0xFF5F9C3F), size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Jika kamu tidak memiliki pantangan makanan atau alergi apapun, kamu bisa langsung klik "Lewati".',
-              style: TextStyle(fontSize: 13, color: Colors.black87),
-            ),
-          ),
-        ],
       ),
     );
   }

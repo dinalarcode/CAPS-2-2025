@@ -4,162 +4,128 @@ import 'package:nutrilink/models/user_profile_draft.dart';
 
 class EatFrequencyPage extends StatefulWidget {
   const EatFrequencyPage({super.key});
+
   @override
   State<EatFrequencyPage> createState() => _EatFrequencyPageState();
 }
 
 class _EatFrequencyPageState extends State<EatFrequencyPage> {
   late UserProfileDraft draft;
-
-  // Mendefinisikan opsi frekuensi makan
-  static const List<Map<String, dynamic>> _frequencyOptions = [
-    {
-      'label': 'Dua Kali',
-      'desc': '(Sarapan dan Makan Malam)',
-      'value': 2,
-    },
-    {
-      'label': 'Tiga Kali',
-      'desc': '(Sarapan, Makan Siang, dan Makan Malam)',
-      'value': 3,
-    },
-  ];
+  int? _selected; // jumlah makan / hari
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     draft = getDraft(context);
-    // Jika draft.eatFrequency masih null, set default ke 3x
-    if (draft.eatFrequency == null) {
-      draft.eatFrequency = 3;
-    }
+
+    // gunakan nilai dari draft kalau ada (pakai ??= untuk tutup warning prefer_conditional_assignment)
+    _selected ??= draft.eatFrequency;
   }
 
-  // Helper untuk Tombol Pilihan Vertikal
-  Widget _buildFrequencyOption(
-    BuildContext context,
-    Map<String, dynamic> option,
-  ) {
-    final isSelected = draft.eatFrequency == option['value'];
-    final primaryColor = Theme.of(context).primaryColor;
-    
-    final color = isSelected ? primaryColor : Colors.white;
-    final labelColor = isSelected ? Colors.white : Colors.black87;
-    final borderColor = isSelected ? primaryColor : Colors.grey.shade300;
+  void _onSelect(int value) {
+    setState(() {
+      _selected = value;
+    });
+  }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            draft.eatFrequency = option['value'] as int;
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isSelected ? 0.2 : 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                option['label'] as String,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: labelColor,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                option['desc'] as String,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: labelColor.withOpacity(0.8),
-                ),
-              ),
-            ],
-          ),
+  void goNext() {
+    if (_selected == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih frekuensi makan terlebih dahulu.'),
         ),
-      ),
-    );
-  }
+      );
+      return;
+    }
 
-  // Helper untuk Kotak Peringatan (Hint Box)
-  Widget _buildHintBox() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0FFF0), 
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFD0E0D0)), 
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Icon(Icons.lightbulb_outline, color: Color(0xFF5F9C3F), size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Ini akan mempengaruhi rencana nutrisi harianmu.',
-              style: TextStyle(fontSize: 13, color: Colors.black87),
-            ),
-          ),
-        ],
-      ),
-    );
+    draft.eatFrequency = _selected;
+    next(context, 'nextRouteName', draft);
   }
 
   @override
   Widget build(BuildContext context) {
+    const options = [1, 2, 3, 4, 5];
+
     return StepScaffold(
       title: 'Frekuensi Makan',
       onBack: () => back(context, draft),
-      onNext: () {
-        if (draft.eatFrequency == null) {
-           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Pilih intensitas makan Anda terlebih dahulu.')),
-          );
-          return;
-        }
-        // Navigasi ke halaman selanjutnya
-        next(context, '/sleep-schedule', draft);
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      onNext: goNext,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          const Text(
-            'Pilih intensitas makan kamu',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF5F9C3F),
-            ),
+          Text(
+            'Seberapa sering kamu biasanya makan dalam sehari?',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Pilih jam bangun dan tidur kamu Kami akan mempersonalisasikan menu makanan yang disesuaikan dengan pola tidur kamu.',
-            style: TextStyle(fontSize: 14, color: Colors.black54),
+          Text(
+            'Termasuk makan besar (sarapan, makan siang, makan malam) dan snack berat. '
+            'Jawaban ini membantu kami menyusun pola jadwal makan yang realistis buatmu.',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 24),
 
-          _buildHintBox(),
+          // List pilihan radio
+          Card(
+            elevation: 1,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                children: [
+                  ...options.map((opt) {
+                    return RadioListTile<int>(
+                      value: opt,
+                      // ignore: deprecated_member_use
+                      groupValue: _selected,
+                      // ignore: deprecated_member_use
+                      onChanged: (val) {
+                        if (val != null) _onSelect(val);
+                      },
+                      title: Text(
+                        '$opt kali / hari',
+                        style: const TextStyle(fontSize: 15),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 0,
+                      ),
+                      dense: true,
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
 
-          // List Pilihan Frekuensi (Vertical Buttons)
-          ..._frequencyOptions
-              .map((opt) => _buildFrequencyOption(context, opt))
-              .toList(),
+          // Hint kecil di bawah
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline, size: 18, color: Colors.grey),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Tenang, kamu masih bisa mengubah pengaturan ini nanti di profil. '
+                  'Untuk sekarang, pilih yang paling mendekati kebiasaanmu sehari-hari.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );

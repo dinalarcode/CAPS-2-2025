@@ -312,7 +312,7 @@ class _SmallTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.8),
+        color: color.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(

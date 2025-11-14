@@ -1,15 +1,15 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:nutrilink/models/user_profile_draft.dart';
-import 'package:nutrilink/_onb_helpers.dart'; // Mengandung helper next()
+import 'package:nutrilink/_onb_helpers.dart';
 
-// Palet (Dipertahankan)
+// Palet
 const kGreen = Color(0xFF5F9C3F);
 const kGreenLight = Color(0xFF7BB662);
 const kGreyText = Color(0xFF494949);
 const kLightGreyText = Color(0xFF888888);
 const kDisabledGrey = Color(0xFFBDBDBD);
-const kBaseGreyFill = Color(0xFFF3F3F5); // fill abu-abu lembut utk tombol default
+const kBaseGreyFill = Color(0xFFF3F3F5);
 
 class NameInputPage extends StatefulWidget {
   const NameInputPage({super.key});
@@ -22,20 +22,20 @@ class _NameInputPageState extends State<NameInputPage> {
   final _c = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   late TapGestureRecognizer _loginTap;
+
   bool _valid = false;
 
   @override
   void initState() {
     super.initState();
     _loginTap = TapGestureRecognizer()
-      // PENTING: pushNamed agar back dari Login kembali ke NameInput
       ..onTap = () => Navigator.pushNamed(context, '/login');
     _c.addListener(_onChanged);
   }
 
   void _onChanged() {
-    final v = _c.text.trim().length >= 2;
-    if (v != _valid) setState(() => _valid = v);
+    final ok = _c.text.trim().length >= 2;
+    if (ok != _valid) setState(() => _valid = ok);
   }
 
   @override
@@ -49,32 +49,30 @@ class _NameInputPageState extends State<NameInputPage> {
   @override
   void dispose() {
     _c.removeListener(_onChanged);
-    _loginTap.dispose();
     _c.dispose();
+    _loginTap.dispose();
     super.dispose();
   }
 
-  // REVISI: Mengubah pushReplacementNamed menjadi pushNamed biasa
-  // Namun, karena ini adalah langkah pertama setelah Terms, 
-  // pushReplacementNamed ke '/terms' saat kembali tidak ideal. 
-  // Kita akan biarkan kosong karena tombol back di AppBar memang dinonaktifkan.
+  // 🔥 WAJIB: kembali ke halaman Terms
   void _backToTerms() {
-    // Navigasi mundur dari NameInputPage seharusnya kembali ke Terms (jika ada).
-    // Tapi karena tombol di AppBar dinonaktifkan (onPressed: null), kita tidak perlu ini.
-    // Jika tombol 'Kembali' di footer ditekan, kita navigasi ke '/terms'.
-    Navigator.pushNamed(context, '/terms');
+    // Sederhana: pop saja untuk kembali ke halaman sebelumnya
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      // Fallback: jika tidak bisa pop, gunakan pushReplacementNamed
+      Navigator.pushReplacementNamed(context, '/terms');
+    }
   }
 
-  // REVISI UTAMA: Menggunakan helper 'next' untuk meneruskan draft
+  // Lanjut
   void _next() {
     if (!_formKey.currentState!.validate()) return;
-    
-    // 1. Simpan nama ke draft
+
     draft.name = _c.text.trim();
-    
-    // 2. Gunakan helper `next` untuk navigasi ke Target Selection
-    // Helper `next` akan memanggil pushNamed(context, route, arguments: draft)
-    next(context, '/target-selection', draft); 
+    saveDraft(context, draft);
+
+    next(context, '/target-selection', draft);
   }
 
   @override
@@ -83,9 +81,9 @@ class _NameInputPageState extends State<NameInputPage> {
       inputDecorationTheme: InputDecorationTheme(
         hintStyle: const TextStyle(color: kLightGreyText),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: kGreen, width: 1.5),
+        focusedBorder: const OutlineInputBorder(
+          borderSide: BorderSide(color: kGreen, width: 1.5),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
     );
@@ -97,21 +95,20 @@ class _NameInputPageState extends State<NameInputPage> {
         body: SafeArea(
           child: Stack(
             children: [
-              // Panah back: DITAMPILKAN tapi DISABLED 
+              // 🟩 PANAH BACK — sekarang berfungsi ke Terms
               Positioned(
                 left: 8,
                 top: 0,
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.black38),
-                  onPressed: null, // nonaktif
-                  tooltip: 'Kembali',
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: _backToTerms,
                 ),
               ),
 
-              // Konten
+              // 🟦 FORM
               Positioned.fill(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 16 + 40, 24, 120),
+                  padding: const EdgeInsets.fromLTRB(24, 55, 24, 130),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -124,18 +121,23 @@ class _NameInputPageState extends State<NameInputPage> {
                               fontSize: 22,
                               fontWeight: FontWeight.w700,
                               color: Colors.black,
-                              height: 1.25,
                             ),
                             children: [
                               TextSpan(text: 'Halo, siapa '),
-                              TextSpan(text: 'nama lengkap', style: TextStyle(color: kGreen)),
+                              TextSpan(
+                                text: 'nama lengkap',
+                                style: TextStyle(color: kGreen),
+                              ),
                               TextSpan(text: '/'),
-                              TextSpan(text: 'sapaanmu', style: TextStyle(color: kGreen)),
+                              TextSpan(
+                                text: 'sapaanmu',
+                                style: TextStyle(color: kGreen),
+                              ),
                               TextSpan(text: '?'),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
 
                         const Text(
                           'Kita akan menggunakannya untuk mempersonalisasikan aplikasi NutriLink untuk kamu.',
@@ -157,13 +159,12 @@ class _NameInputPageState extends State<NameInputPage> {
                             color: kLightGreyText,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
 
                         TextFormField(
                           controller: _c,
-                          textInputAction: TextInputAction.done,
                           decoration: const InputDecoration(
-                            hintText: 'cth: John Felix Anthony Cena / John Cena',
+                            hintText: 'cth: John Felix Cena / John Cena',
                           ),
                           validator: (v) {
                             final s = (v ?? '').trim();
@@ -178,7 +179,7 @@ class _NameInputPageState extends State<NameInputPage> {
                         const SizedBox(height: 12),
 
                         const Text(
-                          'Nama lengkap/sapaanmu bersifat privat dan hanya terlihat oleh kamu',
+                          'Nama ini hanya terlihat oleh kamu',
                           style: TextStyle(
                             fontFamily: 'Funnel Display',
                             fontSize: 10,
@@ -186,16 +187,15 @@ class _NameInputPageState extends State<NameInputPage> {
                             color: kGreyText,
                           ),
                         ),
+
                         const SizedBox(height: 24),
 
                         Center(
                           child: RichText(
-                            textAlign: TextAlign.center,
                             text: TextSpan(
                               style: const TextStyle(
                                 fontFamily: 'Funnel Display',
                                 fontSize: 12,
-                                fontWeight: FontWeight.w500,
                                 color: kGreyText,
                               ),
                               children: [
@@ -207,7 +207,7 @@ class _NameInputPageState extends State<NameInputPage> {
                                     decoration: TextDecoration.underline,
                                     fontWeight: FontWeight.w600,
                                   ),
-                                  recognizer: _loginTap, // -> pushNamed('/login')
+                                  recognizer: _loginTap,
                                 ),
                               ],
                             ),
@@ -219,43 +219,17 @@ class _NameInputPageState extends State<NameInputPage> {
                 ),
               ),
 
-              // Footer tombol (Dipertahankan)
+              // 🟨 TOMBOL LANJUT
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: 12,
+                bottom: 16,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: Row(
-                    children: [
-                      // Kembali: base abu-abu + teks muted, hover → hijau + teks putih
-                      Expanded(
-                        child: HoverButton(
-                          text: 'Kembali',
-                          onPressed: _backToTerms,
-                          borderColor: kDisabledGrey,
-                          hoverColor: kGreen,
-                          baseFillColor: kBaseGreyFill,
-                          baseTextColor: Colors.black54,
-                          enabled: true,
-                          filledWhenEnabled: false,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      // Lanjut: abu-abu saat invalid, hijau saat valid
-                      Expanded(
-                        child: HoverButton(
-                          text: 'Lanjut',
-                          onPressed: _valid ? _next : () {},
-                          borderColor: _valid ? kGreen : kDisabledGrey,
-                          hoverColor: _valid ? kGreenLight : kDisabledGrey,
-                          baseFillColor: _valid ? kGreen : kBaseGreyFill,
-                          baseTextColor: _valid ? Colors.white : Colors.black54,
-                          enabled: _valid,
-                          filledWhenEnabled: true,
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: GradientButton(
+                    text: 'Lanjut',
+                    enabled: _valid,
+                    onPressed: _next,
                   ),
                 ),
               ),
@@ -267,86 +241,85 @@ class _NameInputPageState extends State<NameInputPage> {
   }
 }
 
-/// HoverButton dengan kontrol warna dasar (non-hover) & state disabled.
-class HoverButton extends StatefulWidget {
+// 🌈 Gradient Button ala WelcomePage
+class GradientButton extends StatefulWidget {
   final String text;
-  final VoidCallback onPressed;
-  final Color borderColor;
-  final Color hoverColor;
-
-  /// Warna dasar (non-hover)
-  final Color baseFillColor;
-  final Color baseTextColor;
-
   final bool enabled;
-  final bool filledWhenEnabled;
+  final VoidCallback onPressed;
 
-  const HoverButton({
+  const GradientButton({
     super.key,
     required this.text,
+    required this.enabled,
     required this.onPressed,
-    required this.borderColor,
-    required this.hoverColor,
-    required this.baseFillColor,
-    required this.baseTextColor,
-    this.enabled = true,
-    this.filledWhenEnabled = false,
   });
 
   @override
-  State<HoverButton> createState() => _HoverButtonState();
+  State<GradientButton> createState() => _GradientButtonState();
 }
 
-class _HoverButtonState extends State<HoverButton> {
-  bool isHovered = false;
+class _GradientButtonState extends State<GradientButton> {
+  bool hover = false;
+  bool press = false;
 
   @override
   Widget build(BuildContext context) {
-    final bool hoverActive = widget.enabled && isHovered;
+    final active = widget.enabled && (hover || press);
 
-    final Color fillColor = hoverActive
-        ? widget.hoverColor
-        : widget.baseFillColor;
-
-    final Color borderColor =
-        widget.enabled ? (hoverActive ? widget.hoverColor : widget.borderColor) : kDisabledGrey;
-
-    final Color textColor =
-        hoverActive ? Colors.white : widget.baseTextColor;
+    final gradient = widget.enabled
+        ? LinearGradient(
+            colors: active
+                ? const [kGreen, kGreenLight]
+                : const [kGreenLight, kGreen],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : null;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => isHovered = true),
-      onExit: (_) => setState(() => isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        decoration: BoxDecoration(
-          color: fillColor,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: borderColor, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08), // Perbaikan: menggunakan withOpacity karena withValues tidak ada
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            )
-          ],
-        ),
-        child: TextButton(
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
+      onEnter: (_) => setState(() => hover = true),
+      onExit: (_) => setState(() {
+        hover = false;
+        press = false;
+      }),
+      child: GestureDetector(
+        onTapDown: (_) {
+          if (widget.enabled) setState(() => press = true);
+        },
+        onTapUp: (_) {
+          if (widget.enabled) setState(() => press = false);
+        },
+        onTapCancel: () {
+          if (widget.enabled) setState(() => press = false);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: gradient,
+            color: widget.enabled ? null : kBaseGreyFill,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: widget.enabled ? kGreen : kDisabledGrey,
+              width: 2,
             ),
-            foregroundColor: textColor,
           ),
-          onPressed: widget.enabled ? widget.onPressed : null,
-          child: Center(
-            child: Text(
-              widget.text,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: textColor,
+          child: TextButton(
+            onPressed: widget.enabled ? widget.onPressed : null,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            child: Center(
+              child: Text(
+                widget.text,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: widget.enabled ? Colors.white : Colors.black54,
+                ),
               ),
             ),
           ),

@@ -1,29 +1,22 @@
-import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
-// 1. Import halaman utama aplikasi
-// import 'package:nutrilink/homePage.dart'; // Ganti 'nutrilink' sesuai nama folder project kamu
-import 'package:nutrilink/meal/recomendation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:google_sign_in/google_sign_in.dart'; 
-import 'package:intl/date_symbol_data_local.dart'; // Import ini sudah benar
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'firebase_options.dart';
 
-// ── PAGES (pastikan file & class-nya ada) ─────────────────────────────────────
+// PAGES
 import 'package:nutrilink/welcomePage.dart' as welcome;
 import 'package:nutrilink/homePage.dart' as home;
 import 'package:nutrilink/loginPage.dart' as login;
+import 'package:nutrilink/registerPage.dart' as register;
 import 'package:nutrilink/termsAndConditionsPage.dart' as terms;
-import 'package:nutrilink/firestore_test.dart';
 
-// Onboarding sequence
 import 'package:nutrilink/nameInputPage.dart' as name_input;
 import 'package:nutrilink/targetSelectionPage.dart' as target_sel;
 import 'package:nutrilink/healthGoalPage.dart' as health_goal;
@@ -37,89 +30,58 @@ import 'package:nutrilink/dailyActivityPage.dart' as daily_activity;
 import 'package:nutrilink/allergyPage.dart' as allergy_page;
 import 'package:nutrilink/eatFrequencyPage.dart' as eat_freq;
 import 'package:nutrilink/sleepSchedulePage.dart' as sleep_sched;
-import 'package:nutrilink/summaryPage.dart' as summary_page; 
-import 'package:nutrilink/registerPage.dart' as register; 
+import 'package:nutrilink/summaryPage.dart' as summary_page;
+import 'package:nutrilink/firestore_test.dart';
 
-// ── reCAPTCHA v3 (Web) ───────────────────────────────────────────────────────
+// reCAPTCHA web
 const String kRecaptchaV3SiteKey = '6Lf2pQMsAAAAALiEdH2KdQ3ThKzZ2IlJQAw7HJxG';
 
-// ── Switch App Check provider (DEV=Debug, PROD=Play Integrity) ───────────────
 const bool useDebugAppCheck =
     bool.fromEnvironment('USE_DEBUG_APPCHECK', defaultValue: !kReleaseMode);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1) Init Firebase
+  // Firebase init
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // 2) App Check Activation
+  // App Check
   await FirebaseAppCheck.instance.activate(
-    // KODE ANDROID (gunakan salah satu tergantung kebutuhan)
-    // providerAndroid: 
-    //     useDebugAppCheck ? AndroidAppCheckProvider.debug : AndroidAppCheckProvider.playIntegrity,
-    
-    // PERBAIKAN NAMA PROPERTI: webProvider -> providerWeb
-    providerWeb: ReCaptchaV3Provider(kRecaptchaV3SiteKey),
+    webProvider: ReCaptchaV3Provider(kRecaptchaV3SiteKey),
+    // kalau mau nanti: providerAndroid: ...
   );
-
-  // 3) Auto-refresh token
   await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
 
-  // 4) Warm-up token (Logika dipertahankan)
+  // Warm-up token (boleh kamu buang kalau nggak perlu debug)
   try {
-    final dynamic t = await FirebaseAppCheck.instance.getToken();
-    String? value;
-    if (t is String) {
-      value = t;
-    } else if (t != null) {
-      try {
-        // ignore: avoid_dynamic_calls
-        value = (t as dynamic).token as String?;
-      } catch (_) {
-        value = null;
-      }
-    }
-    if (value != null && value.isNotEmpty) {
-      final preview = value.substring(0, value.length < 10 ? value.length : 10);
-      debugPrint('AppCheck token preview: $preview...');
-    } else {
-      debugPrint('AppCheck token: null/empty (akan dicoba ulang saat request)');
+    final token = await FirebaseAppCheck.instance.getToken();
+    if (token != null && token.isNotEmpty) {
+      debugPrint('AppCheck token (preview): ${token.substring(0, 10)}...');
     }
   } catch (e) {
     debugPrint('AppCheck warmup error: $e');
   }
 
-  // 5) Global error handler (dipertahankan)
-  FlutterError.onError = (details) => FlutterError.presentError(details);
+  // Global error handler
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
   PlatformDispatcher.instance.onError = (error, stack) {
     debugPrint('UNCAUGHT PLATFORM ERROR: $error\n$stack');
     return true;
   };
 
-void main() {
-  // Jalankan aplikasi Flutter
-  runApp(const MyApp());
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  // 6) Sembunyikan system UI di mobile
+  // Sembunyikan system UI (fullscreen) di mobile
   if (!kIsWeb) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // 7) PERBAIKAN UTAMA: Inisialisasi data lokal untuk DateFormat
-  // Error di SummaryPage karena DateFormat('...', 'id') belum siap.
+  // Init locale untuk DateFormat('...', 'id')
   await initializeDateFormatting('id', null);
-  // ──────────────────────────────────────────────────────────────────
-  
 
-  // 8) Run App dengan zone guarding
-  runZonedGuarded(() => runApp(const NutriLinkApp()), (e, s) {
-    debugPrint('UNCAUGHT ZONE ERROR: $e\n$s');
-  });
+  runApp(const NutriLinkApp());
 }
 
 class NutriLinkApp extends StatelessWidget {
@@ -133,7 +95,7 @@ class NutriLinkApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.green,
         scaffoldBackgroundColor: Colors.white,
-        fontFamily: 'Funnel Display', 
+        fontFamily: 'Funnel Display',
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           elevation: 0,
@@ -141,18 +103,18 @@ class NutriLinkApp extends StatelessWidget {
           centerTitle: true,
         ),
       ),
-      // Awal aplikasi
+
+      // ⬇️ PENTING: ini route awal
       initialRoute: '/welcome',
 
-      // Semua named routes
       routes: {
         '/welcome': (_) => const welcome.WelcomePage(),
         '/terms': (_) => const terms.TermsAndConditionsPage(),
+        '/login': (_) => const login.LoginPage(),
+        '/register': (_) => const register.RegisterPage(),
+        '/home': (_) => const home.HomePage(),
 
-      // 2. Ganti 'home' dengan halaman awal aplikasi
-      home: const HomePage(), // Pastikan ada class HomeScreen di homepage.dart
-        // ── Onboarding steps (sesuai urutan Figma) ──
-        '/name-input'     : (_) => const name_input.NameInputPage(),
+        '/name-input': (_) => const name_input.NameInputPage(),
         '/target-selection': (_) => const target_sel.TargetSelectionPage(),
         '/health-goal': (_) => const health_goal.HealthGoalPage(),
         '/challenge': (_) => const challenge.ChallengePage(),
@@ -164,17 +126,9 @@ class NutriLinkApp extends StatelessWidget {
         '/daily-activity': (_) => const daily_activity.DailyActivityPage(),
         '/allergy': (_) => const allergy_page.AllergyPage(),
         '/eat-frequency': (_) => const eat_freq.EatFrequencyPage(),
-        '/sleep-schedule': (_) => const sleep_sched.SleepSchedulePage(), 
-        
-        // Rute untuk Summary Page
-        '/summary': (_) => const summary_page.SummaryPage(), 
+        '/sleep-schedule': (_) => const sleep_sched.SleepSchedulePage(),
+        '/summary': (_) => const summary_page.SummaryPage(),
 
-        // ── Auth & app ──
-        '/register': (_) => const register.RegisterPage(), 
-        '/login': (_) => const login.LoginPage(),
-        '/home': (_) => const home.HomePage(),
-
-        // opsional
         '/firestore-test': (_) => const FirestoreTestPage(),
       },
     );

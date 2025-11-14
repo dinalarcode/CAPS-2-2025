@@ -52,7 +52,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ),
                 ),
 
-                // Tombol close (X)
+                // Tombol close (X) -> kembali ke halaman sebelumnya (WelcomePage)
                 Positioned(
                   left: fx(334.7),
                   top: fy(10),
@@ -96,20 +96,15 @@ class TermsAndConditionsPage extends StatelessWidget {
                           height: 1.4,
                         ),
                         children: [
-                          // Selamat datang (BOLD)
                           const TextSpan(
                             text: 'Selamat datang di aplikasi NutriLink x HealthyGo!\n\n',
                             style: TextStyle(fontWeight: FontWeight.w700),
                           ),
-
-                          // Kalimat pembuka
                           const TextSpan(
                             text:
                                 'Sebelum Anda melanjutkan, mohon baca Syarat & Ketentuan layanan kami dengan saksama. '
                                 'Dengan mendaftar atau menggunakan aplikasi kami, Anda menyatakan bahwa Anda telah membaca, memahami, dan setuju untuk terikat oleh ketentuan ini.\n\n',
                           ),
-
-                          // Heading: Persetujuan Pengelolaan Data Pribadi (BOLD)
                           const TextSpan(
                             text: 'Persetujuan Pengelolaan Data Pribadi\n',
                             style: TextStyle(fontWeight: FontWeight.w700),
@@ -120,8 +115,6 @@ class TermsAndConditionsPage extends StatelessWidget {
                                 'termasuk namun tidak terbatas pada informasi kesehatan (seperti tujuan diet, alergi, dan data biometrik), serta data akun Anda. '
                                 'Kami berkomitmen untuk menjaga kerahasiaan dan keamanan data Anda sesuai dengan standar yang berlaku.\n\n',
                           ),
-
-                          // Heading: Layanan dan Rekomendasi (BOLD)
                           const TextSpan(
                             text: 'Layanan dan Rekomendasi\n',
                             style: TextStyle(fontWeight: FontWeight.w700),
@@ -134,8 +127,6 @@ class TermsAndConditionsPage extends StatelessWidget {
                                 'Kami dapat memperbarui Syarat & Ketentuan ini dari waktu ke waktu. Kami akan memberitahu Anda tentang perubahan apa pun dengan memposting Syarat & Ketentuan baru di halaman ini.\n\n'
                                 'Untuk informasi lebih detail tentang ketentuan dan aplikasi kami silakan baca Syarat & Ketentuan kami dibawah ini.\n\n',
                           ),
-
-                          // Kalimat penutup + "Ya, Saya Setuju" (BOLD hanya pada frasa itu)
                           const TextSpan(text: 'Dengan menekan '),
                           const TextSpan(
                             text: '"Ya, Saya setuju"',
@@ -185,7 +176,9 @@ class TermsAndConditionsPage extends StatelessWidget {
                   top: fy(688.58),
                   width: fw(351.79),
                   height: fh(1),
-                  child: Container(color: Colors.black.withValues(alpha: 0.2)),
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.2),
+                  ),
                 ),
 
                 // Tombol "YA"
@@ -194,27 +187,32 @@ class TermsAndConditionsPage extends StatelessWidget {
                   top: fy(728.43),
                   width: fw(253.29),
                   height: fh(31.80),
-                  child: HoverButton(
+                  child: GradientHoverButton(
                     text: 'Ya, Saya setuju',
-                    onPressed: () => Navigator.pushNamed(context, '/name-input'),
-                    borderColor: gray,
-                    hoverColor: greenLight,
-                    textColor: Colors.black,
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/name-input'),
+                    idleBorderColor: gray,
+                    idleFillColor: Colors.white,
+                    idleTextColor: Colors.black,
+                    activeGradientColors: const [greenLight, green],
+                    activeTextColor: Colors.white,
                   ),
                 ),
 
-                // Tombol "TIDAK"
+                // Tombol "TIDAK" -> balik ke WelcomePage
                 Positioned(
                   left: fx(69.35),
                   top: fy(769.32),
                   width: fw(253.29),
                   height: fh(31.80),
-                  child: HoverButton(
+                  child: GradientHoverButton(
                     text: 'Tidak, Saya tidak setuju',
                     onPressed: () => Navigator.pop(context),
-                    borderColor: gray,
-                    hoverColor: green,
-                    textColor: Colors.black,
+                    idleBorderColor: gray,
+                    idleFillColor: Colors.white,
+                    idleTextColor: Colors.black,
+                    activeGradientColors: const [greenLight, green],
+                    activeTextColor: Colors.white,
                   ),
                 ),
               ],
@@ -226,67 +224,107 @@ class TermsAndConditionsPage extends StatelessWidget {
   }
 }
 
-// Tombol Hover Reusable
-class HoverButton extends StatefulWidget {
+// Tombol Gradient Hover + Press (mirip InteractiveButton di WelcomePage)
+class GradientHoverButton extends StatefulWidget {
   final String text;
   final VoidCallback onPressed;
-  final Color borderColor;
-  final Color hoverColor;
-  final Color textColor;
 
-  const HoverButton({
+  final Color idleBorderColor;
+  final Color idleFillColor;
+  final Color idleTextColor;
+
+  final List<Color> activeGradientColors;
+  final Color activeTextColor;
+
+  final double borderRadius;
+  final double borderWidth;
+  final double fontSize;
+  final FontWeight fontWeight;
+  final Duration duration;
+
+  const GradientHoverButton({
     super.key,
     required this.text,
     required this.onPressed,
-    required this.borderColor,
-    required this.hoverColor,
-    required this.textColor,
+    this.idleBorderColor = const Color(0xFFBDBDBD),
+    this.idleFillColor = Colors.white,
+    this.idleTextColor = Colors.black,
+    this.activeGradientColors = const [Color(0xFF7BB662), Color(0xFF5F9C3F)],
+    this.activeTextColor = Colors.white,
+    this.borderRadius = 8,
+    this.borderWidth = 2,
+    this.fontSize = 13,
+    this.fontWeight = FontWeight.w500,
+    this.duration = const Duration(milliseconds: 150),
   });
 
   @override
-  State<HoverButton> createState() => _HoverButtonState();
+  State<GradientHoverButton> createState() => _GradientHoverButtonState();
 }
 
-class _HoverButtonState extends State<HoverButton> {
-  bool isHovered = false;
+class _GradientHoverButtonState extends State<GradientHoverButton> {
+  bool _isHovered = false;
+  bool _isPressed = false;
+
+  void _setHovered(bool v) {
+    if (_isHovered != v) setState(() => _isHovered = v);
+  }
+
+  void _setPressed(bool v) {
+    if (_isPressed != v) setState(() => _isPressed = v);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bool active = _isHovered || _isPressed;
+
+    final Color textColor =
+        active ? widget.activeTextColor : widget.idleTextColor;
+
     return MouseRegion(
-      onEnter: (_) => setState(() => isHovered = true),
-      onExit: (_) => setState(() => isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: isHovered ? widget.hoverColor : Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isHovered ? widget.hoverColor : widget.borderColor,
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            )
-          ],
-        ),
-        child: TextButton(
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        onHighlightChanged: (v) => _setPressed(v),
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: widget.duration,
+          decoration: BoxDecoration(
+            color: active ? null : widget.idleFillColor,
+            gradient: active
+                ? LinearGradient(
+                    colors: widget.activeGradientColors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            border: Border.all(
+              color: active
+                  ? widget.activeGradientColors.first
+                  : widget.idleBorderColor,
+              width: widget.borderWidth,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-          onPressed: widget.onPressed,
           child: Center(
-            child: Text(
-              widget.text,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isHovered ? Colors.white : widget.textColor,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                widget.text,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: widget.fontSize,
+                  fontWeight: widget.fontWeight,
+                  color: textColor,
+                ),
               ),
             ),
           ),

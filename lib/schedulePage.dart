@@ -209,7 +209,6 @@ class _FullDateDisplay extends StatelessWidget {
           ),
           InkResponse(
             onTap: () {
-              // TODO: Aksi Tambah Menu
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -428,7 +427,7 @@ class _MealCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: const Color.fromARGB(255, 0, 0, 0).withOpacity(0.1),
+            color: const Color.fromARGB(255, 0, 0, 0).withValues(alpha: 0.1),
             spreadRadius: 2,
             blurRadius: 5,
             offset: const Offset(0, 3),
@@ -471,7 +470,7 @@ class _MealCard extends StatelessWidget {
                         137,
                         230,
                         98,
-                      ).withOpacity(0.2),
+                      ).withValues(alpha: 0.2),
                       highlightColor: Colors.transparent,
                       containedInkWell: true,
                       child: const Padding(
@@ -491,7 +490,6 @@ class _MealCard extends StatelessWidget {
                     shape: const CircleBorder(),
                     child: InkResponse(
                       onTap: () {
-                        // TODO: aksi notifikasi
                       },
                       radius: 20,
                       splashColor: const Color.fromARGB(
@@ -499,7 +497,7 @@ class _MealCard extends StatelessWidget {
                         137,
                         230,
                         98,
-                      ).withOpacity(0.2),
+                      ).withValues(alpha: 0.2),
                       highlightColor: Colors.transparent,
                       containedInkWell: true,
                       child: const Padding(

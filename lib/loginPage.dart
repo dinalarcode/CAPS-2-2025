@@ -1,12 +1,11 @@
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 // Asumsi path import sudah benar
 import 'package:nutrilink/termsAndConditionsDetailPage.dart';
-import 'package:nutrilink/main.dart' as auth_utils;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -26,7 +25,7 @@ class _LoginPageState extends State<LoginPage> {
   final _focusPass = FocusNode();
 
   bool _obscure = true;
-  bool _loading = false;
+  bool _loading = false; // dipakai untuk semua proses login
   bool _appCheckReady = false;
   String? _appCheckHint;
 
@@ -95,14 +94,18 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (!mounted) return;
-      // Gunakan pop() karena AuthGate akan otomatis mendeteksi login berhasil
-      // dan menavigasi ke HomePage. Pop akan menutup halaman Login ini.
-      Navigator.pop(context); 
+      // BERHASIL LOGIN → arahkan ke /home
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/home',
+        (route) => false,
+      );
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
         'invalid-email' => 'Format email tidak valid.',
         'user-disabled' => 'Akun dinonaktifkan.',
-        'user-not-found' => 'Akun belum terdaftar. Silakan daftar terlebih dahulu.',
+        'user-not-found' =>
+          'Akun belum terdaftar. Silakan daftar terlebih dahulu.',
         'wrong-password' => 'Password salah.',
         _ => 'Gagal login: ${e.message}',
       };
@@ -114,7 +117,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // --- Google Sign In (Kode diperbaiki, tetapi tombol disembunyikan sementara) ---
+  // --- Google Login (tanpa fetchSignInMethodsForEmail) ---
   Future<void> _signInWithGoogle() async {
     setState(() => _loading = true);
     try {
@@ -123,38 +126,66 @@ class _LoginPageState extends State<LoginPage> {
         throw Exception('Verifikasi keamanan (App Check) belum siap. Coba lagi.');
       }
 
-      // MEMANGGIL FUNGSI HELPER YANG DIREVISI DI main.dart
-      // final UserCredential cred = await auth_utils.signInWithGoogle();
+      UserCredential cred;
 
-      // // Logic mencegah user baru (jika diperlukan)
-      // if (cred.additionalUserInfo?.isNewUser == true) {
-      //   try {
-      //     await cred.user?.delete();
-      //   } catch (_) {}
-      //   await FirebaseAuth.instance.signOut();
-      //   if (!kIsWeb) {
-      //     try {
-      //       final g = GoogleSignIn(); 
-      //        // PERBAIKAN: Mengganti isSignedIn()
-      //       if (g.currentUser != null) { // Cara yang lebih stabil di banyak versi
-      //         await g.signOut();
-      //       } catch (_) {}
-      //   }
-      //   throw FirebaseAuthException(
-      //     code: 'user-not-found',
-      //     message: 'Akun Google ini belum terdaftar. Silakan daftar terlebih dahulu.',
-      //   );
-      // }
+      if (kIsWeb) {
+        // WEB: popup Google langsung
+        final provider = GoogleAuthProvider();
+        cred = await FirebaseAuth.instance.signInWithPopup(provider);
+      } else {
+        // ANDROID / IOS: pakai google_sign_in
+        final googleSignIn = GoogleSignIn();
+        final GoogleSignInAccount? gUser = await googleSignIn.signIn();
+        if (gUser == null) {
+          // user batal memilih akun
+          return;
+        }
+
+        final gAuth = await gUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          accessToken: gAuth.accessToken,
+          idToken: gAuth.idToken,
+        );
+
+        cred = await FirebaseAuth.instance.signInWithCredential(credential);
+      }
+
+      final isNewUser = cred.additionalUserInfo?.isNewUser ?? false;
+
+      if (isNewUser) {
+        // Tidak mengizinkan akun baru via Google
+        final user = cred.user;
+        try {
+          await user?.delete();
+        } catch (_) {
+          // kalau delete gagal (misal permission), minimal logout saja
+        }
+        await FirebaseAuth.instance.signOut();
+        _toast(
+          'Akun Google ini belum terdaftar. Silakan daftar terlebih dahulu.',
+        );
+        return;
+      }
 
       if (!mounted) return;
-      Navigator.pop(context); 
+      // BERHASIL LOGIN GOOGLE → arahkan ke /home
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/home',
+        (route) => false,
+      );
     } on FirebaseAuthException catch (e) {
-      final msg = (e.code == 'user-not-found')
-          ? 'Akun Google ini belum terdaftar. Silakan daftar terlebih dahulu.'
-          : 'Gagal login Google: ${e.message}';
+      final msg = switch (e.code) {
+        'account-exists-with-different-credential' =>
+          'Email ini sudah terhubung dengan metode login lain.',
+        'invalid-credential' => 'Kredensial Google tidak valid.',
+        'operation-not-allowed' =>
+          'Login dengan Google belum diaktifkan di Firebase.',
+        _ => 'Gagal login dengan Google: ${e.message}',
+      };
       _toast(msg);
     } catch (e) {
-      _toast('Gagal login Google: $e');
+      _toast('Gagal login dengan Google: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -185,7 +216,8 @@ class _LoginPageState extends State<LoginPage> {
   // --- UI Helpers ---
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   InputDecoration _inputDecoration(String hint) {
@@ -195,7 +227,8 @@ class _LoginPageState extends State<LoginPage> {
         color: Color(0xFFB0B0B0),
         fontFamily: 'Funnel Display',
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: gray, width: 2),
@@ -214,7 +247,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final softShadow = [
       BoxShadow(
-        color: const Color(0xFF000000).withOpacity(0.12),
+        color: const Color(0xFF000000).withValues(alpha: 0.12),
         blurRadius: 12,
         offset: const Offset(0, 6),
       )
@@ -223,7 +256,10 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Masuk Akun', style: TextStyle(fontWeight: FontWeight.w600)),
+        title: const Text(
+          'Masuk Akun',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black,
@@ -238,7 +274,8 @@ class _LoginPageState extends State<LoginPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: Form(
                 key: _formKey,
                 autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -247,14 +284,14 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     const SizedBox(height: 8),
 
-                    // Illustration (Placeholder)
+                    // Illustration
                     LayoutBuilder(
                       builder: (context, _) {
                         final w = MediaQuery.of(context).size.width;
-                        final h = (w.clamp(320.0, 480.0)) * 0.42; 
+                        final h = (w.clamp(320.0, 480.0)) * 0.42;
 
                         return Transform.translate(
-                          offset: const Offset(0, -10), 
+                          offset: const Offset(0, -10),
                           child: SizedBox(
                             height: h,
                             width: double.infinity,
@@ -263,8 +300,14 @@ class _LoginPageState extends State<LoginPage> {
                               fit: BoxFit.contain,
                               alignment: Alignment.topCenter,
                               filterQuality: FilterQuality.medium,
-                              errorBuilder: (context, error, stackTrace) => const Center(
-                                child: Icon(Icons.image_not_supported, size: 80, color: gray),
+                              errorBuilder:
+                                  (context, error, stackTrace) =>
+                                      const Center(
+                                child: Icon(
+                                  Icons.image_not_supported,
+                                  size: 80,
+                                  color: _LoginPageState.gray,
+                                ),
                               ),
                             ),
                           ),
@@ -282,23 +325,31 @@ class _LoginPageState extends State<LoginPage> {
                           fontWeight: FontWeight.w500,
                         ),
                         children: [
-                          const TextSpan(text: 'Halo, silahkan masuk dengan'),
+                          const TextSpan(
+                              text: 'Halo, silahkan masuk dengan'),
                           TextSpan(
                             text: ' akunmu.',
-                            style: TextStyle(color: green, fontWeight: FontWeight.w700),
+                            style: TextStyle(
+                              color: green,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
                     ),
 
                     const SizedBox(height: 8),
-                    // Info App Check (optional)
+                    // Info App Check
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
-                          _appCheckReady ? Icons.verified_user : Icons.shield_outlined,
-                          color: _appCheckReady ? Colors.green : Colors.orange,
+                          _appCheckReady
+                              ? Icons.verified_user
+                              : Icons.shield_outlined,
+                          color: _appCheckReady
+                              ? Colors.green
+                              : Colors.orange,
                           size: 18,
                         ),
                         const SizedBox(width: 8),
@@ -306,8 +357,10 @@ class _LoginPageState extends State<LoginPage> {
                           child: Text(
                             _appCheckReady
                                 ? 'Perlindungan aktif (App Check).'
-                                : (_appCheckHint ?? 'Mengaktifkan perlindungan…'),
-                            style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                : (_appCheckHint ??
+                                    'Mengaktifkan perlindungan…'),
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.black54),
                           ),
                         ),
                       ],
@@ -318,7 +371,12 @@ class _LoginPageState extends State<LoginPage> {
                     // Email Input
                     const Text(
                       'Masukkan email kamu',
-                      style: TextStyle(fontSize: 16, fontFamily: 'Funnel Display', fontWeight: FontWeight.w500, color: Color(0xFF888888)),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontFamily: 'Funnel Display',
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF888888),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     TextFormField(
@@ -326,7 +384,10 @@ class _LoginPageState extends State<LoginPage> {
                       textInputAction: TextInputAction.next,
                       onFieldSubmitted: (_) => _focusPass.requestFocus(),
                       keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.username, AutofillHints.email],
+                      autofillHints: const [
+                        AutofillHints.username,
+                        AutofillHints.email,
+                      ],
                       decoration: _inputDecoration('Email'),
                       validator: (v) {
                         final s = v?.trim() ?? '';
@@ -342,7 +403,12 @@ class _LoginPageState extends State<LoginPage> {
                     // Password Input
                     const Text(
                       'Masukkan password kamu',
-                      style: TextStyle(fontSize: 16, fontFamily: 'Funnel Display', fontWeight: FontWeight.w500, color: Color(0xFF888888)),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontFamily: 'Funnel Display',
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF888888),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     TextFormField(
@@ -354,12 +420,16 @@ class _LoginPageState extends State<LoginPage> {
                       autofillHints: const [AutofillHints.password],
                       decoration: _inputDecoration('Password').copyWith(
                         suffixIcon: IconButton(
-                          icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
-                          onPressed: () => setState(() => _obscure = !_obscure),
+                          icon: Icon(_obscure
+                              ? Icons.visibility_off
+                              : Icons.visibility),
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure),
                         ),
                       ),
-                      validator: (v) =>
-                          (v == null || v.isEmpty) ? 'Password wajib diisi' : null,
+                      validator: (v) => (v == null || v.isEmpty)
+                          ? 'Password wajib diisi'
+                          : null,
                     ),
 
                     // Lupa password
@@ -367,12 +437,20 @@ class _LoginPageState extends State<LoginPage> {
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: _loading ? null : _forgotPassword,
-                        child: const Text('Lupa password?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, decoration: TextDecoration.underline, color: green)),
+                        child: const Text(
+                          'Lupa password?',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                            color: green,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
 
-                    // Tombol login email
+                    // Tombol login email (gradient hijau on hover/press)
                     _ActionButton(
                       text: _loading ? 'Memproses…' : 'Masuk',
                       onPressed: _loading ? null : _loginWithEmail,
@@ -381,13 +459,14 @@ class _LoginPageState extends State<LoginPage> {
                       idleTextColor: Colors.black,
                       activeColor: greenLight,
                       activeTextColor: Colors.white,
+                      activeGradientColors: const [greenLight, green],
                       boxShadow: softShadow,
                       busy: _loading,
                     ),
-                    
-                    // --- TOMBOL GOOGLE DISEMBUINKAN SEMENTARA ---
-                    /*
+
                     const SizedBox(height: 14),
+
+                    // Tombol login dengan Google (gradient hijau on hover/press)
                     _ActionButton(
                       text: _loading ? 'Memproses…' : 'Masuk dengan Google',
                       onPressed: _loading ? null : _signInWithGoogle,
@@ -396,28 +475,50 @@ class _LoginPageState extends State<LoginPage> {
                       idleTextColor: Colors.black,
                       activeColor: greenLight,
                       activeTextColor: Colors.white,
+                      activeGradientColors: const [greenLight, green],
                       icon: Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: Image.asset('assets/images/Logo Google.png', width: 18, height: 18),
+                        child: Image.asset(
+                          'assets/images/Logo Google.png',
+                          width: 18,
+                          height: 18,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                       boxShadow: softShadow,
                       busy: _loading,
                     ),
-                    */
-                    
+
                     const SizedBox(height: 20),
 
                     // “Belum punya akun? Daftar”
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('Belum punya akun? ', style: TextStyle(fontSize: 10, fontFamily: 'Funnel Display', fontWeight: FontWeight.w500, color: Color(0xFF494949))),
+                        const Text(
+                          'Belum punya akun? ',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontFamily: 'Funnel Display',
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF494949),
+                          ),
+                        ),
                         InkWell(
                           onTap: _loading
                               ? null
-                              // Menggunakan pushNamed ke '/register' yang ada di main.dart
-                              : () => Navigator.pushNamed(context, '/register'), 
-                          child: const Text('Daftar', style: TextStyle(fontSize: 10, fontFamily: 'Funnel Display', fontWeight: FontWeight.w600, color: green, decoration: TextDecoration.underline)),
+                              : () =>
+                                  Navigator.pushNamed(context, '/terms'),
+                          child: const Text(
+                            'Daftar',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'Funnel Display',
+                              fontWeight: FontWeight.w600,
+                              color: green,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -431,7 +532,13 @@ class _LoginPageState extends State<LoginPage> {
                       child: Wrap(
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          const Text('Dengan masuk, Anda menyetujui ', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                          const Text(
+                            'Dengan masuk, Anda menyetujui ',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
                           InkWell(
                             onTap: _loading
                                 ? null
@@ -441,7 +548,15 @@ class _LoginPageState extends State<LoginPage> {
                                       builder: (_) =>
                                           const TermsAndConditionsDetailPage(),
                                     ),
-                            child: const Text('Syarat & Ketentuan', style: TextStyle(fontSize: 12, color: Color(0xFF196DFD), decoration: TextDecoration.underline, fontWeight: FontWeight.w600)),
+                            child: const Text(
+                              'Syarat & Ketentuan',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF196DFD),
+                                decoration: TextDecoration.underline,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -458,15 +573,16 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-/// Tombol interaktif (hover/press), dengan loader kecil saat busy.
+/// Tombol interaktif (hover/press) dengan gradient hijau dan loader kecil saat busy.
 class _ActionButton extends StatefulWidget {
   final String text;
   final VoidCallback? onPressed;
   final Color idleBorderColor;
   final Color idleFillColor;
   final Color idleTextColor;
-  final Color activeColor; 
+  final Color activeColor;
   final Color activeTextColor;
+  final List<Color>? activeGradientColors;
   final Widget? icon;
   final List<BoxShadow>? boxShadow;
   final bool busy;
@@ -479,6 +595,7 @@ class _ActionButton extends StatefulWidget {
     this.idleTextColor = Colors.black,
     this.activeColor = const Color(0xFF7BB662),
     this.activeTextColor = Colors.white,
+    this.activeGradientColors,
     this.icon,
     this.boxShadow,
     this.busy = false,
@@ -497,12 +614,22 @@ class _ActionButtonState extends State<_ActionButton> {
     final active = _hovered || _pressed;
     final enabled = widget.onPressed != null && !widget.busy;
 
-    final fill = (active && enabled) ? widget.activeColor : widget.idleFillColor;
-    final border =
-        (active && enabled) ? widget.activeColor : widget.idleBorderColor;
-    final textColor =
-        (active && enabled) ? widget.activeTextColor : widget.idleTextColor;
-    final opacity = enabled ? 1.0 : 0.5;
+    final bool useGradient =
+        active && enabled && widget.activeGradientColors != null;
+
+    final Color fill = (active && enabled)
+        ? widget.activeColor
+        : widget.idleFillColor;
+    final Color border = useGradient
+        ? widget.activeGradientColors!.first
+        : ((active && enabled)
+            ? widget.activeColor
+            : widget.idleBorderColor);
+    final Color textColor = (active && enabled)
+        ? widget.activeTextColor
+        : widget.idleTextColor;
+
+    final double opacity = enabled ? 1.0 : 0.5;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -516,7 +643,14 @@ class _ActionButtonState extends State<_ActionButton> {
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: fill.withOpacity(opacity),
+            color: useGradient ? null : fill.withValues(alpha: opacity),
+            gradient: useGradient
+                ? LinearGradient(
+                    colors: widget.activeGradientColors!,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: border, width: 2),
             boxShadow: widget.boxShadow,
@@ -528,11 +662,15 @@ class _ActionButtonState extends State<_ActionButton> {
                 const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black54),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.black54,
+                  ),
                 ),
                 const SizedBox(width: 8),
               ] else if (widget.icon != null) ...[
                 widget.icon!,
+                const SizedBox(width: 8),
               ],
               Text(
                 widget.text,

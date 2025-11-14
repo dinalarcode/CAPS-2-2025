@@ -79,10 +79,10 @@ class _DailyActivityPageState extends State<DailyActivityPage> {
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: primaryColor.withOpacity(0.5), width: isSelected ? 2 : 1),
+            border: Border.all(color: primaryColor.withValues(alpha: 0.5), width: isSelected ? 2 : 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isSelected ? 0.2 : 0.05),
+                color: Colors.black.withValues(alpha: isSelected ? 0.2 : 0.05),
                 blurRadius: 6,
                 offset: const Offset(0, 3),
               ),

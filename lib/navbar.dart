@@ -5,7 +5,7 @@ class CustomNavbar extends StatelessWidget {
   final Function(int) onTap;
 
   // Konstanta Warna
-  static const Color kSelectedColor = const Color(0xFF4CAF50);
+  static const Color kSelectedColor =  Color(0xFF4CAF50);
   static const Color kUnselectedColor = Color(0xFFB39B93);
   static const Color kBackgroundColor = Color(0xFFFFF2DF);
 

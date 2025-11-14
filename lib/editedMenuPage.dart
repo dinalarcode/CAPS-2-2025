@@ -159,7 +159,7 @@ class SuggestedMealsBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -181,7 +181,7 @@ class SuggestedMealsBox extends StatelessWidget {
           // List Suggestion Meals
           ...suggestionMeals.map((meal) {
             return SuggestionMealItem(meal: meal);
-          }).toList(),
+          }),
           
           const SizedBox(height: 20),
           
@@ -189,7 +189,6 @@ class SuggestedMealsBox extends StatelessWidget {
           Center(
             child: ElevatedButton.icon(
               onPressed: () {
-                // TODO: Implementasi navigasi ke halaman eksplorasi menu
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccentGreen2,
@@ -225,7 +224,6 @@ class SuggestionMealItem extends StatelessWidget {
       children: [
         InkWell(
           onTap: () {
-            // TODO: Aksi saat menu lain dipilih
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10.0),

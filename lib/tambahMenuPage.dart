@@ -141,10 +141,10 @@ class CurrentDayMealsBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: kLightYellow, 
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: kTextColor.withOpacity(0.1), width: 1.0),
+        border: Border.all(color: kTextColor.withValues(alpha: 0.1), width: 1.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 5,
             offset: const Offset(0, 3),
           ),
@@ -234,9 +234,9 @@ class CurrentMealItem extends StatelessWidget {
       padding: const EdgeInsets.only(right: 12),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: kTextColor.withOpacity(0.7)),
+          Icon(icon, size: 14, color: kTextColor.withValues(alpha: 0.7)),
           const SizedBox(width: 2),
-          Text(value, style: TextStyle(fontSize: 12, color: kTextColor.withOpacity(0.8))),
+          Text(value, style: TextStyle(fontSize: 12, color: kTextColor.withValues(alpha: 0.8))),
         ],
       ),
     );
@@ -261,7 +261,7 @@ class SuggestedMealsBox extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -340,7 +340,6 @@ class SuggestionMealItem extends StatelessWidget {
                 child: IconButton(
                   icon: const Icon(Icons.add, color: Colors.white),
                   onPressed: () {
-                    // TODO: Aksi untuk menambahkan menu ke jadwal
                   },
                 ),
               ),
