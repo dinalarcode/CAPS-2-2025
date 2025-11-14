@@ -39,12 +39,12 @@ class _EatFrequencyPageState extends State<EatFrequencyPage> {
     }
 
     draft.eatFrequency = _selected;
-    next(context, 'nextRouteName', draft);
+    next(context, '/sleep-schedule', draft);
   }
 
   @override
   Widget build(BuildContext context) {
-    const options = [1, 2, 3, 4, 5];
+    const options = [2, 3];
 
     return StepScaffold(
       title: 'Frekuensi Makan',
