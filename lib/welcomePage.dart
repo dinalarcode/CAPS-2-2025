@@ -257,15 +257,16 @@ class _InteractiveButtonState extends State<InteractiveButton> {
   Widget build(BuildContext context) {
     final bool active = _isHovered || _isPressed;
 
-    final Color fillColor =
-        active ? widget.activeColor : widget.idleFillColor;
-    final Color borderColor =
-        active ? widget.activeColor : widget.idleBorderColor;
     final Color textColor =
         active ? widget.activeTextColor : widget.idleTextColor;
 
     final bool useGradient =
         active && widget.activeGradientColors != null;
+
+    // Untuk border: gunakan warna pertama dari gradient jika aktif
+    final Color borderColor = active
+        ? (widget.activeGradientColors?.first ?? widget.activeColor)
+        : widget.idleBorderColor;
 
     return MouseRegion(
       onEnter: (_) => _setHovered(true),
@@ -278,7 +279,6 @@ class _InteractiveButtonState extends State<InteractiveButton> {
           duration: widget.duration,
           padding: widget.padding,
           decoration: BoxDecoration(
-            color: useGradient ? null : fillColor,
             gradient: useGradient
                 ? LinearGradient(
                     colors: widget.activeGradientColors!,
@@ -286,11 +286,10 @@ class _InteractiveButtonState extends State<InteractiveButton> {
                     end: Alignment.bottomRight,
                   )
                 : null,
+            color: useGradient ? null : (active ? widget.activeColor : widget.idleFillColor),
             borderRadius: BorderRadius.circular(widget.borderRadius),
             border: Border.all(
-              color: useGradient
-                  ? widget.activeGradientColors!.first
-                  : borderColor,
+              color: borderColor,
               width: widget.borderWidth,
             ),
             boxShadow: widget.boxShadow ??

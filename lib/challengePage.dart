@@ -1,6 +1,6 @@
 // lib/challengePage.dart
 import 'package:flutter/material.dart';
-import 'package:nutrilink/_onb_helpers.dart';
+import 'package:nutrilink/_onb_helpers.dart' show getDraft, saveDraft, next;
 import 'package:nutrilink/models/user_profile_draft.dart';
 
 // Palet konsisten
@@ -9,6 +9,7 @@ const Color kGreenLight = Color(0xFF7BB662);
 const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
 const Color kDisabledGrey = Color(0xFFBDBDBD);
+const Color kMutedBorderGrey = Color(0xFFA9ABAD);
 final Color kBaseGreyFill =
     const Color(0xFF000000).withValues(alpha: 0.04);
 
@@ -37,6 +38,18 @@ class _ChallengePageState extends State<ChallengePage> {
 
   // set lokal biar gampang toggle
   final Set<String> _selected = {};
+
+  // Mendapatkan teks target yang dinamis
+  String get _targetText {
+    final target = (draft.target ?? '').toLowerCase();
+    if (target.contains('menurunkan') || target == 'lose') {
+      return 'menurunkan berat badan';
+    } else if (target.contains('menaikkan') || target == 'gain') {
+      return 'menaikkan berat badan';
+    } else {
+      return 'menjaga berat badan';
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -68,7 +81,7 @@ class _ChallengePageState extends State<ChallengePage> {
         _selected.add(label);
       }
 
-      // sinkron ke draft setiap kali berubah
+      // simpan sementara di draft (belum push ke server)
       draft.challenges
         ..clear()
         ..addAll(_selected);
@@ -76,6 +89,7 @@ class _ChallengePageState extends State<ChallengePage> {
   }
 
   void _goBack() {
+    // simpan sementara sebelum balik
     saveDraft(context, draft);
     Navigator.pushReplacementNamed(context, '/health-goal');
   }
@@ -90,6 +104,7 @@ class _ChallengePageState extends State<ChallengePage> {
       return;
     }
 
+    // simpan sementara sebelum lanjut
     saveDraft(context, draft);
     next(context, '/height-input', draft);
   }
@@ -106,27 +121,36 @@ class _ChallengePageState extends State<ChallengePage> {
             // ====== KONTEN ======
             Positioned.fill(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.fromLTRB(24, 60, 24, 160),
+                padding: const EdgeInsets.fromLTRB(24, 60, 24, 160),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Judul (mirip style halaman lain)
-                    const Text(
-                      'Apa yang membuat kamu kesulitan mempertahankan berat badan?',
-                      style: TextStyle(
-                        fontFamily: 'Funnel Display',
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: kGreen,
+                    // Judul: ukuran sama seperti targetSelectionPage,
+                    // dengan target yang dinamis
+                    RichText(
+                      text: TextSpan(
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
+                        children: [
+                          const TextSpan(text: 'Apa yang membuat kamu '),
+                          TextSpan(
+                            text: 'kesulitan $_targetText',
+                            style: const TextStyle(color: kGreen),
+                          ),
+                          const TextSpan(text: '?'),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 12),
                     const Text(
                       'Pilih 3 yang paling relevan untuk kamu.',
                       style: TextStyle(
                         fontFamily: 'Funnel Display',
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: kGreyText,
                       ),
@@ -134,15 +158,16 @@ class _ChallengePageState extends State<ChallengePage> {
                     const SizedBox(height: 24),
 
                     // List pilihan
-                    ..._options.map((o) => Padding(
-                          padding:
-                              const EdgeInsets.only(bottom: 14),
-                          child: _ChallengeOptionTile(
-                            text: o,
-                            selected: _selected.contains(o),
-                            onTap: () => _toggleOption(o),
-                          ),
-                        )),
+                    ..._options.map(
+                      (o) => Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _ChallengeOptionTile(
+                          text: o,
+                          selected: _selected.contains(o),
+                          onTap: () => _toggleOption(o),
+                        ),
+                      ),
+                    ),
 
                     const SizedBox(height: 20),
 
@@ -154,11 +179,10 @@ class _ChallengePageState extends State<ChallengePage> {
                         vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xFFF5F5F5),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: kLightGreyText
-                              .withValues(alpha: 0.5),
+                          color: kMutedBorderGrey,
                           width: 1,
                         ),
                         boxShadow: [
@@ -171,8 +195,7 @@ class _ChallengePageState extends State<ChallengePage> {
                         ],
                       ),
                       child: Row(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: const [
                           Icon(
                             Icons.info_outline,
@@ -199,29 +222,41 @@ class _ChallengePageState extends State<ChallengePage> {
               ),
             ),
 
-            // ====== PANAH BACK (atas kiri, konsisten) ======
+            // ====== PANAH BACK (atas kiri, dengan background putih) ======
             Positioned(
               left: 12,
               top: 10,
-              child: IconButton(
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.black87,
-                  size: 24,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                tooltip: 'Kembali',
-                onPressed: _goBack,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.black87,
+                    size: 24,
+                  ),
+                  tooltip: 'Kembali',
+                  onPressed: _goBack,
+                ),
               ),
             ),
 
-            // ====== TOMBOL LANJUT (bawah) ======
+            // ====== TOMBOL LANJUT (bawah, tidak transparan) ======
             Positioned(
               left: 0,
               right: 0,
               bottom: 16,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: GradientButton(
                   text: 'Lanjut',
                   enabled: _nextEnabled,
@@ -249,26 +284,27 @@ class _ChallengeOptionTile extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_ChallengeOptionTile> createState() =>
-      _ChallengeOptionTileState();
+  State<_ChallengeOptionTile> createState() => _ChallengeOptionTileState();
 }
 
-class _ChallengeOptionTileState
-    extends State<_ChallengeOptionTile> {
+class _ChallengeOptionTileState extends State<_ChallengeOptionTile> {
   bool isHovered = false;
 
   @override
   Widget build(BuildContext context) {
     final bool sel = widget.selected;
 
-    final Color fill = sel
-        ? kGreen
+    final bool useGradient = sel;
+
+    final Color fallbackFill = isHovered
+        ? kGreen.withValues(alpha: 0.04)
         : Colors.white;
-    final Color border = sel
+
+    final Color borderColor = sel
         ? kGreen
-        : Colors.black87;
-    final Color textColor =
-        sel ? Colors.white : kLightGreyText;
+        : (isHovered ? kGreenLight : kMutedBorderGrey);
+
+    final Color textColor = sel ? Colors.white : kLightGreyText;
 
     return MouseRegion(
       onEnter: (_) => setState(() => isHovered = true),
@@ -276,33 +312,38 @@ class _ChallengeOptionTileState
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         decoration: BoxDecoration(
-          color: fill,
+          gradient: useGradient
+              ? const LinearGradient(
+                  colors: [kGreenLight, kGreen],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: useGradient ? null : fallbackFill,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: border,
-            width: 1.6,
+            color: borderColor,
+            width: 1.4,
           ),
           boxShadow: [
-            if (isHovered)
-              BoxShadow(
-                color: Colors.black
-                    .withValues(alpha: 0.08),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
-              ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(10),
           onTap: widget.onTap,
           child: Container(
-            height: 50,
+            height: 52,
             alignment: Alignment.center,
             child: Text(
               widget.text,
               style: TextStyle(
                 fontFamily: 'Funnel Display',
-                fontSize: 15,
+                fontSize: 16, // disamakan dengan page lain
                 fontWeight: FontWeight.w500,
                 color: textColor,
               ),
@@ -329,8 +370,7 @@ class GradientButton extends StatefulWidget {
   });
 
   @override
-  State<GradientButton> createState() =>
-      _GradientButtonState();
+  State<GradientButton> createState() => _GradientButtonState();
 }
 
 class _GradientButtonState extends State<GradientButton> {
@@ -339,8 +379,7 @@ class _GradientButtonState extends State<GradientButton> {
 
   @override
   Widget build(BuildContext context) {
-    final active =
-        widget.enabled && (hover || press);
+    final active = widget.enabled && (hover || press);
 
     final gradient = widget.enabled
         ? LinearGradient(
@@ -353,63 +392,46 @@ class _GradientButtonState extends State<GradientButton> {
         : null;
 
     return MouseRegion(
-      onEnter: (_) =>
-          setState(() => hover = true),
+      onEnter: (_) => setState(() => hover = true),
       onExit: (_) => setState(() {
         hover = false;
         press = false;
       }),
       child: GestureDetector(
         onTapDown: (_) {
-          if (widget.enabled) {
-            setState(() => press = true);
-          }
+          if (widget.enabled) setState(() => press = true);
         },
         onTapUp: (_) {
-          if (widget.enabled) {
-            setState(() => press = false);
-          }
+          if (widget.enabled) setState(() => press = false);
         },
         onTapCancel: () {
-          if (widget.enabled) {
-            setState(() => press = false);
-          }
+          if (widget.enabled) setState(() => press = false);
         },
         child: AnimatedContainer(
-          duration:
-              const Duration(milliseconds: 150),
+          duration: const Duration(milliseconds: 150),
           height: 48,
           decoration: BoxDecoration(
             gradient: gradient,
-            color: widget.enabled
-                ? null
-                : kBaseGreyFill,
-            borderRadius:
-                BorderRadius.circular(24),
+            color: widget.enabled ? null : const Color(0xFFE0E0E0),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: widget.enabled
-                  ? kGreen
-                  : kDisabledGrey,
+              color: widget.enabled ? kGreen : kDisabledGrey,
               width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF000000)
-                    .withValues(alpha: 0.08),
+                color: const Color(0xFF000000).withValues(alpha: 0.08),
                 blurRadius: 6,
                 offset: const Offset(0, 3),
-              ),
+              )
             ],
           ),
           child: TextButton(
-            onPressed: widget.enabled
-                ? widget.onPressed
-                : null,
+            onPressed: widget.enabled ? widget.onPressed : null,
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
               shape: RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(24),
               ),
             ),
             child: Center(
@@ -418,9 +440,7 @@ class _GradientButtonState extends State<GradientButton> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: widget.enabled
-                      ? Colors.white
-                      : Colors.black54,
+                  color: widget.enabled ? Colors.white : Colors.black54,
                 ),
               ),
             ),
