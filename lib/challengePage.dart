@@ -277,7 +277,7 @@ class _ChallengeOptionTileState
         duration: const Duration(milliseconds: 160),
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: border,
             width: 1.6,
