@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'firebase_options.dart';
@@ -46,23 +45,6 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
-  // App Check
-  await FirebaseAppCheck.instance.activate(
-    webProvider: ReCaptchaV3Provider(kRecaptchaV3SiteKey),
-    // kalau mau nanti: providerAndroid: ...
-  );
-  await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
-
-  // Warm-up token (boleh kamu buang kalau nggak perlu debug)
-  try {
-    final token = await FirebaseAppCheck.instance.getToken();
-    if (token != null && token.isNotEmpty) {
-      debugPrint('AppCheck token (preview): ${token.substring(0, 10)}...');
-    }
-  } catch (e) {
-    debugPrint('AppCheck warmup error: $e');
-  }
 
   // Global error handler
   FlutterError.onError = (details) {

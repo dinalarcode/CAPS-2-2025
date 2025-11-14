@@ -204,7 +204,7 @@ class _SleepSchedulePageState extends State<SleepSchedulePage> {
       title: 'Jadwal Tidur',
       onBack: () => back(context, draft),
       onNext: _goToSummary, 
-      nextText: 'Lanjut ke Ringkasan',
+      nextText: 'Lanjut',
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
