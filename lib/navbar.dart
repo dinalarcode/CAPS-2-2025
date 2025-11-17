@@ -26,31 +26,44 @@ class CustomNavbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(30),
-        topRight: Radius.circular(30),
-      ),
-      // Ganti BottomNavigationBar dengan Container dan Row
-      child: Container(
-        height: 70, // Beri tinggi yang cukup untuk ikon, teks, dan indikator
-        decoration: const BoxDecoration(
-          color: kBackgroundColor,
+    return Container(
+      decoration: BoxDecoration(
+        color: kBackgroundColor,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(30),
+          topRight: Radius.circular(30),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: _navItems.map((item) {
-            return Expanded(
-              child: InkWell(
-                onTap: () => onTap(item['index'] as int),
-                child: _buildNavItem(
-                  icon: item['icon'] as IconData,
-                  label: item['label'] as String,
-                  index: item['index'] as int,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 16,
+            offset: const Offset(0, -4), // Shadow ke atas
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(30),
+          topRight: Radius.circular(30),
+        ),
+        child: SizedBox(
+          height: 70,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: _navItems.map((item) {
+              return Expanded(
+                child: InkWell(
+                  onTap: () => onTap(item['index'] as int),
+                  child: _buildNavItem(
+                    icon: item['icon'] as IconData,
+                    label: item['label'] as String,
+                    index: item['index'] as int,
+                  ),
                 ),
-              ),
-            );
-          }).toList(),
+              );
+            }).toList(),
+          ),
         ),
       ),
     );

@@ -1,13 +1,23 @@
-// ignore: depend_on_referenced_packages
+// lib/homePage.dart
 import 'package:flutter/material.dart';
-import 'package:nutrilink/schedulePage.dart'; // Pastikan SchedulePage ada
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:nutrilink/schedulePage.dart';
 
-// --- Constants ---
-const Color kPrimaryColor = Color(0xFF54D3C5);
-const Color kBackgroundColor = Colors.white;
-const Color kTextColor = Colors.black;
-const Color kAccentGreen = Color(0xFF4CAF50); // Hijau untuk highlight
-const Color kAccentRed = Color(0xFFF44336); // Merah untuk delta negatif/avatar
+// ====== Palet warna konsisten dengan aplikasi ======
+const Color kGreen = Color(0xFF5F9C3F);
+const Color kGreenLight = Color(0xFF7BB662);
+const Color kGreyText = Color(0xFF494949);
+const Color kLightGreyText = Color(0xFF888888);
+const Color kDisabledGrey = Color(0xFFBDBDBD);
+const Color kMutedBorderGrey = Color(0xFFA9ABAD);
+const Color kYellow = Color(0xFFFFA726);
+const Color kOrange = Color(0xFFFF7043);
+const Color kRed = Color(0xFFE53935);
+const Color kBlue = Color(0xFF42A5F5);
 
 // Placeholder halaman lain (supaya _pages tidak error)
 class MealPage extends StatelessWidget {
@@ -49,13 +59,40 @@ class _HomePageState extends State<HomePage> {
   int _currentIndex = 2;
 
   // Daftar halaman yang akan ditampilkan sesuai urutan navbar
-  late final List<Widget> _pages = [
-    const SchedulePage(),     // Index 0: Schedule
-    const MealPage(),         // Index 1: Meal
-    const HomePageContent(),  // Index 2: Home (Konten utama)
-    const ReportPage(),       // Index 3: Report
-    const ProfilePage(),      // Index 4: Profile
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const SchedulePage(),     // Index 0: Schedule
+      const MealPage(),         // Index 1: Meal
+      HomePageContent(
+        onNavigateToProfile: () {
+          setState(() {
+            _currentIndex = 4;
+          });
+        },
+        onNavigateToReport: () {
+          setState(() {
+            _currentIndex = 3;
+          });
+        },
+        onNavigateToMeal: () {
+          setState(() {
+            _currentIndex = 1;
+          });
+        },
+        onNavigateToSchedule: () {
+          setState(() {
+            _currentIndex = 0;
+          });
+        },
+      ),  // Index 2: Home (Konten utama)
+      const ReportPage(),       // Index 3: Report
+      const ProfilePage(),      // Index 4: Profile
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,110 +113,601 @@ class _HomePageState extends State<HomePage> {
 // ===============================================
 // 🏡 KELAS KONTEN: HOMEPAGECONTENT (Isi Halaman Home)
 // ===============================================
-class HomePageContent extends StatelessWidget {
-  const HomePageContent({super.key});
+class HomePageContent extends StatefulWidget {
+  final VoidCallback onNavigateToProfile;
+  final VoidCallback onNavigateToReport;
+  final VoidCallback onNavigateToMeal;
+  final VoidCallback onNavigateToSchedule;
+  
+  const HomePageContent({
+    super.key,
+    required this.onNavigateToProfile,
+    required this.onNavigateToReport,
+    required this.onNavigateToMeal,
+    required this.onNavigateToSchedule,
+  });
+
+  @override
+  State<HomePageContent> createState() => _HomePageContentState();
+}
+
+class _HomePageContentState extends State<HomePageContent> {
+  Map<String, dynamic>? userData;
+  String location = 'Mengambil lokasi...';
+  bool isLoading = true;
+  List<Map<String, dynamic>> meals = [];
+  List<Map<String, dynamic>> upcomingMeals = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+    _getCurrentLocation();
+  }
+
+  Future<void> _loadMeals() async {
+    try {
+      final profile = userData?['profile'] as Map<String, dynamic>?;
+      final eatFrequency = profile?['eatFrequency'] ?? 3;
+
+      debugPrint('Loading meals with eatFrequency: $eatFrequency');
+
+      // Query ALL menus collection
+      final snapshot = await FirebaseFirestore.instance
+          .collection('menus')
+          .get();
+
+      debugPrint('Total menus fetched: ${snapshot.docs.length}');
+
+      // Get all meals and generate proper download URLs from Storage
+      final allMeals = await Future.wait(snapshot.docs.map((doc) async {
+        final data = doc.data();
+        
+        // Generate proper download URL from Storage path
+        String imageUrl = '';
+        final imagePath = data['image'] as String?;
+        
+        if (imagePath != null && imagePath.isNotEmpty) {
+          try {
+            // Extract path from URL if it's a full URL
+            String storagePath = imagePath;
+            if (imagePath.startsWith('https://storage.googleapis.com/')) {
+              // Extract: menus/1001.png from URL
+              final uri = Uri.parse(imagePath);
+              storagePath = uri.pathSegments.skip(2).join('/'); // Skip bucket name
+            }
+            
+            // Get proper download URL from Firebase Storage
+            final ref = FirebaseStorage.instance.ref(storagePath);
+            imageUrl = await ref.getDownloadURL();
+          } catch (e) {
+            debugPrint('Failed to get download URL for ${data['name']}: $e');
+          }
+        }
+
+        return {
+          'id': doc.id,
+          'name': data['name'] ?? '',
+          'type': data['type'] ?? '',
+          'tag1': data['tag1'] ?? '',
+          'tag2': data['tag2'] ?? '',
+          'tag3': data['tag3'] ?? '',
+          'calories': data['calories'] ?? 0,
+          'price': data['price'] ?? 0,
+          'image': imageUrl,
+          'description': data['description'] ?? '',
+        };
+      }));
+
+      // Filter only meals with valid download URLs
+      final mealsWithImages = allMeals.where((meal) {
+        return meal['image'] != null && (meal['image'] as String).isNotEmpty;
+      }).toList();
+
+      debugPrint('Meals with valid download URLs: ${mealsWithImages.length}');
+
+      // Separate meals by type (only with images)
+      final sarapan = mealsWithImages.where((m) => m['type'] == 'Sarapan').toList();
+      final makanSiang = mealsWithImages.where((m) => m['type'] == 'Makan Siang').toList();
+      final makanMalam = mealsWithImages.where((m) => m['type'] == 'Makan Malam').toList();
+
+      debugPrint('Sarapan meals: ${sarapan.length}');
+      debugPrint('Makan Siang meals: ${makanSiang.length}');
+      debugPrint('Makan Malam meals: ${makanMalam.length}');
+
+      // Shuffle for random selection
+      sarapan.shuffle();
+      makanSiang.shuffle();
+      makanMalam.shuffle();
+
+      // Get random meals for Rekomendasi Menu based on eatFrequency
+      List<Map<String, dynamic>> selectedMeals = [];
+      List<Map<String, dynamic>> upcomingMealsList = [];
+      
+      debugPrint('EatFrequency: $eatFrequency');
+      
+      if (eatFrequency == 2) {
+        // 2x makan: Sarapan dan Makan Malam saja
+        if (sarapan.length >= 2) {
+          selectedMeals.add(sarapan[0]);
+          upcomingMealsList.add(sarapan[1]); // Menu berbeda
+        } else if (sarapan.isNotEmpty) {
+          selectedMeals.add(sarapan[0]);
+        }
+        
+        if (makanMalam.length >= 2) {
+          selectedMeals.add(makanMalam[0]);
+          upcomingMealsList.add(makanMalam[1]); // Menu berbeda
+        } else if (makanMalam.isNotEmpty) {
+          selectedMeals.add(makanMalam[0]);
+        }
+      } else {
+        // 3x makan: Sarapan, Makan Siang, dan Makan Malam
+        if (sarapan.length >= 2) {
+          selectedMeals.add(sarapan[0]);
+          upcomingMealsList.add(sarapan[1]); // Menu berbeda
+        } else if (sarapan.isNotEmpty) {
+          selectedMeals.add(sarapan[0]);
+        }
+        
+        if (makanSiang.length >= 2) {
+          selectedMeals.add(makanSiang[0]);
+          upcomingMealsList.add(makanSiang[1]); // Menu berbeda
+        } else if (makanSiang.isNotEmpty) {
+          selectedMeals.add(makanSiang[0]);
+        }
+        
+        if (makanMalam.length >= 2) {
+          selectedMeals.add(makanMalam[0]);
+          upcomingMealsList.add(makanMalam[1]); // Menu berbeda
+        } else if (makanMalam.isNotEmpty) {
+          selectedMeals.add(makanMalam[0]);
+        }
+      }
+
+      debugPrint('Selected meals count: ${selectedMeals.length}');
+      debugPrint('Upcoming meals count: ${upcomingMealsList.length}');
+
+      // Hitung jam makan berdasarkan sleep schedule
+      final sleepSchedule = profile?['sleepSchedule'] as Map<String, dynamic>?;
+      final wakeTime = sleepSchedule?['wakeTime'] as String? ?? '06:00';
+      final sleepTime = sleepSchedule?['sleepTime'] as String? ?? '22:00';
+      
+      setState(() {
+        meals = selectedMeals;
+        upcomingMeals = upcomingMealsList.map((meal) {
+          return {
+            'time': meal['type'],
+            'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
+            'name': meal['name'],
+            'isDone': false,
+          };
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('Error loading meals: $e');
+    }
+  }
+
+  // Hitung jam makan berdasarkan waktu bangun dan tidur
+  String _calculateMealTime(String mealType, String wakeTime, String sleepTime) {
+    try {
+      final wake = TimeOfDay(
+        hour: int.parse(wakeTime.split(':')[0]),
+        minute: int.parse(wakeTime.split(':')[1]),
+      );
+      final sleep = TimeOfDay(
+        hour: int.parse(sleepTime.split(':')[0]),
+        minute: int.parse(sleepTime.split(':')[1]),
+      );
+
+      int wakeMinutes = wake.hour * 60 + wake.minute;
+      int sleepMinutes = sleep.hour * 60 + sleep.minute;
+      if (sleepMinutes < wakeMinutes) sleepMinutes += 24 * 60; // Next day
+
+      final activeHours = (sleepMinutes - wakeMinutes) / 60;
+
+      if (mealType == 'Sarapan') {
+        // 30-60 menit setelah bangun (ambil 45 menit)
+        final breakfastMinutes = wakeMinutes + 45;
+        return '${(breakfastMinutes ~/ 60).toString().padLeft(2, '0')}:${(breakfastMinutes % 60).toString().padLeft(2, '0')}';
+      } else if (mealType == 'Makan Siang') {
+        // Pertengahan jam aktif
+        final lunchMinutes = wakeMinutes + (activeHours / 2 * 60).round();
+        return '${(lunchMinutes ~/ 60).toString().padLeft(2, '0')}:${(lunchMinutes % 60).toString().padLeft(2, '0')}';
+      } else {
+        // 2.5 jam sebelum tidur
+        final dinnerMinutes = sleepMinutes - 150;
+        final hour = (dinnerMinutes ~/ 60) % 24;
+        return '${hour.toString().padLeft(2, '0')}:${(dinnerMinutes % 60).toString().padLeft(2, '0')}';
+      }
+    } catch (e) {
+      // Fallback jika parsing gagal
+      return mealType == 'Sarapan' ? '07:00' : 
+             mealType == 'Makan Siang' ? '12:00' : '18:00';
+    }
+  }
+
+  void _toggleMealDone(int index) {
+    setState(() {
+      upcomingMeals[index]['isDone'] = !upcomingMeals[index]['isDone'];
+    });
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          userData = doc.data();
+          isLoading = false;
+        });
+        // Load meals after user data is loaded
+        await _loadMeals();
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) setState(() => location = 'Lokasi tidak aktif');
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) setState(() => location = 'Izin lokasi ditolak');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => location = 'Izin lokasi ditolak permanen');
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        final place = placemarks[0];
+        // Fix: Handle null values properly
+        final city = place.subAdministrativeArea?.isNotEmpty == true 
+            ? place.subAdministrativeArea 
+            : (place.locality?.isNotEmpty == true ? place.locality : 'Unknown');
+        final province = place.administrativeArea?.isNotEmpty == true 
+            ? place.administrativeArea 
+            : 'Unknown';
+        if (mounted) {
+          setState(() {
+            location = '$city, $province';
+          });
+        }
+      } else {
+        if (mounted) setState(() => location = 'Lokasi tidak ditemukan');
+      }
+    } catch (e) {
+      debugPrint('Error getting location: $e');
+      if (mounted) setState(() => location = 'Gagal mendapatkan lokasi');
+    }
+  }
+
+  // Hitung BMI
+  double _calculateBMI() {
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    if (profile == null) return 0;
+
+    final heightCm = profile['heightCm'] as num?;
+    final weightKg = profile['weightKg'] as num?;
+
+    if (heightCm == null || weightKg == null || heightCm == 0) return 0;
+
+    final heightM = heightCm / 100;
+    return weightKg / (heightM * heightM);
+  }
+
+  // Kategori BMI
+  Map<String, dynamic> _getBMICategory(double bmi) {
+    if (bmi < 18.5) {
+      return {
+        'category': 'Underweight',
+        'color': kBlue,
+        'description': 'Berat badan kurang dari ideal, dapat meningkatkan risiko kekurangan nutrisi dan menurunkan sistem imun tubuh.',
+      };
+    } else if (bmi < 25) {
+      return {
+        'category': 'Normal',
+        'color': kGreen,
+        'description': 'Berat badan ideal dengan risiko penyakit metabolik yang rendah, pertahankan pola makan sehat dan olahraga teratur.',
+      };
+    } else if (bmi < 30) {
+      return {
+        'category': 'Overweight',
+        'color': kOrange,
+        'description': 'Berat badan sedikit melebihi ideal, berpotensi meningkatkan risiko gangguan metabolik jika tidak dikontrol.',
+      };
+    } else {
+      return {
+        'category': 'Obese',
+        'color': kRed,
+        'description': 'Berat badan jauh melebihi ideal dengan risiko tinggi terhadap penyakit jantung, diabetes, dan gangguan kesehatan serius lainnya.',
+      };
+    }
+  }
+
+  // Hitung BMR (Basal Metabolic Rate)
+  double _calculateBMR() {
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    if (profile == null) return 0;
+
+    final weightKg = (profile['weightKg'] as num?)?.toDouble() ?? 0;
+    final heightCm = (profile['heightCm'] as num?)?.toDouble() ?? 0;
+    final sex = profile['sex'] as String?;
+    final birthDate = (profile['birthDate'] as Timestamp?)?.toDate();
+
+    if (birthDate == null) return 0;
+
+    final age = DateTime.now().year - birthDate.year;
+
+    // Mifflin-St Jeor Equation
+    if (sex == 'Laki-laki' || sex == 'Male') {
+      return (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
+    } else {
+      return (10 * weightKg) + (6.25 * heightCm) - (5 * age) - 161;
+    }
+  }
+
+  // Hitung TDEE (Total Daily Energy Expenditure)
+  double _calculateTDEE() {
+    final bmr = _calculateBMR();
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    final activityLevel = profile?['activityLevel'] as String?;
+
+    const activityMultipliers = {
+      'sedentary': 1.2,
+      'lightly_active': 1.375,
+      'moderately_active': 1.55,
+      'very_active': 1.725,
+      'extremely_active_1': 1.9,
+      'extremely_active_2': 2.0,
+    };
+
+    final multiplier = activityMultipliers[activityLevel] ?? 1.2;
+    return bmr * multiplier;
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: kGreen),
+        ),
+      );
+    }
+
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    final name = profile?['name'] ?? 'User';
+    final profilePicture = profile?['profilePicture'] ?? 'assets/images/Male Avatar.png';
+    final weightKg = (profile?['weightKg'] as num?)?.toDouble() ?? 0;
+    final targetWeightKg = (profile?['targetWeightKg'] as num?)?.toDouble() ?? 0;
+    final eatFrequency = profile?['eatFrequency'] ?? 3;
+    
+    final weightDiff = weightKg - targetWeightKg;
+    final weightDiffText = weightDiff > 0 
+        ? '+${weightDiff.toStringAsFixed(1)} kg'
+        : '${weightDiff.toStringAsFixed(1)} kg';
+
+    final tdee = _calculateTDEE();
+    final bmi = _calculateBMI();
+    final bmiCategory = _getBMICategory(bmi);
+
     return Scaffold(
-      appBar: AppBar(
-        leading: const Padding(
-          padding: EdgeInsets.only(left: 10.0),
-          child: CircleAvatar(
-            backgroundColor: kAccentRed,
+      backgroundColor: Colors.white,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+                spreadRadius: 0,
+              ),
+            ],
           ),
-        ),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'John Cena',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            SizedBox(height: 2),
-            Text(
-              '2384 kcal/day (1130 kcal)',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '77,0 kg',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          child: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            surfaceTintColor: Colors.transparent,
+            leading: InkWell(
+              onTap: widget.onNavigateToProfile,
+              borderRadius: BorderRadius.circular(25),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 10.0),
+                child: CircleAvatar(
+                  backgroundImage: AssetImage(profilePicture),
+                  backgroundColor: kGreen.withValues(alpha: 0.1),
                 ),
-                Text(
-                  'Target: 65,0 kg (+12,0 kg)',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+            title: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: widget.onNavigateToProfile,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: Colors.black87,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'TDEE: ${tdee.toStringAsFixed(0)} kcal/hari',
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 12,
+                            color: kLightGreyText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
+            titleSpacing: 12,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${weightKg.toStringAsFixed(1)} kg',
+                      style: const TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      'Target: ${targetWeightKg.toStringAsFixed(1)} kg ($weightDiffText)',
+                      style: TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontSize: 12,
+                        color: weightDiff > 0 ? kOrange : kGreen,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-      body: const SingleChildScrollView(
-        padding: EdgeInsets.only(top: 10.0, bottom: 20.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.only(top: 10.0, bottom: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'Lokasi: Surabaya, Jawa Timur',
-                  style: TextStyle(color: kAccentGreen, fontSize: 13),
-                ),
-              ),
-            ),
-            SizedBox(height: 30),
-
-            // BMI Section (IMT)
-            BmiSection(),
-            SizedBox(height: 30),
-
-            // Daily Stats Section Header
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Statistik Harian',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: kTextColor,
-                    ),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on, size: 16, color: kGreen),
+                      const SizedBox(width: 4),
+                      Text(
+                        location,
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          color: kGreen,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                 ],
               ),
             ),
-            SizedBox(height: 15),
+            const SizedBox(height: 30),
+
+            // BMI Section
+            BmiSection(
+              bmi: bmi,
+              category: bmiCategory['category'],
+              color: bmiCategory['color'],
+              description: bmiCategory['description'],
+            ),
+            const SizedBox(height: 30),
+
+            // Daily Stats Section Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: InkWell(
+                onTap: widget.onNavigateToReport,
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Statistik Harian',
+                      style: TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_ios, size: 16, color: kLightGreyText),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
 
             // Daily Stats Cards
-            DailyStatsRow(),
-            SizedBox(height: 30),
+            DailyStatsRow(
+              eatFrequency: eatFrequency,
+              tdee: tdee,
+            ),
+            const SizedBox(height: 30),
 
             // Meal Cards (Horizontal Scroll)
-            MealCardsSection(),
-            SizedBox(height: 15),
+            MealCardsSection(
+              meals: meals,
+              onNavigateToMeal: widget.onNavigateToMeal,
+            ),
+            const SizedBox(height: 15),
 
             // Upcoming Meals Header & List
-            UpcomingMealsList(),
-            SizedBox(height: 30),
+            UpcomingMealsList(
+              upcomingMeals: upcomingMeals,
+              onNavigateToSchedule: widget.onNavigateToSchedule,
+              onToggleMealDone: _toggleMealDone,
+            ),
+            const SizedBox(height: 30),
           ],
         ),
       ),
-      // bottomNavigationBar di-handle oleh HomePage (StatefulWidget)
     );
   }
 }
@@ -188,102 +716,302 @@ class HomePageContent extends StatelessWidget {
 // 📈 KOMPONEN: BMI SECTION
 // ===============================================
 class BmiSection extends StatelessWidget {
-  const BmiSection({super.key});
+  final double bmi;
+  final String category;
+  final Color color;
+  final String description;
+
+  const BmiSection({
+    super.key,
+    required this.bmi,
+    required this.category,
+    required this.color,
+    required this.description,
+  });
+
+  double _getIndicatorPosition(double screenWidth) {
+    // BMI ranges: <18.5, 18.5-25, 25-30, >30
+    // Position percentages: 0-25%, 25-50%, 50-75%, 75-100%
+    if (bmi < 18.5) {
+      return (bmi / 18.5) * 0.25 * (screenWidth - 32);
+    } else if (bmi < 25) {
+      return (0.25 + ((bmi - 18.5) / 6.5) * 0.25) * (screenWidth - 32);
+    } else if (bmi < 30) {
+      return (0.50 + ((bmi - 25) / 5) * 0.25) * (screenWidth - 32);
+    } else {
+      final position = 0.75 + ((bmi - 30) / 10) * 0.25;
+      return (position > 1.0 ? 1.0 : position) * (screenWidth - 32);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '26,6',
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: kTextColor,
-                ),
-              ),
-              SizedBox(width: 5),
-              Padding(
-                padding: EdgeInsets.only(top: 8.0),
-                child: Text(
-                  'IMT saat ini',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.blue.shade200,
-                  kAccentGreen,
-                  Colors.orange.shade400,
-                  kAccentRed,
-                ],
-                stops: const [0.0, 0.4, 0.7, 1.0],
-              ),
-              borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: kMutedBorderGrey, width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
-            child: Stack(
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Positioned(
-                  left: MediaQuery.of(context).size.width * 0.55 - 16,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 4,
-                    color: kTextColor,
+                Text(
+                  bmi.toStringAsFixed(1),
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                    color: color,
                   ),
                 ),
-                const Positioned(
-                  left: 0,
-                  child: Padding(
-                    padding: EdgeInsets.all(5),
-                    child: Text(
-                      'Underweight',
-                      style: TextStyle(fontSize: 10, color: Colors.white),
-                    ),
-                  ),
-                ),
-                const Positioned(
-                  left: 100,
-                  child: Padding(
-                    padding: EdgeInsets.all(5),
-                    child: Text(
-                      'Normal',
-                      style: TextStyle(fontSize: 10, color: Colors.white),
-                    ),
-                  ),
-                ),
-                const Positioned(
-                  right: 0,
-                  child: Padding(
-                    padding: EdgeInsets.all(5),
-                    child: Text(
-                      'Obese',
-                      style: TextStyle(fontSize: 10, color: Colors.white),
-                    ),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'IMT saat ini',
+                        style: TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontSize: 14,
+                          color: kLightGreyText,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          category,
+                          style: TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Berat badan sedikit melebihi ideal, berpotensi meningkatkan risiko '
-            'gangguan metabolik jika tidak dikontrol.',
-            style: TextStyle(color: Colors.grey[700], fontSize: 12),
-          ),
-        ],
+            const SizedBox(height: 20),
+            
+            // BMI Bar dengan indicator
+            Container(
+              height: 40,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Gradient background
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          kBlue,
+                          kGreen,
+                          kOrange,
+                          kRed,
+                        ],
+                        stops: [0.0, 0.25, 0.50, 0.75],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  
+                  // Labels dengan angka
+                  Positioned(
+                    left: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Under',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          Text(
+                            '<18.5',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 8,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: (screenWidth - 32) * 0.25 + 4,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Normal',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          Text(
+                            '18.5-25',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 8,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: (screenWidth - 32) * 0.50 + 4,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Over',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          Text(
+                            '25-30',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 8,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Obese',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          Text(
+                            '>30',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 8,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  // Indicator hitam transparan (40% opacity)
+                  Positioned(
+                    left: _getIndicatorPosition(screenWidth),
+                    top: -5,
+                    bottom: -5,
+                    child: Container(
+                      width: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // Description
+            Text(
+              description,
+              style: const TextStyle(
+                fontFamily: 'Funnel Display',
+                color: kGreyText,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -293,36 +1021,48 @@ class BmiSection extends StatelessWidget {
 // 📊 KOMPONEN: DAILY STATS ROW & STAT CARD
 // ===============================================
 class DailyStatsRow extends StatelessWidget {
-  const DailyStatsRow({super.key});
+  final int eatFrequency;
+  final double tdee;
+
+  const DailyStatsRow({
+    super.key,
+    required this.eatFrequency,
+    required this.tdee,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16.0),
+    final bmr = tdee / 1.375;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
             child: StatCard(
               title: 'Makan',
-              value: '2/3 kali',
-              delta: '',
+              value: '$eatFrequency',
+              delta: 'kali/hari',
+              icon: Icons.restaurant,
             ),
           ),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           Expanded(
             child: StatCard(
-              title: 'Kalori',
-              value: '1130 kcal',
-              delta: '+680 kcal',
+              title: 'BMR',
+              value: bmr.toStringAsFixed(0),
+              delta: 'kcal/hari',
+              icon: Icons.favorite,
             ),
           ),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           Expanded(
             child: StatCard(
-              title: 'Pengeluaran',
-              value: 'Rp 82.000',
-              delta: '+Rp 42.000',
+              title: 'TDEE',
+              value: tdee.toStringAsFixed(0),
+              delta: 'kcal/hari',
+              icon: Icons.local_fire_department,
             ),
           ),
         ],
@@ -335,12 +1075,14 @@ class StatCard extends StatelessWidget {
   final String title;
   final String value;
   final String delta;
+  final IconData icon;
 
   const StatCard({
     super.key,
     required this.title,
     required this.value,
     required this.delta,
+    required this.icon,
   });
 
   @override
@@ -348,46 +1090,72 @@ class StatCard extends StatelessWidget {
     final bool hasDelta = delta.isNotEmpty;
 
     return Container(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.all(14.0),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kMutedBorderGrey.withValues(alpha: 0.3), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha: 0.05),
             spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 2),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: kGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  size: 16,
+                  color: kGreen,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 10,
+                    color: kLightGreyText,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 10),
           Text(
             value,
             style: const TextStyle(
+              fontFamily: 'Funnel Display',
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: kTextColor,
+              color: Colors.black87,
             ),
           ),
           if (hasDelta) ...[
             const SizedBox(height: 2),
             Text(
               delta,
-              style: TextStyle(
+              style: const TextStyle(
+                fontFamily: 'Funnel Display',
                 fontSize: 10,
-                color: title == 'Kalori' ? kAccentRed : kAccentGreen,
-                fontWeight: FontWeight.bold,
+                color: kLightGreyText,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -401,45 +1169,39 @@ class StatCard extends StatelessWidget {
 // 🍽️ KOMPONEN: MEAL CARDS SECTION (Horizontal Scroll)
 // ===============================================
 class MealCardsSection extends StatelessWidget {
-  const MealCardsSection({super.key});
-
-  final List<Map<String, dynamic>> meals = const [
-    {
-      'time': 'Sarapan',
-      'name': 'Caesar Salad',
-      'tag': 'Sayuran',
-      'calories': '450 kcal',
-      'price': 'Rp 47.000',
-      'imagePath': 'assets/caesar_salad.png',
-    },
-    {
-      'time': 'Makan Siang',
-      'name': 'Udang Saos Tiram',
-      'tag': 'Udang',
-      'calories': '510 kcal',
-      'price': 'Rp 42.000',
-      'imagePath': 'assets/udang_saos_tiram.png',
-    },
-    {
-      'time': 'Makan Malam',
-      'name': 'Sandwich Ayam',
-      'tag': 'Ayam',
-      'calories': '430 kcal',
-      'price': 'Rp 35.000',
-      'imagePath': 'assets/sandwich_ayam.png',
-    },
-  ];
+  final List<Map<String, dynamic>> meals;
+  final VoidCallback onNavigateToMeal;
+  
+  const MealCardsSection({
+    super.key,
+    required this.meals,
+    required this.onNavigateToMeal,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            'Rekomendasi Menu',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: InkWell(
+            onTap: onNavigateToMeal,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Rekomendasi Menu',
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, size: 16, color: kLightGreyText),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 15),
@@ -464,6 +1226,13 @@ class _MealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mealType = meal['type'] as String? ?? '';
+    final mealName = meal['name'] as String? ?? '';
+    final tag1 = meal['tag1'] as String? ?? '';
+    final calories = meal['calories'] as int? ?? 0;
+    final price = meal['price'] as int? ?? 0;
+    final imageUrl = meal['image'] as String? ?? '';
+
     return Container(
       width: 150,
       margin: const EdgeInsets.only(right: 15.0),
@@ -471,7 +1240,7 @@ class _MealCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            meal['time'] as String,
+            mealType,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           const SizedBox(height: 8),
@@ -491,81 +1260,104 @@ class _MealCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Placeholder image
-                Stack(
-                  children: [
-                    Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(10),
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'Image of ${meal['name']}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: kTextColor,
+                // Image from Firestore - 1:1 RATIO (SQUARE)
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                  child: imageUrl.isNotEmpty
+                      ? Image.network(
+                          imageUrl,
+                          height: 150,
+                          width: 150,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              height: 150,
+                              width: 150,
+                              color: Colors.grey[200],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  color: kGreen,
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            debugPrint('Error loading image: $error');
+                            return Container(
+                              height: 150,
+                              width: 150,
+                              color: Colors.grey[200],
+                              child: Center(
+                                child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          height: 150,
+                          width: 150,
+                          color: Colors.grey[200],
+                          child: Center(
+                            child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
                           ),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: kAccentGreen.withValues(alpha: 0.8),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          meal['tag'] as String,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
                 Padding(
                   padding: const EdgeInsets.all(10.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (tag1.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: kGreen.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            tag1,
+                            style: const TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 10,
+                              color: kGreen,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
                       Text(
-                        meal['name'] as String,
+                        mealName,
                         style: const TextStyle(
+                          fontFamily: 'Funnel Display',
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontSize: 13,
+                          color: Colors.black87,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 6),
                       Text(
-                        meal['calories'] as String,
+                        '$calories kcal',
                         style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
+                          fontFamily: 'Funnel Display',
+                          fontSize: 11,
+                          color: kLightGreyText,
                         ),
                       ),
-                      const Divider(height: 15),
+                      const SizedBox(height: 4),
                       Text(
-                        meal['price'] as String,
+                        'Rp ${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
                         style: const TextStyle(
+                          fontFamily: 'Funnel Display',
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: kTextColor,
+                          fontSize: 12,
+                          color: kGreen,
                         ),
                       ),
                     ],
@@ -584,28 +1376,16 @@ class _MealCard extends StatelessWidget {
 // 📅 KOMPONEN: UPCOMING MEALS LIST
 // ===============================================
 class UpcomingMealsList extends StatelessWidget {
-  const UpcomingMealsList({super.key});
-
-  final List<Map<String, dynamic>> upcomingMeals = const [
-    {
-      'time': 'Sarapan',
-      'clock': '08:00',
-      'name': 'Caesar Salad',
-      'isDone': true,
-    },
-    {
-      'time': 'Makan Siang',
-      'clock': '13:00',
-      'name': 'Udang Saos Tiram',
-      'isDone': true,
-    },
-    {
-      'time': 'Makan Malam',
-      'clock': '19:00',
-      'name': 'Sandwich Ayam',
-      'isDone': false,
-    },
-  ];
+  final List<Map<String, dynamic>> upcomingMeals;
+  final VoidCallback onNavigateToSchedule;
+  final Function(int) onToggleMealDone;
+  
+  const UpcomingMealsList({
+    super.key,
+    required this.upcomingMeals,
+    required this.onNavigateToSchedule,
+    required this.onToggleMealDone,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -614,28 +1394,38 @@ class UpcomingMealsList extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Upcoming Meals',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: kTextColor,
+          InkWell(
+            onTap: onNavigateToSchedule,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Jadwal Makan Hari Ini',
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                 ),
-              ),
-              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-            ],
+                Icon(Icons.arrow_forward_ios, size: 16, color: kLightGreyText),
+              ],
+            ),
           ),
           const SizedBox(height: 15),
           Column(
-            children: upcomingMeals.map((meal) {
+            children: upcomingMeals.asMap().entries.map((entry) {
+              final index = entry.key;
+              final meal = entry.value;
+              final isLast = index == upcomingMeals.length - 1;
+              
               return MealListItem(
                 time: meal['time'] as String,
                 clock: meal['clock'] as String,
                 name: meal['name'] as String,
                 isDone: meal['isDone'] as bool,
+                isLast: isLast,
+                onToggle: () => onToggleMealDone(index),
               );
             }).toList(),
           ),
@@ -650,43 +1440,49 @@ class MealListItem extends StatelessWidget {
   final String clock;
   final String name;
   final bool isDone;
+  final bool isLast;
+  final VoidCallback onToggle;
 
   const MealListItem({
     required this.time,
     required this.clock,
     required this.name,
     required this.isDone,
+    this.isLast = false,
+    required this.onToggle,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10.0),
+          child: Row(
             children: [
-              // Checkbox Icon
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: isDone ? Colors.transparent : Colors.grey,
-                    width: 1,
+              // Checkbox Icon - Clickable
+              GestureDetector(
+                onTap: onToggle,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isDone ? kGreen : kMutedBorderGrey,
+                      width: 1.5,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                    color: isDone ? kGreen : Colors.white,
                   ),
-                  borderRadius: BorderRadius.circular(6),
-                  color: isDone ? kAccentGreen : Colors.white,
+                  child: isDone
+                      ? const Icon(
+                          Icons.check,
+                          size: 16,
+                          color: Colors.white,
+                        )
+                      : null,
                 ),
-                child: isDone
-                    ? const Icon(
-                        Icons.check,
-                        size: 20,
-                        color: Colors.white,
-                      )
-                    : null,
               ),
               const SizedBox(width: 12),
 
@@ -698,42 +1494,60 @@ class MealListItem extends StatelessWidget {
                     Text(
                       time,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w500,
+                        fontFamily: 'Funnel Display',
+                        fontWeight: FontWeight.w600,
                         fontSize: 14,
-                        color: kTextColor,
+                        color: Colors.black87,
                       ),
                     ),
-                    Text(
-                      clock,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: kLightGreyText,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          clock,
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 12,
+                            color: kLightGreyText,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
 
               // Meal Name (Aligned Right)
-              Text(
-                name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                  color: kTextColor,
+              Flexible(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.right,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          if (time != 'Makan Malam')
-            Divider(
-              color: Colors.grey[300],
-              height: 16,
-              thickness: 1,
-              indent: 44,
-            ),
-        ],
-      ),
+        ),
+        if (!isLast)
+          Divider(
+            color: kMutedBorderGrey.withValues(alpha: 0.3),
+            height: 1,
+            thickness: 1,
+          ),
+      ],
     );
   }
 }
@@ -755,11 +1569,23 @@ class CustomNavbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
-      selectedItemColor: kAccentGreen,
-      unselectedItemColor: Colors.grey,
+      selectedItemColor: kGreen,
+      unselectedItemColor: kLightGreyText,
       currentIndex: currentIndex,
       onTap: onTap,
       showUnselectedLabels: true,
+      backgroundColor: Colors.white,
+      elevation: 8,
+      selectedLabelStyle: const TextStyle(
+        fontFamily: 'Funnel Display',
+        fontWeight: FontWeight.w600,
+        fontSize: 12,
+      ),
+      unselectedLabelStyle: const TextStyle(
+        fontFamily: 'Funnel Display',
+        fontWeight: FontWeight.w500,
+        fontSize: 11,
+      ),
       items: const [
         BottomNavigationBarItem(
           icon: Icon(Icons.access_time),

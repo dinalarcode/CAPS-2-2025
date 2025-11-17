@@ -197,10 +197,27 @@ class _TargetSelectionPageState extends State<TargetSelectionPage> {
             Positioned(
               left: 12,
               top: 10,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                tooltip: 'Kembali',
-                onPressed: _backToName,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.black87,
+                    size: 24,
+                  ),
+                  tooltip: 'Kembali',
+                  onPressed: _backToName,
+                ),
               ),
             ),
           ],
