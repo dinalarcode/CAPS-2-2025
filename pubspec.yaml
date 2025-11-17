@@ -15,6 +15,7 @@ dependencies:
   # Util
   intl: ^0.20.2
   logger: ^2.6.2
+  shared_preferences: ^2.3.3
 
   # Firebase (versi sudah generasi baru, keep konsisten)
   firebase_core: ^4.2.1

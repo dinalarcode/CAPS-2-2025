@@ -6,6 +6,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:nutrilink/schedulePage.dart';
+import 'package:nutrilink/navbar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 // ====== Palet warna konsisten dengan aplikasi ======
 const Color kGreen = Color(0xFF5F9C3F);
@@ -137,6 +140,7 @@ class _HomePageContentState extends State<HomePageContent> {
   bool isLoading = true;
   List<Map<String, dynamic>> meals = [];
   List<Map<String, dynamic>> upcomingMeals = [];
+  String? cachedDate;
 
   @override
   void initState() {
@@ -147,6 +151,52 @@ class _HomePageContentState extends State<HomePageContent> {
 
   Future<void> _loadMeals() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toString().split(' ')[0]; // Format: YYYY-MM-DD
+      
+      // Check if we have cached data for today
+      final cachedMealsJson = prefs.getString('cached_meals_$today');
+      final cachedUpcomingJson = prefs.getString('cached_upcoming_$today');
+      
+      if (cachedMealsJson != null && cachedUpcomingJson != null) {
+        debugPrint('✅ Loading meals from cache for $today');
+        
+        final List<dynamic> cachedMealsList = json.decode(cachedMealsJson);
+        final List<dynamic> cachedUpcomingList = json.decode(cachedUpcomingJson);
+        
+        // Debug: Check if calories field exists in cached data
+        if (cachedUpcomingList.isNotEmpty) {
+          final firstMeal = cachedUpcomingList[0] as Map<String, dynamic>;
+          if (!firstMeal.containsKey('calories')) {
+            debugPrint('⚠️ Old cache format detected (missing calories field), clearing cache...');
+            await prefs.remove('cached_meals_$today');
+            await prefs.remove('cached_upcoming_$today');
+            // Don't return, let it reload from Firestore
+          } else {
+            debugPrint('   Sample meal from cache: ${firstMeal['name']} - ${firstMeal['calories']} kcal');
+            if (mounted) {
+              setState(() {
+                meals = cachedMealsList.cast<Map<String, dynamic>>();
+                upcomingMeals = cachedUpcomingList.cast<Map<String, dynamic>>();
+                cachedDate = today;
+              });
+            }
+            return;
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              meals = cachedMealsList.cast<Map<String, dynamic>>();
+              upcomingMeals = cachedUpcomingList.cast<Map<String, dynamic>>();
+              cachedDate = today;
+            });
+          }
+          return;
+        }
+      }
+      
+      debugPrint('📥 No cache found for $today, loading from Firestore...');
+      
       final profile = userData?['profile'] as Map<String, dynamic>?;
       final eatFrequency = profile?['eatFrequency'] ?? 3;
 
@@ -163,40 +213,59 @@ class _HomePageContentState extends State<HomePageContent> {
       final allMeals = await Future.wait(snapshot.docs.map((doc) async {
         final data = doc.data();
         
-        // Generate proper download URL from Storage path
-        String imageUrl = '';
-        final imagePath = data['image'] as String?;
-        
-        if (imagePath != null && imagePath.isNotEmpty) {
-          try {
-            // Extract path from URL if it's a full URL
-            String storagePath = imagePath;
-            if (imagePath.startsWith('https://storage.googleapis.com/')) {
-              // Extract: menus/1001.png from URL
-              final uri = Uri.parse(imagePath);
-              storagePath = uri.pathSegments.skip(2).join('/'); // Skip bucket name
-            }
-            
-            // Get proper download URL from Firebase Storage
-            final ref = FirebaseStorage.instance.ref(storagePath);
-            imageUrl = await ref.getDownloadURL();
-          } catch (e) {
-            debugPrint('Failed to get download URL for ${data['name']}: $e');
+        try {
+          // Generate proper download URL from Storage path
+          String imageUrl = '';
+          final imageField = data['image'];
+          
+          // Image field di Firestore adalah ARRAY - ambil elemen pertama
+          String? imagePath;
+          if (imageField is List && imageField.isNotEmpty) {
+            imagePath = imageField[0]?.toString();
+          } else if (imageField is String) {
+            imagePath = imageField;
           }
-        }
+          
+          if (imagePath != null && imagePath.isNotEmpty) {
+            try {
+              // Image field berisi nama file (1001.png)
+              // Tambahkan prefix "menus/" untuk path Storage
+              String storagePath = imagePath.contains('/') 
+                  ? imagePath  // Sudah ada path lengkap
+                  : 'menus/$imagePath';  // Tambahkan prefix menus/
+              
+              // Get proper download URL from Firebase Storage
+              final ref = FirebaseStorage.instance.ref(storagePath);
+              imageUrl = await ref.getDownloadURL();
+            } catch (e) {
+              debugPrint('❌ Failed to get download URL for ${data['name']}: $e');
+            }
+          }
 
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? '',
-          'type': data['type'] ?? '',
-          'tag1': data['tag1'] ?? '',
-          'tag2': data['tag2'] ?? '',
-          'tag3': data['tag3'] ?? '',
-          'calories': data['calories'] ?? 0,
-          'price': data['price'] ?? 0,
-          'image': imageUrl,
-          'description': data['description'] ?? '',
-        };
+          return {
+            'id': doc.id,
+            'name': data['name']?.toString() ?? '',
+            'type': data['type']?.toString() ?? '',
+            'tag1': (data['tags'] is List && (data['tags'] as List).isNotEmpty) 
+                ? (data['tags'] as List)[0].toString() 
+                : '',
+            'tag2': (data['tags'] is List && (data['tags'] as List).length > 1) 
+                ? (data['tags'] as List)[1].toString() 
+                : '',
+            'tag3': (data['tags'] is List && (data['tags'] as List).length > 2) 
+                ? (data['tags'] as List)[2].toString() 
+                : '',
+            'calories': data['calories'] as int? ?? 0,
+            'price': data['price'] as int? ?? 0,
+            'image': imageUrl,
+            'description': data['description']?.toString() ?? '',
+          };
+        } catch (e, stackTrace) {
+          debugPrint('❌ Error processing menu ${doc.id}: $e');
+          debugPrint('Stack trace: $stackTrace');
+          debugPrint('Data: $data');
+          rethrow;
+        }
       }));
 
       // Filter only meals with valid download URLs
@@ -273,23 +342,46 @@ class _HomePageContentState extends State<HomePageContent> {
       final wakeTime = sleepSchedule?['wakeTime'] as String? ?? '06:00';
       final sleepTime = sleepSchedule?['sleepTime'] as String? ?? '22:00';
       
-      setState(() {
-        meals = selectedMeals;
-        upcomingMeals = upcomingMealsList.map((meal) {
-          return {
-            'time': meal['type'],
-            'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
-            'name': meal['name'],
-            'isDone': false,
-          };
-        }).toList();
-      });
+      final upcomingWithTime = upcomingMealsList.map((meal) {
+        return {
+          'time': meal['type'],
+          'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
+          'name': meal['name'],
+          'calories': meal['calories'], // Tambahkan kalori
+          'isDone': false,
+        };
+      }).toList();
+      
+      // Save to cache for today
+      await prefs.setString('cached_meals_$today', json.encode(selectedMeals));
+      await prefs.setString('cached_upcoming_$today', json.encode(upcomingWithTime));
+      
+      // Clean up old cache (keep only today's cache)
+      final keys = prefs.getKeys();
+      for (final key in keys) {
+        if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_')) && 
+            !key.endsWith(today)) {
+          await prefs.remove(key);
+          debugPrint('🗑️ Removed old cache: $key');
+        }
+      }
+      
+      debugPrint('💾 Saved meals to cache for $today');
+      
+      // Check if widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          meals = selectedMeals;
+          upcomingMeals = upcomingWithTime;
+          cachedDate = today;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading meals: $e');
     }
   }
 
-  // Hitung jam makan berdasarkan waktu bangun dan tidur
+  // Hitung jam makan berdasarkan waktu bangun dan tidur (rentang waktu)
   String _calculateMealTime(String mealType, String wakeTime, String sleepTime) {
     try {
       final wake = TimeOfDay(
@@ -307,24 +399,33 @@ class _HomePageContentState extends State<HomePageContent> {
 
       final activeHours = (sleepMinutes - wakeMinutes) / 60;
 
+      String formatTime(int minutes) {
+        final hour = (minutes ~/ 60) % 24;
+        final min = minutes % 60;
+        return '${hour.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
+      }
+
       if (mealType == 'Sarapan') {
-        // 30-60 menit setelah bangun (ambil 45 menit)
-        final breakfastMinutes = wakeMinutes + 45;
-        return '${(breakfastMinutes ~/ 60).toString().padLeft(2, '0')}:${(breakfastMinutes % 60).toString().padLeft(2, '0')}';
+        // 30-60 menit setelah bangun
+        final startMinutes = wakeMinutes + 30;
+        final endMinutes = wakeMinutes + 60;
+        return '${formatTime(startMinutes)} - ${formatTime(endMinutes)}';
       } else if (mealType == 'Makan Siang') {
-        // Pertengahan jam aktif
-        final lunchMinutes = wakeMinutes + (activeHours / 2 * 60).round();
-        return '${(lunchMinutes ~/ 60).toString().padLeft(2, '0')}:${(lunchMinutes % 60).toString().padLeft(2, '0')}';
+        // Pertengahan jam aktif ± 30 menit
+        final midMinutes = wakeMinutes + (activeHours / 2 * 60).round();
+        final startMinutes = midMinutes - 30;
+        final endMinutes = midMinutes + 30;
+        return '${formatTime(startMinutes)} - ${formatTime(endMinutes)}';
       } else {
-        // 2.5 jam sebelum tidur
-        final dinnerMinutes = sleepMinutes - 150;
-        final hour = (dinnerMinutes ~/ 60) % 24;
-        return '${hour.toString().padLeft(2, '0')}:${(dinnerMinutes % 60).toString().padLeft(2, '0')}';
+        // 2-3 jam sebelum tidur
+        final startMinutes = sleepMinutes - 180; // 3 jam sebelum
+        final endMinutes = sleepMinutes - 120;   // 2 jam sebelum
+        return '${formatTime(startMinutes)} - ${formatTime(endMinutes)}';
       }
     } catch (e) {
       // Fallback jika parsing gagal
-      return mealType == 'Sarapan' ? '07:00' : 
-             mealType == 'Makan Siang' ? '12:00' : '18:00';
+      return mealType == 'Sarapan' ? '07:00 - 08:00' : 
+             mealType == 'Makan Siang' ? '12:00 - 13:00' : '18:00 - 19:00';
     }
   }
 
@@ -332,6 +433,38 @@ class _HomePageContentState extends State<HomePageContent> {
     setState(() {
       upcomingMeals[index]['isDone'] = !upcomingMeals[index]['isDone'];
     });
+    
+    // Save updated isDone status to cache
+    _saveUpcomingMealsToCache();
+  }
+  
+  Future<void> _saveUpcomingMealsToCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toString().split(' ')[0];
+      await prefs.setString('cached_upcoming_$today', json.encode(upcomingMeals));
+      debugPrint('💾 Updated upcoming meals cache with isDone status');
+    } catch (e) {
+      debugPrint('Error saving upcoming meals cache: $e');
+    }
+  }
+  
+  int _calculateConsumedCalories() {
+    int totalCalories = 0;
+    debugPrint('🔍 Calculating consumed calories from ${upcomingMeals.length} meals');
+    
+    for (var meal in upcomingMeals) {
+      final isDone = meal['isDone'] == true;
+      final calories = (meal['calories'] as int?) ?? 0;
+      debugPrint('  - ${meal['name']}: isDone=$isDone, calories=$calories');
+      
+      if (isDone) {
+        totalCalories += calories;
+      }
+    }
+    
+    debugPrint('📊 Total consumed calories: $totalCalories');
+    return totalCalories;
   }
 
   Future<void> _loadUserData() async {
@@ -523,6 +656,7 @@ class _HomePageContentState extends State<HomePageContent> {
     final tdee = _calculateTDEE();
     final bmi = _calculateBMI();
     final bmiCategory = _getBMICategory(bmi);
+    final consumedCalories = _calculateConsumedCalories();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -530,10 +664,10 @@ class _HomePageContentState extends State<HomePageContent> {
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: kGreen,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
                 spreadRadius: 0,
@@ -551,7 +685,7 @@ class _HomePageContentState extends State<HomePageContent> {
                 padding: const EdgeInsets.only(left: 10.0),
                 child: CircleAvatar(
                   backgroundImage: AssetImage(profilePicture),
-                  backgroundColor: kGreen.withValues(alpha: 0.1),
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
                 ),
               ),
             ),
@@ -570,17 +704,17 @@ class _HomePageContentState extends State<HomePageContent> {
                             fontFamily: 'Funnel Display',
                             fontWeight: FontWeight.bold,
                             fontSize: 18,
-                            color: Colors.black87,
+                            color: Colors.white,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'TDEE: ${tdee.toStringAsFixed(0)} kcal/hari',
-                          style: const TextStyle(
+                          'Konsumsi: $consumedCalories / ${tdee.toStringAsFixed(0)} kcal',
+                          style: TextStyle(
                             fontFamily: 'Funnel Display',
                             fontSize: 12,
-                            color: kLightGreyText,
+                            color: Colors.white.withValues(alpha: 0.9),
                           ),
                         ),
                       ],
@@ -603,7 +737,7 @@ class _HomePageContentState extends State<HomePageContent> {
                         fontFamily: 'Funnel Display',
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
-                        color: Colors.black87,
+                        color: Colors.white,
                       ),
                     ),
                     Text(
@@ -611,7 +745,7 @@ class _HomePageContentState extends State<HomePageContent> {
                       style: TextStyle(
                         fontFamily: 'Funnel Display',
                         fontSize: 12,
-                        color: weightDiff > 0 ? kOrange : kGreen,
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],
@@ -639,7 +773,7 @@ class _HomePageContentState extends State<HomePageContent> {
                         location,
                         style: const TextStyle(
                           fontFamily: 'Funnel Display',
-                          color: kGreen,
+                          color: Color.fromARGB(255, 0, 0, 0),
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1206,7 +1340,7 @@ class MealCardsSection extends StatelessWidget {
         ),
         const SizedBox(height: 15),
         SizedBox(
-          height: 300,
+          height: 270,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -1238,132 +1372,153 @@ class _MealCard extends StatelessWidget {
       margin: const EdgeInsets.only(right: 15.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             mealType,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.2),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Image from Firestore - 1:1 RATIO (SQUARE)
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                  child: imageUrl.isNotEmpty
-                      ? Image.network(
-                          imageUrl,
-                          height: 150,
-                          width: 150,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              height: 150,
-                              width: 150,
-                              color: Colors.grey[200],
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                  color: kGreen,
+          const SizedBox(height: 6),
+          Flexible(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withValues(alpha: 0.2),
+                    spreadRadius: 1,
+                    blurRadius: 5,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Image from Firestore - 1:1 RATIO (SQUARE) with tag overlay
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                    child: Stack(
+                      children: [
+                        imageUrl.isNotEmpty
+                            ? Image.network(
+                                imageUrl,
+                                height: 150,
+                                width: 150,
+                                fit: BoxFit.cover,
+                                cacheWidth: 450,
+                                cacheHeight: 450,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    height: 150,
+                                    width: 150,
+                                    color: Colors.grey[200],
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 30,
+                                        height: 30,
+                                        child: CircularProgressIndicator(
+                                          value: loadingProgress.expectedTotalBytes != null
+                                              ? loadingProgress.cumulativeBytesLoaded /
+                                                  loadingProgress.expectedTotalBytes!
+                                              : null,
+                                          color: kGreen,
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  debugPrint('Error loading image: $error');
+                                  return Container(
+                                    height: 150,
+                                    width: 150,
+                                    color: Colors.grey[200],
+                                    child: Center(
+                                      child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
+                                    ),
+                                  );
+                                },
+                              )
+                            : Container(
+                                height: 150,
+                                width: 150,
+                                color: Colors.grey[200],
+                                child: Center(
+                                  child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
                                 ),
                               ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            debugPrint('Error loading image: $error');
-                            return Container(
-                              height: 150,
-                              width: 150,
-                              color: Colors.grey[200],
-                              child: Center(
-                                child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
+                        // Tag overlay at top-left corner
+                        if (tag1.isNotEmpty)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: kGreen.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                            );
-                          },
-                        )
-                      : Container(
-                          height: 150,
-                          width: 150,
-                          color: Colors.grey[200],
-                          child: Center(
-                            child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
-                          ),
-                        ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (tag1.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: kGreen.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            tag1,
-                            style: const TextStyle(
-                              fontFamily: 'Funnel Display',
-                              fontSize: 10,
-                              color: kGreen,
-                              fontWeight: FontWeight.w600,
+                              child: Text(
+                                tag1,
+                                style: const TextStyle(
+                                  fontFamily: 'Funnel Display',
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      const SizedBox(height: 8),
-                      Text(
-                        mealName,
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '$calories kcal',
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontSize: 11,
-                          color: kLightGreyText,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Rp ${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: kGreen,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.all(7.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          mealName,
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: Colors.black87,
+                            height: 1.15,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$calories kcal',
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 9,
+                            color: kLightGreyText,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          'Rp ${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: kGreen,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1547,66 +1702,6 @@ class MealListItem extends StatelessWidget {
             height: 1,
             thickness: 1,
           ),
-      ],
-    );
-  }
-}
-
-// ===============================================
-// ⬇️ KOMPONEN: CUSTOM BOTTOM NAVIGATION BAR
-// ===============================================
-class CustomNavbar extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-
-  const CustomNavbar({
-    required this.currentIndex,
-    required this.onTap,
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: kGreen,
-      unselectedItemColor: kLightGreyText,
-      currentIndex: currentIndex,
-      onTap: onTap,
-      showUnselectedLabels: true,
-      backgroundColor: Colors.white,
-      elevation: 8,
-      selectedLabelStyle: const TextStyle(
-        fontFamily: 'Funnel Display',
-        fontWeight: FontWeight.w600,
-        fontSize: 12,
-      ),
-      unselectedLabelStyle: const TextStyle(
-        fontFamily: 'Funnel Display',
-        fontWeight: FontWeight.w500,
-        fontSize: 11,
-      ),
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.access_time),
-          label: 'Schedule',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.restaurant),
-          label: 'Meal',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.bar_chart),
-          label: 'Report',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
-        ),
       ],
     );
   }
