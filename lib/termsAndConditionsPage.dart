@@ -61,9 +61,22 @@ class TermsAndConditionsPage extends StatelessWidget {
                   height: fh(47),
                   child: Align(
                     alignment: Alignment.topRight,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.black),
-                      onPressed: () => Navigator.pop(context),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.close, color: Colors.black87, size: 24),
+                        onPressed: () => Navigator.pushReplacementNamed(context, '/welcome'),
+                      ),
                     ),
                   ),
                 ),
@@ -214,7 +227,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   height: fh(31.80),
                   child: GradientHoverButton(
                     text: 'Tidak, Saya tidak setuju',
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pushReplacementNamed(context, '/welcome'),
                     idleBorderColor: gray,
                     idleFillColor: Colors.white,
                     idleTextColor: Colors.black,

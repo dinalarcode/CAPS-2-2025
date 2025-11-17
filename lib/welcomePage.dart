@@ -164,7 +164,7 @@ class WelcomePage extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      'Version 1.1',
+                      'Version 1.2',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.black.withValues(alpha: 0.50),
@@ -174,7 +174,7 @@ class WelcomePage extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'By Kelompok 3 SI Capstone C',
+                      'By Kelompok 2 SI Capstone C',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.black.withValues(alpha: 0.50),

@@ -25,7 +25,7 @@ class _ChallengePageState extends State<ChallengePage> {
 
   final List<String> _options = const [
     'Tidak ada waktu',
-    'Nafsu makan tinggi',
+    'Nafsu makan tidak teratur',
     'Dukungan yang rendah',
     'Perencanaan jadwal makan',
     'Isu kesehatan',

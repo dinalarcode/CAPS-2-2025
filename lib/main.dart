@@ -3,8 +3,10 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'firebase_options.dart';
@@ -74,6 +76,18 @@ class NutriLinkApp extends StatelessWidget {
     return MaterialApp(
       title: 'NutriLink x HealthyGo',
       debugShowCheckedModeBanner: false,
+      
+      // Localization delegates untuk DatePicker Indonesia
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('id', 'ID'), // Indonesia
+        Locale('en', 'US'), // English
+      ],
+      
       theme: ThemeData(
         primarySwatch: Colors.green,
         scaffoldBackgroundColor: Colors.white,
@@ -86,8 +100,30 @@ class NutriLinkApp extends StatelessWidget {
         ),
       ),
 
-      // ⬇️ PENTING: ini route awal
-      initialRoute: '/welcome',
+      // HOME dengan Auth State Persistence
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          // Loading state
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF5F9C3F),
+                ),
+              ),
+            );
+          }
+          
+          // Jika user sudah login, langsung ke home
+          if (snapshot.hasData && snapshot.data != null) {
+            return const home.HomePage();
+          }
+          
+          // Jika belum login, ke welcome page
+          return const welcome.WelcomePage();
+        },
+      ),
 
       routes: {
         '/welcome': (_) => const welcome.WelcomePage(),
