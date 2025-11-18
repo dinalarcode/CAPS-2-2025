@@ -226,13 +226,27 @@ class _NameInputPageState extends State<NameInputPage> {
               Positioned(
                 left: 12,
                 top: 10,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back,
-                    color: Colors.black87,
-                    size: 24,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  onPressed: _back,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.black87,
+                      size: 24,
+                    ),
+                    tooltip: 'Kembali',
+                    onPressed: _back,
+                  ),
                 ),
               ),
             ],

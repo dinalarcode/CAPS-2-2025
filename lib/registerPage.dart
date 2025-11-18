@@ -1,4 +1,5 @@
 // lib/registerPage.dart
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,14 +7,17 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:nutrilink/_onb_helpers.dart';
 import 'package:nutrilink/models/user_profile_draft.dart';
+import 'package:nutrilink/termsAndConditionsDetailPage.dart';
 
-// ==== Palet warna konsisten ====
+// ====== Palet warna konsisten dengan ChallengePage ======
 const Color kGreen = Color(0xFF5F9C3F);
 const Color kGreenLight = Color(0xFF7BB662);
 const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
 const Color kDisabledGrey = Color(0xFFBDBDBD);
-final Color kBaseGreyFill = const Color(0xFF000000).withValues(alpha: .04);
+const Color kMutedBorderGrey = Color(0xFFA9ABAD);
+final Color kBaseGreyFill =
+    const Color(0xFF000000).withValues(alpha: 0.04);
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -29,6 +33,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailC = TextEditingController();
   final _passwordC = TextEditingController();
   final _confirmPasswordC = TextEditingController();
+  final _focusPassword = FocusNode();
+  final _focusConfirm = FocusNode();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -37,7 +43,16 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    draft = getDraft(context); // ambil draft onboarding terakhir
+    // Coba ambil dari arguments terlebih dahulu (dari SummaryPage)
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args != null && args is UserProfileDraft) {
+      draft = args;
+      debugPrint('✅ Draft loaded from arguments');
+    } else {
+      // Fallback: ambil dari getDraft (local storage)
+      draft = getDraft(context);
+      debugPrint('⚠️ Draft loaded from local storage');
+    }
   }
 
   @override
@@ -45,22 +60,69 @@ class _RegisterPageState extends State<RegisterPage> {
     _emailC.dispose();
     _passwordC.dispose();
     _confirmPasswordC.dispose();
+    _focusPassword.dispose();
+    _focusConfirm.dispose();
     super.dispose();
   }
 
-  void _showSnack(String message, {Color? color}) {
+  void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
+      SnackBar(content: Text(msg)),
+    );
+  }
+
+  // --- Dekorasi input: border kotak, muted grey, style Funnel Display ---
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(
+        color: Color(0xFFB0B0B0),
+        fontFamily: 'Funnel Display',
+        fontSize: 13,
       ),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(
+          color: kMutedBorderGrey,
+          width: 1.4,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(
+          color: kGreenLight,
+          width: 1.6,
+        ),
+      ),
+      filled: true,
+      fillColor: Colors.white,
     );
   }
 
   /// Bangun map profil dari draft + user.
-  /// Field yang nilainya null akan dibuang supaya tidak tersimpan sebagai null di Firestore.
   Map<String, dynamic> _buildProfileData(User user) {
+    // Debug: Print draft data untuk troubleshooting
+    debugPrint('=== DEBUG: Draft Data ===');
+    debugPrint('name: ${draft.name}');
+    debugPrint('target: ${draft.target}');
+    debugPrint('healthGoal: ${draft.healthGoal}');
+    debugPrint('challenges: ${draft.challenges}');
+    debugPrint('heightCm: ${draft.heightCm}');
+    debugPrint('weightKg: ${draft.weightKg}');
+    debugPrint('targetWeightKg: ${draft.targetWeightKg}');
+    debugPrint('birthDate: ${draft.birthDate}');
+    debugPrint('sex: ${draft.sex}');
+    debugPrint('activityLevel: ${draft.activityLevel}');
+    debugPrint('allergies: ${draft.allergies}');
+    debugPrint('eatFrequency: ${draft.eatFrequency}');
+    debugPrint('wakeTime: ${draft.wakeTime}');
+    debugPrint('sleepTime: ${draft.sleepTime}');
+    debugPrint('sleepHours: ${draft.sleepHours}');
+    debugPrint('=========================');
+
     final Timestamp? birthDateTimestamp = draft.birthDate != null
         ? Timestamp.fromDate(draft.birthDate!)
         : null;
@@ -73,34 +135,68 @@ class _RegisterPageState extends State<RegisterPage> {
         ? null
         : draft.challenges;
 
+    // Konversi TimeOfDay ke format string untuk Firestore
+    final wakeTimeString = draft.wakeTime != null
+        ? '${draft.wakeTime!.hour.toString().padLeft(2, '0')}:${draft.wakeTime!.minute.toString().padLeft(2, '0')}'
+        : null;
+    final sleepTimeString = draft.sleepTime != null
+        ? '${draft.sleepTime!.hour.toString().padLeft(2, '0')}:${draft.sleepTime!.minute.toString().padLeft(2, '0')}'
+        : null;
+
+    // Tentukan profile picture default berdasarkan jenis kelamin
+    String profilePicture = 'assets/images/Male Avatar.png'; // default
+    if (draft.sex != null) {
+      if (draft.sex!.toLowerCase().contains('perempuan') || 
+          draft.sex!.toLowerCase().contains('wanita') ||
+          draft.sex!.toLowerCase().contains('female')) {
+        profilePicture = 'assets/images/Female Avatar.png';
+      } else if (draft.sex!.toLowerCase().contains('laki') || 
+                 draft.sex!.toLowerCase().contains('pria') ||
+                 draft.sex!.toLowerCase().contains('male')) {
+        profilePicture = 'assets/images/Male Avatar.png';
+      }
+    }
+
     final data = <String, dynamic>{
       'name': (draft.name == null || draft.name!.isEmpty)
           ? (user.displayName ?? '')
           : draft.name,
-      'target': (draft.target == null || draft.target!.isEmpty)
-          ? null
-          : draft.target,
-      'healthGoal': (draft.healthGoal == null || draft.healthGoal!.isEmpty)
-          ? null
-          : draft.healthGoal,
+      'target': draft.target, // Simpan semua, termasuk null
+      'healthGoal': draft.healthGoal,
       'challenges': challenges,
       'heightCm': draft.heightCm,
       'weightKg': draft.weightKg,
       'targetWeightKg': draft.targetWeightKg,
       'birthDate': birthDateTimestamp,
-      'sex': (draft.sex == null || draft.sex!.isEmpty) ? null : draft.sex,
-      'activityLevel': (draft.activityLevel == null ||
-              draft.activityLevel!.isEmpty)
-          ? null
-          : draft.activityLevel,
+      'sex': draft.sex,
+      'activityLevel': draft.activityLevel,
       'allergies': allergies,
       'eatFrequency': draft.eatFrequency,
+      'wakeTime': wakeTimeString,
+      'sleepTime': sleepTimeString,
       'sleepHours': draft.sleepHours,
+      'profilePicture': profilePicture,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    // Buang semua field yang nilainya null
-    data.removeWhere((key, value) => value == null);
+    debugPrint('=== Profile Data to Save ===');
+    debugPrint('name: ${data['name']}');
+    debugPrint('target: ${data['target']}');
+    debugPrint('healthGoal: ${data['healthGoal']}');
+    debugPrint('challenges: ${data['challenges']}');
+    debugPrint('heightCm: ${data['heightCm']}');
+    debugPrint('weightKg: ${data['weightKg']}');
+    debugPrint('targetWeightKg: ${data['targetWeightKg']}');
+    debugPrint('birthDate: ${data['birthDate']}');
+    debugPrint('sex: ${data['sex']}');
+    debugPrint('activityLevel: ${data['activityLevel']}');
+    debugPrint('allergies: ${data['allergies']}');
+    debugPrint('eatFrequency: ${data['eatFrequency']}');
+    debugPrint('wakeTime: ${data['wakeTime']}');
+    debugPrint('sleepTime: ${data['sleepTime']}');
+    debugPrint('sleepHours: ${data['sleepHours']}');
+    debugPrint('profilePicture: ${data['profilePicture']}');
+    debugPrint('============================');
 
     return data;
   }
@@ -114,38 +210,69 @@ class _RegisterPageState extends State<RegisterPage> {
       await user.updateDisplayName(draft.name);
     }
 
-    // Kirim email verifikasi kalau belum
-    if (!user.emailVerified && user.email != null) {
+    // Reload user untuk mendapatkan status terbaru
+    await user.reload();
+    final refreshedUser = FirebaseAuth.instance.currentUser;
+
+    // WAJIB kirim email verifikasi untuk SEMUA metode registrasi
+    // emailVerifiedByApp akan di-set true hanya setelah user klik link verifikasi
+    bool emailSent = false;
+    String? emailAddress;
+    
+    if (refreshedUser != null && refreshedUser.email != null) {
+      emailAddress = refreshedUser.email;
+      
       try {
-        await user.sendEmailVerification();
+        // Kirim email verifikasi untuk SEMUA metode (email & Google)
+        await refreshedUser.sendEmailVerification();
+        emailSent = true;
+        debugPrint('Email verifikasi berhasil dikirim ke $emailAddress');
       } catch (e) {
-        debugPrint('Gagal kirim email verifikasi: $e');
+        debugPrint('ERROR: Gagal kirim email verifikasi: $e');
+        _toast('Peringatan: Gagal mengirim email verifikasi. Error: $e');
       }
     }
 
     // Build data profile dari draft
     final profileData = _buildProfileData(user);
 
+    debugPrint('=== SAVING TO FIRESTORE ===');
+    debugPrint('User UID: ${user.uid}');
+    debugPrint('Email: ${user.email}');
+    debugPrint('Provider: $provider');
+    debugPrint('Profile Data: $profileData');
+    debugPrint('============================');
+
     await db.collection('users').doc(user.uid).set(
       {
         'uid': user.uid,
         'email': user.email,
         'provider': provider,
+        'emailVerifiedByApp': false, // WAJIB verifikasi email manual
         'createdAt': FieldValue.serverTimestamp(),
         'profile': profileData,
       },
       SetOptions(merge: true),
     );
 
-    // Logout supaya user harus login ulang setelah verifikasi email
+    debugPrint('✅ Data successfully saved to Firestore!');
+
+    // PENTING: Logout supaya user HARUS login ulang setelah verifikasi email
     await FirebaseAuth.instance.signOut();
 
-    _showSnack(
-      provider == 'google'
-          ? 'Akun berhasil terdaftar. Jika diminta verifikasi, cek email kamu lalu login kembali.'
-          : 'Registrasi berhasil. Cek email kamu untuk verifikasi sebelum login.',
-      color: Colors.green,
-    );
+    // Pesan yang konsisten untuk semua metode
+    if (emailSent) {
+      final method = provider == 'google' ? 'Google' : 'email';
+      _toast(
+        'Registrasi berhasil dengan $method! Email verifikasi telah dikirim ke $emailAddress. '
+        'Cek inbox/spam dan klik tautan verifikasi sebelum login.',
+      );
+    } else {
+      _toast(
+        'Registrasi berhasil! Namun email verifikasi gagal dikirim. '
+        'Silakan coba daftar ulang atau hubungi admin.',
+      );
+    }
 
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/login');
@@ -166,29 +293,24 @@ class _RegisterPageState extends State<RegisterPage> {
 
       final user = cred.user;
       if (user == null) {
-        _showSnack('Terjadi kesalahan. User tidak terbentuk.');
+        _toast('Terjadi kesalahan. User tidak terbentuk.');
         return;
       }
 
       await _afterRegister(user, 'password');
     } on FirebaseAuthException catch (e) {
-      String msg = 'Gagal mendaftar. Coba lagi.';
-      if (e.code == 'email-already-in-use') {
-        msg = 'Email sudah terdaftar. Coba masuk atau gunakan email lain.';
-      } else if (e.code == 'weak-password') {
-        msg = 'Password terlalu lemah. Gunakan minimal 6 karakter.';
-      } else if (e.code == 'invalid-email') {
-        msg = 'Format email tidak valid.';
-      }
-      if (!mounted) return;
-      _showSnack(msg, color: Theme.of(context).colorScheme.error);
+      final msg = switch (e.code) {
+        'email-already-in-use' =>
+          'Email sudah terdaftar. Coba masuk atau gunakan email lain.',
+        'weak-password' =>
+          'Password terlalu lemah. Gunakan minimal 6 karakter.',
+        'invalid-email' => 'Format email tidak valid.',
+        _ => 'Gagal mendaftar: ${e.message}',
+      };
+      _toast(msg);
     } catch (e) {
       debugPrint('Register error: $e');
-      if (!mounted) return;
-      _showSnack(
-        'Terjadi kesalahan saat mendaftar.',
-        color: Theme.of(context).colorScheme.error,
-      );
+      _toast('Terjadi kesalahan saat mendaftar: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -200,152 +322,75 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => _isLoading = true);
     try {
-      final googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) {
-        // user batal pilih akun
-        setState(() => _isLoading = false);
-        return;
+      UserCredential cred;
+
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider();
+        cred = await FirebaseAuth.instance.signInWithPopup(provider);
+      } else {
+        final googleSignIn = GoogleSignIn();
+        final googleUser = await googleSignIn.signIn();
+        if (googleUser == null) {
+          // user batal pilih akun
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        final googleAuth = await googleUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        cred = await FirebaseAuth.instance.signInWithCredential(credential);
       }
 
-      final googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      final cred =
-          await FirebaseAuth.instance.signInWithCredential(credential);
       final user = cred.user;
       if (user == null) {
-        _showSnack('Gagal menghubungkan akun Google.');
+        _toast('Gagal menghubungkan akun Google.');
         return;
       }
 
       await _afterRegister(user, 'google');
     } on FirebaseAuthException catch (e) {
-      debugPrint('Google sign-in error: $e');
-      if (!mounted) return;
-      _showSnack(
-        'Gagal mendaftar dengan Google.',
-        color: Theme.of(context).colorScheme.error,
-      );
+      final msg = switch (e.code) {
+        'account-exists-with-different-credential' =>
+          'Email ini sudah terhubung dengan metode login lain.',
+        'invalid-credential' => 'Kredensial Google tidak valid.',
+        'operation-not-allowed' =>
+          'Login dengan Google belum diaktifkan di Firebase.',
+        _ => 'Gagal mendaftar dengan Google: ${e.message}',
+      };
+      _toast(msg);
     } catch (e) {
       debugPrint('Google register error: $e');
-      if (!mounted) return;
-      _showSnack(
-        'Terjadi kesalahan saat mendaftar dengan Google.',
-        color: Theme.of(context).colorScheme.error,
-      );
+      _toast('Gagal mendaftar dengan Google: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ==== UI FIELD ====
-  Widget _buildTextFieldEmail() {
-    return TextFormField(
-      controller: _emailC,
-      keyboardType: TextInputType.emailAddress,
-      decoration: const InputDecoration(
-        labelText: 'Email',
-        hintText: 'nama@email.com',
-      ),
-      validator: (v) {
-        if (v == null || v.trim().isEmpty) {
-          return 'Email tidak boleh kosong.';
-        }
-        if (!v.contains('@')) {
-          return 'Format email tidak valid.';
-        }
-        return null;
-      },
-    );
-  }
 
-  Widget _buildTextFieldPassword() {
-    return TextFormField(
-      controller: _passwordC,
-      obscureText: _obscurePassword,
-      decoration: InputDecoration(
-        labelText: 'Password',
-        hintText: 'Minimal 6 karakter',
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscurePassword ? Icons.visibility_off : Icons.visibility,
-          ),
-          onPressed: () {
-            setState(() => _obscurePassword = !_obscurePassword);
-          },
-        ),
-      ),
-      validator: (v) {
-        if (v == null || v.isEmpty) {
-          return 'Password tidak boleh kosong.';
-        }
-        if (v.length < 6) {
-          return 'Password minimal 6 karakter.';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildTextFieldConfirmPassword() {
-    return TextFormField(
-      controller: _confirmPasswordC,
-      obscureText: _obscureConfirm,
-      decoration: InputDecoration(
-        labelText: 'Konfirmasi Password',
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscureConfirm ? Icons.visibility_off : Icons.visibility,
-          ),
-          onPressed: () {
-            setState(() => _obscureConfirm = !_obscureConfirm);
-          },
-        ),
-      ),
-      validator: (v) {
-        if (v == null || v.isEmpty) {
-          return 'Konfirmasi password tidak boleh kosong.';
-        }
-        if (v != _passwordC.text) {
-          return 'Konfirmasi password tidak sama.';
-        }
-        return null;
-      },
-    );
-  }
 
   // ==== BUILD UI ====
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        title: const Text(
-          'Daftar Akun',
-          style: TextStyle(
-            fontFamily: 'Funnel Display',
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
       body: SafeArea(
         child: Stack(
           children: [
+            // ====== KONTEN UTAMA ======
             Positioned.fill(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 130),
+                padding: const EdgeInsets.fromLTRB(24, 60, 24, 140),
                 child: Form(
                   key: _formKey,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Heading mirip style onboarding
+                      // Judul: style sama dengan ChallengePage
                       RichText(
                         text: const TextSpan(
                           style: TextStyle(
@@ -360,10 +405,11 @@ class _RegisterPageState extends State<RegisterPage> {
                               text: 'NutriLink',
                               style: TextStyle(color: kGreen),
                             ),
+                            TextSpan(text: ' kamu.'),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       const Text(
                         'Dengan akun, progres dan pengaturan makananmu akan tersimpan rapi di satu tempat.',
                         style: TextStyle(
@@ -377,7 +423,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
                       if (draft.name != null && draft.name!.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
+                          padding: const EdgeInsets.only(bottom: 16.0),
                           child: Text(
                             'Halo, ${draft.name}! Daftarkan email untuk menghubungkan profilmu.',
                             style: const TextStyle(
@@ -389,105 +435,206 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                         ),
 
-                      _buildTextFieldEmail(),
-                      const SizedBox(height: 16),
-                      _buildTextFieldPassword(),
-                      const SizedBox(height: 16),
-                      _buildTextFieldConfirmPassword(),
-                      const SizedBox(height: 24),
-
-                      const Center(
-                        child: Text(
-                          'Dengan mendaftar, kamu menyetujui Ketentuan Layanan & Kebijakan Privasi NutriLink.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontSize: 11,
-                            color: kLightGreyText,
-                          ),
+                      const Text(
+                        'Email',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.w500,
+                          color: kLightGreyText,
                         ),
                       ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _emailC,
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) =>
+                            _focusPassword.requestFocus(),
+                        keyboardType: TextInputType.emailAddress,
+                        autofillHints: const [
+                          AutofillHints.username,
+                          AutofillHints.email,
+                        ],
+                        decoration: _inputDecoration('contoh@email.com'),
+                        validator: (v) {
+                          final s = v?.trim() ?? '';
+                          if (s.isEmpty) {
+                            return 'Email wajib diisi';
+                          }
+                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
+                              .hasMatch(s)) {
+                            return 'Format email tidak valid';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+
+                      const Text(
+                        'Password',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.w500,
+                          color: kLightGreyText,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _passwordC,
+                        focusNode: _focusPassword,
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) =>
+                            _focusConfirm.requestFocus(),
+                        obscureText: _obscurePassword,
+                        autofillHints: const [AutofillHints.password],
+                        decoration:
+                            _inputDecoration('Minimal 6 karakter').copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: kMutedBorderGrey,
+                            ),
+                            onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword),
+                          ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return 'Password wajib diisi';
+                          }
+                          if (v.length < 6) {
+                            return 'Password minimal 6 karakter';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+
+                      const Text(
+                        'Konfirmasi Password',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.w500,
+                          color: kLightGreyText,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _confirmPasswordC,
+                        focusNode: _focusConfirm,
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) => _registerWithEmail(),
+                        obscureText: _obscureConfirm,
+                        decoration: _inputDecoration('Ulangi password').copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirm
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: kMutedBorderGrey,
+                            ),
+                            onPressed: () => setState(
+                                () => _obscureConfirm = !_obscureConfirm),
+                          ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return 'Konfirmasi password wajib diisi';
+                          }
+                          if (v != _passwordC.text) {
+                            return 'Konfirmasi password tidak sama';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+
+                      // ====== Tombol Google (card style ala pilihan challenge) ======
+                      const Text(
+                        'Atau daftar dengan',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.w500,
+                          color: kLightGreyText,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _GoogleRegisterTile(
+                        onTap: _isLoading ? null : _registerWithGoogle,
+                      ),
 
                       const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Expanded(child: Divider(color: Colors.grey.shade300)),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8.0),
-                            child: Text(
-                              'atau',
-                              style: TextStyle(
-                                fontFamily: 'Funnel Display',
-                                fontSize: 12,
-                                color: kLightGreyText,
-                              ),
-                            ),
-                          ),
-                          Expanded(child: Divider(color: Colors.grey.shade300)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
 
-                      // Tombol Google
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _isLoading ? null : _registerWithGoogle,
-                          icon: Image.asset(
-                            'assets/images/Logo Google.png',
-                            width: 20,
-                            height: 20,
-                          ),
-                          label: const Text(
-                            'Daftar dengan Google',
+                      // "Sudah punya akun? Masuk"
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Sudah punya akun? ',
                             style: TextStyle(
+                              fontSize: 12,
                               fontFamily: 'Funnel Display',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                               color: kGreyText,
                             ),
                           ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: BorderSide(
-                              color: Colors.grey.shade300,
-                              width: 1.2,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                          InkWell(
+                            onTap: _isLoading
+                                ? null
+                                : () => Navigator.pushReplacementNamed(
+                                      context,
+                                      '/login',
+                                    ),
+                            child: const Text(
+                              'Masuk',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontFamily: 'Funnel Display',
+                                fontWeight: FontWeight.w600,
+                                color: kGreen,
+                                decoration: TextDecoration.underline,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
 
                       const SizedBox(height: 24),
+                      const Divider(height: 1),
+                      const SizedBox(height: 12),
+
                       Center(
                         child: Wrap(
-                          alignment: WrapAlignment.center,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             const Text(
-                              'Sudah punya akun? ',
+                              'Dengan mendaftar, kamu menyetujui ',
                               style: TextStyle(
-                                fontFamily: 'Funnel Display',
                                 fontSize: 12,
-                                color: kGreyText,
+                                color: Colors.black54,
                               ),
                             ),
-                            TextButton(
-                              onPressed: _isLoading
+                            InkWell(
+                              onTap: _isLoading
                                   ? null
-                                  : () => Navigator.pushReplacementNamed(
-                                        context,
-                                        '/login',
+                                  : () => showDialog(
+                                        context: context,
+                                        barrierDismissible: true,
+                                        builder: (_) =>
+                                            const TermsAndConditionsDetailPage(),
                                       ),
                               child: const Text(
-                                'Masuk',
+                                'Syarat & Ketentuan',
                                 style: TextStyle(
-                                  fontFamily: 'Funnel Display',
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: kGreen,
+                                  color: Color(0xFF196DFD),
+                                  decoration: TextDecoration.underline,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -500,7 +647,36 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
             ),
 
-            // Footer: tombol Daftar (gradient hijau, non-transparan)
+            // ====== BACK BUTTON ala ChallengePage ======
+            Positioned(
+              left: 12,
+              top: 10,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.black87,
+                    size: 24,
+                  ),
+                  tooltip: 'Kembali',
+                  onPressed: () =>
+                      Navigator.pushReplacementNamed(context, '/summary'),
+                ),
+              ),
+            ),
+
+            // ====== TOMBOL DAFTAR (gradient hijau, fixed di bawah) ======
             Positioned(
               left: 0,
               right: 0,
@@ -508,7 +684,7 @@ class _RegisterPageState extends State<RegisterPage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: GradientButton(
-                  text: _isLoading ? 'Memproses...' : 'Simpan & Lanjut ke Login',
+                  text: _isLoading ? 'Memproses...' : 'Daftar',
                   enabled: !_isLoading,
                   onPressed: _registerWithEmail,
                 ),
@@ -521,9 +697,82 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 }
 
-// ============================================================================
-// GRADIENT BUTTON (copy style dari onboarding / TargetSelectionPage)
-// ============================================================================
+// ======================= TILE REGISTER GOOGLE ala kartu Challenge =======================
+class _GoogleRegisterTile extends StatefulWidget {
+  final VoidCallback? onTap;
+  const _GoogleRegisterTile({this.onTap});
+
+  @override
+  State<_GoogleRegisterTile> createState() => _GoogleRegisterTileState();
+}
+
+class _GoogleRegisterTileState extends State<_GoogleRegisterTile> {
+  bool isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+
+    final Color fallbackFill = isHovered
+        ? kGreen.withValues(alpha: 0.04)
+        : Colors.white;
+
+    final Color borderColor = isHovered ? kGreenLight : kMutedBorderGrey;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => isHovered = true),
+      onExit: (_) => setState(() => isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        decoration: BoxDecoration(
+          color: fallbackFill,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: borderColor,
+            width: 1.4,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: enabled ? widget.onTap : null,
+          child: SizedBox(
+            height: 52,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(
+                  'assets/images/Logo Google.png',
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Daftar dengan Google',
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: kLightGreyText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ======================= Gradient Button (copy dari ChallengePage) =======================
 class GradientButton extends StatefulWidget {
   final String text;
   final bool enabled;

@@ -5,8 +5,8 @@ class CustomNavbar extends StatelessWidget {
   final Function(int) onTap;
 
   // Konstanta Warna
-  static const Color kSelectedColor =  Color(0xFF4CAF50);
-  static const Color kUnselectedColor = Color(0xFFB39B93);
+  static const Color kSelectedColor = Color(0xFF5F9C3F); // kGreen dari homePage
+  static const Color kUnselectedColor = Color(0xFF888888); // kLightGreyText dari homePage
   static const Color kBackgroundColor = Color(0xFFFFF2DF);
 
   const CustomNavbar({
@@ -26,37 +26,41 @@ class CustomNavbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(30),
-        topRight: Radius.circular(30),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color.fromARGB(255, 255, 255, 255),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+            spreadRadius: 0,
+          ),
+        ],
       ),
-      // Ganti BottomNavigationBar dengan Container dan Row
-      child: Container(
-        height: 70, // Beri tinggi yang cukup untuk ikon, teks, dan indikator
-        decoration: const BoxDecoration(
-          color: kBackgroundColor,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: _navItems.map((item) {
-            return Expanded(
-              child: InkWell(
-                onTap: () => onTap(item['index'] as int),
-                child: _buildNavItem(
-                  icon: item['icon'] as IconData,
-                  label: item['label'] as String,
-                  index: item['index'] as int,
+      child: SafeArea(
+        child: SizedBox(
+          height: 70,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: _navItems.map((item) {
+              return SizedBox(
+                width: 70,
+                child: InkWell(
+                  onTap: () => onTap(item['index'] as int),
+                  child: _buildNavItem(
+                    icon: item['icon'] as IconData,
+                    label: item['label'] as String,
+                    index: item['index'] as int,
+                  ),
                 ),
-              ),
-            );
-          }).toList(),
+              );
+            }).toList(),
+          ),
         ),
       ),
     );
-  }
-
-  Widget _buildNavItem({
+  }  Widget _buildNavItem({
     required IconData icon,
     required String label,
     required int index,
