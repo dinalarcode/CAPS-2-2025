@@ -34,6 +34,8 @@ import 'package:nutrilink/sleepSchedulePage.dart' as sleep_sched;
 import 'package:nutrilink/summaryPage.dart' as summary_page;
 import 'package:nutrilink/firestore_test.dart';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
+
 // reCAPTCHA web
 const String kRecaptchaV3SiteKey = '6Lf2pQMsAAAAALiEdH2KdQ3ThKzZ2IlJQAw7HJxG';
 
@@ -61,6 +63,10 @@ Future<void> main() async {
   if (!kIsWeb) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
+
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.playIntegrity, // Paling disarankan 
+  );
 
   // Init locale untuk DateFormat('...', 'id')
   await initializeDateFormatting('id', null);

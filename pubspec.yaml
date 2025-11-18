@@ -33,6 +33,7 @@ dependencies:
 
   # File picker / image picker (buat upload ke Storage)
   image_picker: ^1.1.2        # <── TAMBAHAN: ambil foto/galeri di mobile
+  firebase_app_check: ^0.4.1+2
   # file_picker: ^8.0.0       # (opsional kalau mau support web/other files)
 
 dev_dependencies:

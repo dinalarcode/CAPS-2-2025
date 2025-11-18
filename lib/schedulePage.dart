@@ -6,7 +6,7 @@ import 'editedMenuPage.dart'; // Import EditedMenuPage
 import 'tambahMenuPage.dart';
 
 // Import warna (untuk konsistensi dengan homePage.dart)
-const Color kGreen = Color(0xFF5F9C3F);
+const Color kGreen = Color(0xFF84DA87);
 const Color kLightGreyText = Color(0xFF888888);
 const Color kMutedBorderGrey = Color(0xFFA9ABAD);
 const Color kYellow = Color(0xFFFFA726);
