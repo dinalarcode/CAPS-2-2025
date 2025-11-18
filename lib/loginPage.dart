@@ -15,8 +15,7 @@ const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
 const Color kDisabledGrey = Color(0xFFBDBDBD);
 const Color kMutedBorderGrey = Color(0xFFA9ABAD);
-final Color kBaseGreyFill =
-    const Color(0xFF000000).withValues(alpha: 0.04);
+final Color kBaseGreyFill = const Color(0xFF000000).withValues(alpha: 0.04);
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -66,8 +65,7 @@ class _LoginPageState extends State<LoginPage> {
         fontFamily: 'Funnel Display',
         fontSize: 13,
       ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(
@@ -119,7 +117,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Title
               const Text(
                 'Email Belum Terverifikasi',
@@ -132,7 +130,7 @@ class _LoginPageState extends State<LoginPage> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-              
+
               // Content
               Text(
                 'Email kamu belum terverifikasi. Cek inbox/spam untuk email verifikasi.',
@@ -156,7 +154,7 @@ class _LoginPageState extends State<LoginPage> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              
+
               // Buttons
               Row(
                 children: [
@@ -246,8 +244,7 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
     try {
-      final cred = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailC.text.trim(),
         password: _passC.text,
       );
@@ -278,7 +275,7 @@ class _LoginPageState extends State<LoginPage> {
 
       // Cek verifikasi email dari Firestore (emailVerifiedByApp)
       final emailVerifiedByApp = userDoc.data()?['emailVerifiedByApp'] ?? false;
-      
+
       // Jika Firebase Auth sudah verified tapi Firestore belum, update Firestore LALU login
       if (!emailVerifiedByApp) {
         // Update Firestore karena user sudah klik link verifikasi
@@ -286,7 +283,7 @@ class _LoginPageState extends State<LoginPage> {
             .collection('users')
             .doc(user.uid)
             .update({'emailVerifiedByApp': true});
-        
+
         debugPrint('✅ Email verified! Updated emailVerifiedByApp to true');
       }
 
@@ -339,8 +336,7 @@ class _LoginPageState extends State<LoginPage> {
           idToken: gAuth.idToken,
         );
 
-        cred = await FirebaseAuth.instance
-            .signInWithCredential(credential);
+        cred = await FirebaseAuth.instance.signInWithCredential(credential);
       }
 
       final user = cred.user;
@@ -375,7 +371,7 @@ class _LoginPageState extends State<LoginPage> {
 
       // Cek verifikasi email dari Firestore (emailVerifiedByApp)
       final emailVerifiedByApp = userDoc.data()?['emailVerifiedByApp'] ?? false;
-      
+
       // Jika Firebase Auth sudah verified tapi Firestore belum, update Firestore LALU login
       if (!emailVerifiedByApp) {
         // Update Firestore karena user sudah klik link verifikasi
@@ -383,7 +379,7 @@ class _LoginPageState extends State<LoginPage> {
             .collection('users')
             .doc(user.uid)
             .update({'emailVerifiedByApp': true});
-        
+
         debugPrint('✅ Email verified! Updated emailVerifiedByApp to true');
       }
 
@@ -423,8 +419,7 @@ class _LoginPageState extends State<LoginPage> {
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
         'invalid-email' => 'Format email tidak valid.',
-        'user-not-found' =>
-          'Email tidak terdaftar. Daftar terlebih dahulu.',
+        'user-not-found' => 'Email tidak terdaftar. Daftar terlebih dahulu.',
         _ => 'Gagal mengirim email reset: ${e.message}',
       };
       _toast(msg);
@@ -444,12 +439,10 @@ class _LoginPageState extends State<LoginPage> {
             // ====== KONTEN UTAMA ======
             Positioned.fill(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.fromLTRB(24, 60, 24, 140),
+                padding: const EdgeInsets.fromLTRB(24, 60, 24, 24),
                 child: Form(
                   key: _formKey,
-                  autovalidateMode:
-                      AutovalidateMode.onUserInteraction,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -507,8 +500,7 @@ class _LoginPageState extends State<LoginPage> {
                       TextFormField(
                         controller: _emailC,
                         textInputAction: TextInputAction.next,
-                        onFieldSubmitted: (_) =>
-                            _focusPass.requestFocus(),
+                        onFieldSubmitted: (_) => _focusPass.requestFocus(),
                         keyboardType: TextInputType.emailAddress,
                         autofillHints: const [
                           AutofillHints.username,
@@ -520,8 +512,7 @@ class _LoginPageState extends State<LoginPage> {
                           if (s.isEmpty) {
                             return 'Email wajib diisi';
                           }
-                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
-                              .hasMatch(s)) {
+                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(s)) {
                             return 'Format email tidak valid';
                           }
                           return null;
@@ -554,8 +545,8 @@ class _LoginPageState extends State<LoginPage> {
                                   : Icons.visibility,
                               color: kMutedBorderGrey,
                             ),
-                            onPressed: () => setState(
-                                () => _obscure = !_obscure),
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
                           ),
                         ),
                         validator: (v) => (v == null || v.isEmpty)
@@ -566,8 +557,7 @@ class _LoginPageState extends State<LoginPage> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed:
-                              _loading ? null : _forgotPassword,
+                          onPressed: _loading ? null : _forgotPassword,
                           child: const Text(
                             'Lupa password?',
                             style: TextStyle(
@@ -599,7 +589,7 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 24),
 
-                      // “Belum punya akun? Daftar”
+                      // "Belum punya akun? Daftar"
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -626,8 +616,7 @@ class _LoginPageState extends State<LoginPage> {
                                 fontFamily: 'Funnel Display',
                                 fontWeight: FontWeight.w600,
                                 color: kGreen,
-                                decoration:
-                                    TextDecoration.underline,
+                                decoration: TextDecoration.underline,
                               ),
                             ),
                           ),
@@ -636,21 +625,24 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 24),
                       const Divider(height: 1),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
 
-                      Center(
-                        child: Wrap(
-                          crossAxisAlignment:
-                              WrapCrossAlignment.center,
-                          children: [
-                            const Text(
-                              'Dengan masuk, kamu menyetujui ',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.black54,
-                              ),
+                      // ============ TEKS PERSETUJUAN (DI LUAR TOMBOL) ============
+                      // "Dengan masuk, kamu menyetujui Syarat & Ketentuan"
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Dengan masuk, kamu menyetujui ',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'Funnel Display',
+                              fontWeight: FontWeight.w500,
+                              color: kGreyText,
                             ),
-                            InkWell(
+                          ),
+                          Center(
+                            child: InkWell(
                               onTap: _loading
                                   ? null
                                   : () => showDialog(
@@ -663,14 +655,28 @@ class _LoginPageState extends State<LoginPage> {
                                 'Syarat & Ketentuan',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Color(0xFF196DFD),
-                                  decoration:
-                                      TextDecoration.underline,
+                                  fontFamily: 'Funnel Display',
                                   fontWeight: FontWeight.w600,
+                                  color: kGreen,
+                                  decoration: TextDecoration.underline,
                                 ),
+                                textAlign: TextAlign.center,
                               ),
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // ============ TOMBOL MASUK ============
+                      Center(
+                        child: GradientButton(
+                          text: _loading ? 'Memproses...' : 'Masuk',
+                          enabled: !_loading &&
+                              _emailC.text.trim().isNotEmpty &&
+                              _passC.text.isNotEmpty,
+                          onPressed: _loginWithEmail,
                         ),
                       ),
                     ],
@@ -689,8 +695,7 @@ class _LoginPageState extends State<LoginPage> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color:
-                          Colors.black.withValues(alpha: 0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -704,24 +709,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   tooltip: 'Kembali',
                   onPressed: () => Navigator.pop(context),
-                ),
-              ),
-            ),
-
-            // ====== TOMBOL MASUK (gradient hijau, fixed di bawah) ======
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 16,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16),
-                child: GradientButton(
-                  text: _loading ? 'Memproses...' : 'Masuk',
-                  enabled: !_loading && 
-                           _emailC.text.trim().isNotEmpty && 
-                           _passC.text.isNotEmpty,
-                  onPressed: _loginWithEmail,
                 ),
               ),
             ),
@@ -748,9 +735,8 @@ class _GoogleLoginTileState extends State<_GoogleLoginTile> {
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
 
-    final Color fallbackFill = isHovered
-        ? kGreen.withValues(alpha: 0.04)
-        : Colors.white;
+    final Color fallbackFill =
+        isHovered ? kGreen.withValues(alpha: 0.04) : Colors.white;
 
     final Color borderColor = isHovered ? kGreenLight : kMutedBorderGrey;
 
@@ -863,9 +849,7 @@ class _GradientButtonState extends State<GradientButton> {
           height: 48,
           decoration: BoxDecoration(
             gradient: gradient,
-            color: widget.enabled
-                ? null
-                : kBaseGreyFill,
+            color: widget.enabled ? null : kBaseGreyFill,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: widget.enabled ? kGreen : kDisabledGrey,
@@ -873,8 +857,7 @@ class _GradientButtonState extends State<GradientButton> {
             ),
             boxShadow: [
               BoxShadow(
-                color:
-                    const Color(0xFF000000).withValues(alpha: 0.08),
+                color: const Color(0xFF000000).withValues(alpha: 0.08),
                 blurRadius: 6,
                 offset: const Offset(0, 3),
               )
@@ -894,8 +877,8 @@ class _GradientButtonState extends State<GradientButton> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color:
-                      widget.enabled ? Colors.white : Colors.black54,
+                  fontFamily: 'Funnel Display',
+                  color: widget.enabled ? Colors.white : Colors.black54,
                 ),
               ),
             ),
