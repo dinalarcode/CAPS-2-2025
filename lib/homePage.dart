@@ -7,6 +7,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:nutrilink/schedulePage.dart';
 import 'package:nutrilink/navbar.dart';
+import 'package:nutrilink/profilePage.dart';
+import 'package:nutrilink/meal/recomendation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
@@ -23,13 +25,13 @@ const Color kRed = Color(0xFFE53935);
 const Color kBlue = Color(0xFF42A5F5);
 
 // Placeholder halaman lain (supaya _pages tidak error)
-class MealPage extends StatelessWidget {
-  const MealPage({super.key});
+// class MealPage extends StatelessWidget {
+//   const MealPage({super.key});
 
-  @override
-  Widget build(BuildContext context) =>
-      const Center(child: Text('Halaman Meal (Index 1)'));
-}
+//   @override
+//   Widget build(BuildContext context) =>
+//       const Center(child: Text('Halaman Meal (Index 1)'));
+// }
 
 class ReportPage extends StatelessWidget {
   const ReportPage({super.key});
@@ -37,14 +39,6 @@ class ReportPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Center(child: Text('Halaman Report (Index 3)'));
-}
-
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
-
-  @override
-  Widget build(BuildContext context) =>
-      const Center(child: Text('Halaman Profile (Index 4)'));
 }
 
 // ===============================================
@@ -69,7 +63,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _pages = [
       const SchedulePage(),     // Index 0: Schedule
-      const MealPage(),         // Index 1: Meal
+      const RecommendationScreen(),         // Index 1: Meal
       HomePageContent(
         onNavigateToProfile: () {
           setState(() {
@@ -173,7 +167,7 @@ class _HomePageContentState extends State<HomePageContent> {
             await prefs.remove('cached_upcoming_$today');
             // Don't return, let it reload from Firestore
           } else {
-            debugPrint('   Sample meal from cache: ${firstMeal['name']} - ${firstMeal['calories']} kcal');
+            debugPrint('   Sample meal from cache: ${firstMeal['name']} - ${firstMeal['calories']} kcal');
             if (mounted) {
               setState(() {
                 meals = cachedMealsList.cast<Map<String, dynamic>>();
@@ -419,13 +413,13 @@ class _HomePageContentState extends State<HomePageContent> {
       } else {
         // 2-3 jam sebelum tidur
         final startMinutes = sleepMinutes - 180; // 3 jam sebelum
-        final endMinutes = sleepMinutes - 120;   // 2 jam sebelum
+        final endMinutes = sleepMinutes - 120;  // 2 jam sebelum
         return '${formatTime(startMinutes)} - ${formatTime(endMinutes)}';
       }
     } catch (e) {
       // Fallback jika parsing gagal
       return mealType == 'Sarapan' ? '07:00 - 08:00' : 
-             mealType == 'Makan Siang' ? '12:00 - 13:00' : '18:00 - 19:00';
+            mealType == 'Makan Siang' ? '12:00 - 13:00' : '18:00 - 19:00';
     }
   }
 
@@ -456,7 +450,7 @@ class _HomePageContentState extends State<HomePageContent> {
     for (var meal in upcomingMeals) {
       final isDone = meal['isDone'] == true;
       final calories = (meal['calories'] as int?) ?? 0;
-      debugPrint('  - ${meal['name']}: isDone=$isDone, calories=$calories');
+      debugPrint('  - ${meal['name']}: isDone=$isDone, calories=$calories');
       
       if (isDone) {
         totalCalories += calories;
@@ -661,97 +655,106 @@ class _HomePageContentState extends State<HomePageContent> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
+        // 1. MELEBARKAN APPBAR: Tambah tinggi (misalnya 8.0 atas + 8.0 bawah = 16.0)
+        preferredSize: const Size.fromHeight(kToolbarHeight + 16.0),
         child: Container(
           decoration: BoxDecoration(
             color: kGreen,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
+                // FIX: Menggunakan withOpacity
+                color: Colors.black.withOpacity(0.2),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
                 spreadRadius: 0,
               ),
             ],
           ),
-          child: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            surfaceTintColor: Colors.transparent,
-            leading: InkWell(
-              onTap: widget.onNavigateToProfile,
-              borderRadius: BorderRadius.circular(25),
-              child: Padding(
-                padding: const EdgeInsets.only(left: 10.0),
-                child: CircleAvatar(
-                  backgroundImage: AssetImage(profilePicture),
-                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+          // 2. MENAMBAHKAN PADDING ATAS & BAWAH di sekitar AppBar
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+            child: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              leading: InkWell(
+                onTap: widget.onNavigateToProfile,
+                borderRadius: BorderRadius.circular(25),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 10.0),
+                  child: CircleAvatar(
+                    backgroundImage: AssetImage(profilePicture),
+                    // FIX: Menggunakan withOpacity
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                  ),
                 ),
               ),
-            ),
-            title: Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: widget.onNavigateToProfile,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Colors.white,
+              title: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: widget.onNavigateToProfile,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Konsumsi: $consumedCalories / ${tdee.toStringAsFixed(0)} kcal',
-                          style: TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontSize: 12,
-                            color: Colors.white.withValues(alpha: 0.9),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Konsumsi: $consumedCalories / ${tdee.toStringAsFixed(0)} kcal',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 12,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                  ),
+                ],
+              ),
+              titleSpacing: 12,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${weightKg.toStringAsFixed(1)} kg',
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'Target: ${targetWeightKg.toStringAsFixed(1)} kg ($weightDiffText)',
+                        style: TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontSize: 12,
+                          // FIX: Menggunakan withOpacity
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            titleSpacing: 12,
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${weightKg.toStringAsFixed(1)} kg',
-                      style: const TextStyle(
-                        fontFamily: 'Funnel Display',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Text(
-                      'Target: ${targetWeightKg.toStringAsFixed(1)} kg ($weightDiffText)',
-                      style: TextStyle(
-                        fontFamily: 'Funnel Display',
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.9),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -892,7 +895,8 @@ class BmiSection extends StatelessWidget {
           border: Border.all(color: kMutedBorderGrey, width: 1.4),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
+              // FIX: Menggunakan withOpacity
+              color: Colors.black.withOpacity(0.06),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -935,7 +939,8 @@ class BmiSection extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
+                          // FIX: Menggunakan withOpacity
+                          color: color.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -962,7 +967,8 @@ class BmiSection extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
+                    // FIX: Menggunakan withOpacity
+                    color: Colors.black.withOpacity(0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -1001,7 +1007,8 @@ class BmiSection extends StatelessWidget {
                               fontFamily: 'Funnel Display',
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.9),
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
                             ),
                           ),
                           Text(
@@ -1010,7 +1017,8 @@ class BmiSection extends StatelessWidget {
                               fontFamily: 'Funnel Display',
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.8),
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.8),
                             ),
                           ),
                         ],
@@ -1031,7 +1039,8 @@ class BmiSection extends StatelessWidget {
                               fontFamily: 'Funnel Display',
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.9),
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
                             ),
                           ),
                           Text(
@@ -1040,7 +1049,8 @@ class BmiSection extends StatelessWidget {
                               fontFamily: 'Funnel Display',
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.8),
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.8),
                             ),
                           ),
                         ],
@@ -1061,7 +1071,8 @@ class BmiSection extends StatelessWidget {
                               fontFamily: 'Funnel Display',
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.9),
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
                             ),
                           ),
                           Text(
@@ -1070,7 +1081,8 @@ class BmiSection extends StatelessWidget {
                               fontFamily: 'Funnel Display',
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.8),
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.8),
                             ),
                           ),
                         ],
@@ -1091,7 +1103,8 @@ class BmiSection extends StatelessWidget {
                               fontFamily: 'Funnel Display',
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.9),
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
                             ),
                           ),
                           Text(
@@ -1100,7 +1113,8 @@ class BmiSection extends StatelessWidget {
                               fontFamily: 'Funnel Display',
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.8),
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.8),
                             ),
                           ),
                         ],
@@ -1116,11 +1130,13 @@ class BmiSection extends StatelessWidget {
                     child: Container(
                       width: 4,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.4),
+                        // FIX: Menggunakan withOpacity
+                        color: Colors.black.withOpacity(0.4),
                         borderRadius: BorderRadius.circular(2),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
+                            // FIX: Menggunakan withOpacity
+                            color: Colors.black.withOpacity(0.3),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -1228,10 +1244,15 @@ class StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kMutedBorderGrey.withValues(alpha: 0.3), width: 1),
+        border: Border.all(
+          // FIX: Menggunakan withOpacity
+          color: kMutedBorderGrey.withOpacity(0.3), 
+          width: 1
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            // FIX: Menggunakan withOpacity
+            color: Colors.black.withOpacity(0.05),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 3),
@@ -1246,7 +1267,8 @@ class StatCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: kGreen.withValues(alpha: 0.1),
+                  // FIX: Menggunakan withOpacity
+                  color: kGreen.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -1386,7 +1408,8 @@ class _MealCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withValues(alpha: 0.2),
+                    // FIX: Menggunakan withOpacity
+                    color: Colors.grey.withOpacity(0.2),
                     spreadRadius: 1,
                     blurRadius: 5,
                     offset: const Offset(0, 3),
@@ -1460,7 +1483,8 @@ class _MealCard extends StatelessWidget {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: kGreen.withValues(alpha: 0.9),
+                                // FIX: Menggunakan withOpacity
+                                color: kGreen.withOpacity(0.9),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -1632,10 +1656,10 @@ class MealListItem extends StatelessWidget {
                   ),
                   child: isDone
                       ? const Icon(
-                          Icons.check,
-                          size: 16,
-                          color: Colors.white,
-                        )
+                            Icons.check,
+                            size: 16,
+                            color: Colors.white,
+                          )
                       : null,
                 ),
               ),
@@ -1698,7 +1722,8 @@ class MealListItem extends StatelessWidget {
         ),
         if (!isLast)
           Divider(
-            color: kMutedBorderGrey.withValues(alpha: 0.3),
+            // FIX: Menggunakan withOpacity
+            color: kMutedBorderGrey.withOpacity(0.3),
             height: 1,
             thickness: 1,
           ),

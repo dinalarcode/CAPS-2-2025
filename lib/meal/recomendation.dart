@@ -83,7 +83,6 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: const _CustomBottomNavBar(),
       floatingActionButton: FloatingActionButton(
         onPressed: () {},
         backgroundColor: const Color(0xFFE57373),
@@ -106,46 +105,9 @@ class _UserProfileHeader extends StatelessWidget {
     // ... (Implementasi Row, CircleAvatar, Text, dan Icon yang sama)
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
-            radius: 30,
-            // Ganti dengan placeholder atau assets yang sesuai
-            backgroundColor: Colors.blueGrey,
-            child: Text('JC', style: TextStyle(color: Colors.white)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'John Cena',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                const SizedBox(height: 4),
-                const Row(
-                  children: [
-                    Text('2384 kkal/day (1130 kkal)'),
-                    SizedBox(width: 8),
-                    Icon(Icons.circle, size: 5, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('77.0 kg'),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Text('Target: 65.0 kg (+12.0 kg)', style: TextStyle(color: Colors.green)),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                    const Text('Surabaya, Jawa Timur', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  ],
-                ),
-              ],
-            ),
-          ),
           IconButton(
             onPressed: onFilterPressed, // Panggil fungsi _showFilter
             icon: const Icon(Icons.filter_list, color: Colors.black, size: 30),
@@ -318,51 +280,6 @@ class _SmallTag extends StatelessWidget {
       child: Text(
         label,
         style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class _CustomBottomNavBar extends StatelessWidget {
-  const _CustomBottomNavBar();
-
-  @override
-  Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> navItems = [
-      {'icon': Icons.calendar_today, 'label': 'Schedule'},
-      {'icon': Icons.restaurant_menu, 'label': 'Meal'},
-      {'icon': Icons.home, 'label': 'Home'},
-      {'icon': Icons.bar_chart, 'label': 'Report'},
-      {'icon': Icons.person, 'label': 'Profile'},
-    ];
-
-    return BottomAppBar(
-      height: 70,
-      color: Colors.white,
-      elevation: 10,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: navItems.map((item) {
-          return InkWell(
-            onTap: () {},
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  item['icon'] as IconData,
-                  color: item['label'] == 'Home' ? Colors.green : Colors.grey,
-                ),
-                Text(
-                  item['label'] as String,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: item['label'] == 'Home' ? Colors.green : Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
       ),
     );
   }
