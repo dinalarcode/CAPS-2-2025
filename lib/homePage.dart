@@ -1,307 +1,1218 @@
+// lib/homePage.dart
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:nutrilink/schedulePage.dart';
+import 'package:nutrilink/navbar.dart';
+import 'package:nutrilink/profilePage.dart';
+import 'package:nutrilink/meal/recomendation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
-// --- Constants (for illustrative purposes) ---
-const Color kPrimaryColor = Color(0xFF54D3C5); // Example color for highlights/icons
-const Color kBackgroundColor = Colors.white;
-const Color kTextColor = Colors.black;
-const Color kAccentGreen = Color(0xFF4CAF50);
-const Color kAccentRed = Color(0xFFF44336);
+// ====== Palet warna konsisten dengan aplikasi ======
+const Color kGreen = Color(0xFF5F9C3F);
+const Color kGreenLight = Color(0xFF7BB662);
+const Color kGreyText = Color(0xFF494949);
+const Color kLightGreyText = Color(0xFF888888);
+const Color kDisabledGrey = Color(0xFFBDBDBD);
+const Color kMutedBorderGrey = Color(0xFFA9ABAD);
+const Color kYellow = Color(0xFFFFA726);
+const Color kOrange = Color(0xFFFF7043);
+const Color kRed = Color(0xFFE53935);
+const Color kBlue = Color(0xFF42A5F5);
 
-void main() {
-  runApp(const MyApp());
+// Placeholder halaman lain (supaya _pages tidak error)
+// class MealPage extends StatelessWidget {
+//   const MealPage({super.key});
+
+//   @override
+//   Widget build(BuildContext context) =>
+//       const Center(child: Text('Halaman Meal (Index 1)'));
+// }
+
+class ReportPage extends StatelessWidget {
+  const ReportPage({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const Center(child: Text('Halaman Report (Index 3)'));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+// ===============================================
+// 🎯 KELAS UTAMA: HOMEPAGE (MENANGANI NAVIGASI)
+// ===============================================
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  // Index awal disetel ke Home (Index 2) sesuai desain bottom bar
+  int _currentIndex = 2;
+
+  // Daftar halaman yang akan ditampilkan sesuai urutan navbar
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const SchedulePage(),     // Index 0: Schedule
+      const RecommendationScreen(),         // Index 1: Meal
+      HomePageContent(
+        onNavigateToProfile: () {
+          setState(() {
+            _currentIndex = 4;
+          });
+        },
+        onNavigateToReport: () {
+          setState(() {
+            _currentIndex = 3;
+          });
+        },
+        onNavigateToMeal: () {
+          setState(() {
+            _currentIndex = 1;
+          });
+        },
+        onNavigateToSchedule: () {
+          setState(() {
+            _currentIndex = 0;
+          });
+        },
+      ),  // Index 2: Home (Konten utama)
+      const ReportPage(),       // Index 3: Report
+      const ProfilePage(),      // Index 4: Profile
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Health App UI',
-      theme: ThemeData(
-        primarySwatch: Colors.green, // Can be customized further
-        scaffoldBackgroundColor: kBackgroundColor,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: kBackgroundColor,
-          elevation: 0,
-          foregroundColor: kTextColor,
-        ),
+    return Scaffold(
+      body: _pages[_currentIndex],
+      bottomNavigationBar: CustomNavbar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
       ),
-      home: const HomeScreen(),
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+// ===============================================
+// 🏡 KELAS KONTEN: HOMEPAGECONTENT (Isi Halaman Home)
+// ===============================================
+class HomePageContent extends StatefulWidget {
+  final VoidCallback onNavigateToProfile;
+  final VoidCallback onNavigateToReport;
+  final VoidCallback onNavigateToMeal;
+  final VoidCallback onNavigateToSchedule;
+  
+  const HomePageContent({
+    super.key,
+    required this.onNavigateToProfile,
+    required this.onNavigateToReport,
+    required this.onNavigateToMeal,
+    required this.onNavigateToSchedule,
+  });
+
+  @override
+  State<HomePageContent> createState() => _HomePageContentState();
+}
+
+class _HomePageContentState extends State<HomePageContent> {
+  Map<String, dynamic>? userData;
+  String location = 'Mengambil lokasi...';
+  bool isLoading = true;
+  List<Map<String, dynamic>> meals = [];
+  List<Map<String, dynamic>> upcomingMeals = [];
+  String? cachedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+    _getCurrentLocation();
+  }
+
+  Future<void> _loadMeals() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toString().split(' ')[0]; // Format: YYYY-MM-DD
+      
+      // Check if we have cached data for today
+      final cachedMealsJson = prefs.getString('cached_meals_$today');
+      final cachedUpcomingJson = prefs.getString('cached_upcoming_$today');
+      
+      if (cachedMealsJson != null && cachedUpcomingJson != null) {
+        debugPrint('✅ Loading meals from cache for $today');
+        
+        final List<dynamic> cachedMealsList = json.decode(cachedMealsJson);
+        final List<dynamic> cachedUpcomingList = json.decode(cachedUpcomingJson);
+        
+        // Debug: Check if calories field exists in cached data
+        if (cachedUpcomingList.isNotEmpty) {
+          final firstMeal = cachedUpcomingList[0] as Map<String, dynamic>;
+          if (!firstMeal.containsKey('calories')) {
+            debugPrint('⚠️ Old cache format detected (missing calories field), clearing cache...');
+            await prefs.remove('cached_meals_$today');
+            await prefs.remove('cached_upcoming_$today');
+            // Don't return, let it reload from Firestore
+          } else {
+            debugPrint('   Sample meal from cache: ${firstMeal['name']} - ${firstMeal['calories']} kcal');
+            if (mounted) {
+              setState(() {
+                meals = cachedMealsList.cast<Map<String, dynamic>>();
+                upcomingMeals = cachedUpcomingList.cast<Map<String, dynamic>>();
+                cachedDate = today;
+              });
+            }
+            return;
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              meals = cachedMealsList.cast<Map<String, dynamic>>();
+              upcomingMeals = cachedUpcomingList.cast<Map<String, dynamic>>();
+              cachedDate = today;
+            });
+          }
+          return;
+        }
+      }
+      
+      debugPrint('📥 No cache found for $today, loading from Firestore...');
+      
+      final profile = userData?['profile'] as Map<String, dynamic>?;
+      final eatFrequency = profile?['eatFrequency'] ?? 3;
+
+      debugPrint('Loading meals with eatFrequency: $eatFrequency');
+
+      // Query ALL menus collection
+      final snapshot = await FirebaseFirestore.instance
+          .collection('menus')
+          .get();
+
+      debugPrint('Total menus fetched: ${snapshot.docs.length}');
+
+      // Get all meals and generate proper download URLs from Storage
+      final allMeals = await Future.wait(snapshot.docs.map((doc) async {
+        final data = doc.data();
+        
+        try {
+          // Generate proper download URL from Storage path
+          String imageUrl = '';
+          final imageField = data['image'];
+          
+          // Image field di Firestore adalah ARRAY - ambil elemen pertama
+          String? imagePath;
+          if (imageField is List && imageField.isNotEmpty) {
+            imagePath = imageField[0]?.toString();
+          } else if (imageField is String) {
+            imagePath = imageField;
+          }
+          
+          if (imagePath != null && imagePath.isNotEmpty) {
+            try {
+              // Image field berisi nama file (1001.png)
+              // Tambahkan prefix "menus/" untuk path Storage
+              String storagePath = imagePath.contains('/') 
+                  ? imagePath  // Sudah ada path lengkap
+                  : 'menus/$imagePath';  // Tambahkan prefix menus/
+              
+              // Get proper download URL from Firebase Storage
+              final ref = FirebaseStorage.instance.ref(storagePath);
+              imageUrl = await ref.getDownloadURL();
+            } catch (e) {
+              debugPrint('❌ Failed to get download URL for ${data['name']}: $e');
+            }
+          }
+
+          return {
+            'id': doc.id,
+            'name': data['name']?.toString() ?? '',
+            'type': data['type']?.toString() ?? '',
+            'tag1': (data['tags'] is List && (data['tags'] as List).isNotEmpty) 
+                ? (data['tags'] as List)[0].toString() 
+                : '',
+            'tag2': (data['tags'] is List && (data['tags'] as List).length > 1) 
+                ? (data['tags'] as List)[1].toString() 
+                : '',
+            'tag3': (data['tags'] is List && (data['tags'] as List).length > 2) 
+                ? (data['tags'] as List)[2].toString() 
+                : '',
+            'calories': data['calories'] as int? ?? 0,
+            'price': data['price'] as int? ?? 0,
+            'image': imageUrl,
+            'description': data['description']?.toString() ?? '',
+          };
+        } catch (e, stackTrace) {
+          debugPrint('❌ Error processing menu ${doc.id}: $e');
+          debugPrint('Stack trace: $stackTrace');
+          debugPrint('Data: $data');
+          rethrow;
+        }
+      }));
+
+      // Filter only meals with valid download URLs
+      final mealsWithImages = allMeals.where((meal) {
+        return meal['image'] != null && (meal['image'] as String).isNotEmpty;
+      }).toList();
+
+      debugPrint('Meals with valid download URLs: ${mealsWithImages.length}');
+
+      // Separate meals by type (only with images)
+      final sarapan = mealsWithImages.where((m) => m['type'] == 'Sarapan').toList();
+      final makanSiang = mealsWithImages.where((m) => m['type'] == 'Makan Siang').toList();
+      final makanMalam = mealsWithImages.where((m) => m['type'] == 'Makan Malam').toList();
+
+      debugPrint('Sarapan meals: ${sarapan.length}');
+      debugPrint('Makan Siang meals: ${makanSiang.length}');
+      debugPrint('Makan Malam meals: ${makanMalam.length}');
+
+      // Shuffle for random selection
+      sarapan.shuffle();
+      makanSiang.shuffle();
+      makanMalam.shuffle();
+
+      // Get random meals for Rekomendasi Menu based on eatFrequency
+      List<Map<String, dynamic>> selectedMeals = [];
+      List<Map<String, dynamic>> upcomingMealsList = [];
+      
+      debugPrint('EatFrequency: $eatFrequency');
+      
+      if (eatFrequency == 2) {
+        // 2x makan: Sarapan dan Makan Malam saja
+        if (sarapan.length >= 2) {
+          selectedMeals.add(sarapan[0]);
+          upcomingMealsList.add(sarapan[1]); // Menu berbeda
+        } else if (sarapan.isNotEmpty) {
+          selectedMeals.add(sarapan[0]);
+        }
+        
+        if (makanMalam.length >= 2) {
+          selectedMeals.add(makanMalam[0]);
+          upcomingMealsList.add(makanMalam[1]); // Menu berbeda
+        } else if (makanMalam.isNotEmpty) {
+          selectedMeals.add(makanMalam[0]);
+        }
+      } else {
+        // 3x makan: Sarapan, Makan Siang, dan Makan Malam
+        if (sarapan.length >= 2) {
+          selectedMeals.add(sarapan[0]);
+          upcomingMealsList.add(sarapan[1]); // Menu berbeda
+        } else if (sarapan.isNotEmpty) {
+          selectedMeals.add(sarapan[0]);
+        }
+        
+        if (makanSiang.length >= 2) {
+          selectedMeals.add(makanSiang[0]);
+          upcomingMealsList.add(makanSiang[1]); // Menu berbeda
+        } else if (makanSiang.isNotEmpty) {
+          selectedMeals.add(makanSiang[0]);
+        }
+        
+        if (makanMalam.length >= 2) {
+          selectedMeals.add(makanMalam[0]);
+          upcomingMealsList.add(makanMalam[1]); // Menu berbeda
+        } else if (makanMalam.isNotEmpty) {
+          selectedMeals.add(makanMalam[0]);
+        }
+      }
+
+      debugPrint('Selected meals count: ${selectedMeals.length}');
+      debugPrint('Upcoming meals count: ${upcomingMealsList.length}');
+
+      // Hitung jam makan berdasarkan sleep schedule
+      final sleepSchedule = profile?['sleepSchedule'] as Map<String, dynamic>?;
+      final wakeTime = sleepSchedule?['wakeTime'] as String? ?? '06:00';
+      final sleepTime = sleepSchedule?['sleepTime'] as String? ?? '22:00';
+      
+      final upcomingWithTime = upcomingMealsList.map((meal) {
+        return {
+          'time': meal['type'],
+          'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
+          'name': meal['name'],
+          'calories': meal['calories'], // Tambahkan kalori
+          'isDone': false,
+        };
+      }).toList();
+      
+      // Save to cache for today
+      await prefs.setString('cached_meals_$today', json.encode(selectedMeals));
+      await prefs.setString('cached_upcoming_$today', json.encode(upcomingWithTime));
+      
+      // Clean up old cache (keep only today's cache)
+      final keys = prefs.getKeys();
+      for (final key in keys) {
+        if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_')) && 
+            !key.endsWith(today)) {
+          await prefs.remove(key);
+          debugPrint('🗑️ Removed old cache: $key');
+        }
+      }
+      
+      debugPrint('💾 Saved meals to cache for $today');
+      
+      // Check if widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          meals = selectedMeals;
+          upcomingMeals = upcomingWithTime;
+          cachedDate = today;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading meals: $e');
+    }
+  }
+
+  // Hitung jam makan berdasarkan waktu bangun dan tidur (rentang waktu)
+  String _calculateMealTime(String mealType, String wakeTime, String sleepTime) {
+    try {
+      final wake = TimeOfDay(
+        hour: int.parse(wakeTime.split(':')[0]),
+        minute: int.parse(wakeTime.split(':')[1]),
+      );
+      final sleep = TimeOfDay(
+        hour: int.parse(sleepTime.split(':')[0]),
+        minute: int.parse(sleepTime.split(':')[1]),
+      );
+
+      int wakeMinutes = wake.hour * 60 + wake.minute;
+      int sleepMinutes = sleep.hour * 60 + sleep.minute;
+      if (sleepMinutes < wakeMinutes) sleepMinutes += 24 * 60; // Next day
+
+      final activeHours = (sleepMinutes - wakeMinutes) / 60;
+
+      String formatTime(int minutes) {
+        final hour = (minutes ~/ 60) % 24;
+        final min = minutes % 60;
+        return '${hour.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
+      }
+
+      if (mealType == 'Sarapan') {
+        // 30-60 menit setelah bangun
+        final startMinutes = wakeMinutes + 30;
+        final endMinutes = wakeMinutes + 60;
+        return '${formatTime(startMinutes)} - ${formatTime(endMinutes)}';
+      } else if (mealType == 'Makan Siang') {
+        // Pertengahan jam aktif ± 30 menit
+        final midMinutes = wakeMinutes + (activeHours / 2 * 60).round();
+        final startMinutes = midMinutes - 30;
+        final endMinutes = midMinutes + 30;
+        return '${formatTime(startMinutes)} - ${formatTime(endMinutes)}';
+      } else {
+        // 2-3 jam sebelum tidur
+        final startMinutes = sleepMinutes - 180; // 3 jam sebelum
+        final endMinutes = sleepMinutes - 120;  // 2 jam sebelum
+        return '${formatTime(startMinutes)} - ${formatTime(endMinutes)}';
+      }
+    } catch (e) {
+      // Fallback jika parsing gagal
+      return mealType == 'Sarapan' ? '07:00 - 08:00' : 
+            mealType == 'Makan Siang' ? '12:00 - 13:00' : '18:00 - 19:00';
+    }
+  }
+
+  void _toggleMealDone(int index) {
+    setState(() {
+      upcomingMeals[index]['isDone'] = !upcomingMeals[index]['isDone'];
+    });
+    
+    // Save updated isDone status to cache
+    _saveUpcomingMealsToCache();
+  }
+  
+  Future<void> _saveUpcomingMealsToCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toString().split(' ')[0];
+      await prefs.setString('cached_upcoming_$today', json.encode(upcomingMeals));
+      debugPrint('💾 Updated upcoming meals cache with isDone status');
+    } catch (e) {
+      debugPrint('Error saving upcoming meals cache: $e');
+    }
+  }
+  
+  int _calculateConsumedCalories() {
+    int totalCalories = 0;
+    debugPrint('🔍 Calculating consumed calories from ${upcomingMeals.length} meals');
+    
+    for (var meal in upcomingMeals) {
+      final isDone = meal['isDone'] == true;
+      final calories = (meal['calories'] as int?) ?? 0;
+      debugPrint('  - ${meal['name']}: isDone=$isDone, calories=$calories');
+      
+      if (isDone) {
+        totalCalories += calories;
+      }
+    }
+    
+    debugPrint('📊 Total consumed calories: $totalCalories');
+    return totalCalories;
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          userData = doc.data();
+          isLoading = false;
+        });
+        // Load meals after user data is loaded
+        await _loadMeals();
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) setState(() => location = 'Lokasi tidak aktif');
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) setState(() => location = 'Izin lokasi ditolak');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => location = 'Izin lokasi ditolak permanen');
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        final place = placemarks[0];
+        // Fix: Handle null values properly
+        final city = place.subAdministrativeArea?.isNotEmpty == true 
+            ? place.subAdministrativeArea 
+            : (place.locality?.isNotEmpty == true ? place.locality : 'Unknown');
+        final province = place.administrativeArea?.isNotEmpty == true 
+            ? place.administrativeArea 
+            : 'Unknown';
+        if (mounted) {
+          setState(() {
+            location = '$city, $province';
+          });
+        }
+      } else {
+        if (mounted) setState(() => location = 'Lokasi tidak ditemukan');
+      }
+    } catch (e) {
+      debugPrint('Error getting location: $e');
+      if (mounted) setState(() => location = 'Gagal mendapatkan lokasi');
+    }
+  }
+
+  // Hitung BMI
+  double _calculateBMI() {
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    if (profile == null) return 0;
+
+    final heightCm = profile['heightCm'] as num?;
+    final weightKg = profile['weightKg'] as num?;
+
+    if (heightCm == null || weightKg == null || heightCm == 0) return 0;
+
+    final heightM = heightCm / 100;
+    return weightKg / (heightM * heightM);
+  }
+
+  // Kategori BMI
+  Map<String, dynamic> _getBMICategory(double bmi) {
+    if (bmi < 18.5) {
+      return {
+        'category': 'Underweight',
+        'color': kBlue,
+        'description': 'Berat badan kurang dari ideal, dapat meningkatkan risiko kekurangan nutrisi dan menurunkan sistem imun tubuh.',
+      };
+    } else if (bmi < 25) {
+      return {
+        'category': 'Normal',
+        'color': kGreen,
+        'description': 'Berat badan ideal dengan risiko penyakit metabolik yang rendah, pertahankan pola makan sehat dan olahraga teratur.',
+      };
+    } else if (bmi < 30) {
+      return {
+        'category': 'Overweight',
+        'color': kOrange,
+        'description': 'Berat badan sedikit melebihi ideal, berpotensi meningkatkan risiko gangguan metabolik jika tidak dikontrol.',
+      };
+    } else {
+      return {
+        'category': 'Obese',
+        'color': kRed,
+        'description': 'Berat badan jauh melebihi ideal dengan risiko tinggi terhadap penyakit jantung, diabetes, dan gangguan kesehatan serius lainnya.',
+      };
+    }
+  }
+
+  // Hitung BMR (Basal Metabolic Rate)
+  double _calculateBMR() {
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    if (profile == null) return 0;
+
+    final weightKg = (profile['weightKg'] as num?)?.toDouble() ?? 0;
+    final heightCm = (profile['heightCm'] as num?)?.toDouble() ?? 0;
+    final sex = profile['sex'] as String?;
+    final birthDate = (profile['birthDate'] as Timestamp?)?.toDate();
+
+    if (birthDate == null) return 0;
+
+    final age = DateTime.now().year - birthDate.year;
+
+    // Mifflin-St Jeor Equation
+    if (sex == 'Laki-laki' || sex == 'Male') {
+      return (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
+    } else {
+      return (10 * weightKg) + (6.25 * heightCm) - (5 * age) - 161;
+    }
+  }
+
+  // Hitung TDEE (Total Daily Energy Expenditure)
+  double _calculateTDEE() {
+    final bmr = _calculateBMR();
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    final activityLevel = profile?['activityLevel'] as String?;
+
+    const activityMultipliers = {
+      'sedentary': 1.2,
+      'lightly_active': 1.375,
+      'moderately_active': 1.55,
+      'very_active': 1.725,
+      'extremely_active_1': 1.9,
+      'extremely_active_2': 2.0,
+    };
+
+    final multiplier = activityMultipliers[activityLevel] ?? 1.2;
+    return bmr * multiplier;
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Note: The prototype uses a custom, non-standard system status bar.
-    // In Flutter, you usually let the system handle this or use the
-    // AnnotatedRegion<SystemUiOverlayStyle> for deep customization.
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: kGreen),
+        ),
+      );
+    }
+
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    final name = profile?['name'] ?? 'User';
+    final profilePicture = profile?['profilePicture'] ?? 'assets/images/Male Avatar.png';
+    final weightKg = (profile?['weightKg'] as num?)?.toDouble() ?? 0;
+    final targetWeightKg = (profile?['targetWeightKg'] as num?)?.toDouble() ?? 0;
+    final eatFrequency = profile?['eatFrequency'] ?? 3;
+    
+    final weightDiff = weightKg - targetWeightKg;
+    final weightDiffText = weightDiff > 0 
+        ? '+${weightDiff.toStringAsFixed(1)} kg'
+        : '${weightDiff.toStringAsFixed(1)} kg';
+
+    final tdee = _calculateTDEE();
+    final bmi = _calculateBMI();
+    final bmiCategory = _getBMICategory(bmi);
+    final consumedCalories = _calculateConsumedCalories();
+
     return Scaffold(
-      // 1. App Bar (Profile and Weight Info)
-      appBar: AppBar(
-        // Leading: Profile Icon/Avatar
-        leading: const Padding(
-          padding: EdgeInsets.only(left: 10.0),
-          child: CircleAvatar(
-            backgroundColor: kAccentRed, // Placeholder for the avatar background
-            // child: Icon(Icons.person, color: Colors.white), // Placeholder for image
-            // You would use an Image.asset or NetworkImage here
+      backgroundColor: Colors.white,
+      appBar: PreferredSize(
+        // 1. MELEBARKAN APPBAR: Tambah tinggi (misalnya 8.0 atas + 8.0 bawah = 16.0)
+        preferredSize: const Size.fromHeight(kToolbarHeight + 16.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: kGreen,
+            boxShadow: [
+              BoxShadow(
+                // FIX: Menggunakan withOpacity
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+                spreadRadius: 0,
+              ),
+            ],
           ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Text(
-              'John Cena',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              '2384 kcal/day (1130 kcal)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-        // Actions: Current Weight, Target Weight
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: const [
-                Text(
-                  '77,0 kg',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+          // 2. MENAMBAHKAN PADDING ATAS & BAWAH di sekitar AppBar
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+            child: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              leading: InkWell(
+                onTap: widget.onNavigateToProfile,
+                borderRadius: BorderRadius.circular(25),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 10.0),
+                  child: CircleAvatar(
+                    backgroundImage: AssetImage(profilePicture),
+                    // FIX: Menggunakan withOpacity
+                    backgroundColor: Colors.white.withOpacity(0.2),
                   ),
                 ),
-                Text(
-                  'Target: 65,0 kg (+12,0 kg)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
+              ),
+              title: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: widget.onNavigateToProfile,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Konsumsi: $consumedCalories / ${tdee.toStringAsFixed(0)} kcal',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 12,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              titleSpacing: 12,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${weightKg.toStringAsFixed(1)} kg',
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'Target: ${targetWeightKg.toStringAsFixed(1)} kg ($weightDiffText)',
+                        style: TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontSize: 12,
+                          // FIX: Menggunakan withOpacity
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
-        // The prototype seems to use a custom app bar or a body that starts high.
-        // For simplicity, we use a standard AppBar and put the rest in the body.
+        ),
       ),
-      
-      // 2. Body Content (Scrollable)
       body: SingleChildScrollView(
         padding: const EdgeInsets.only(top: 10.0, bottom: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // Location
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'Lokasi: Surabaya, Jawa Timur',
-                  style: TextStyle(color: kAccentGreen, fontSize: 13),
-                ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on, size: 16, color: kGreen),
+                      const SizedBox(width: 4),
+                      Text(
+                        location,
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          color: Color.fromARGB(255, 0, 0, 0),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 30),
 
-            // BMI Section (IMT)
-            const BmiSection(),
-            const SizedBox(height: 25),
+            // BMI Section
+            BmiSection(
+              bmi: bmi,
+              category: bmiCategory['category'],
+              color: bmiCategory['color'],
+              description: bmiCategory['description'],
+            ),
+            const SizedBox(height: 30),
 
             // Daily Stats Section Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text(
-                    'Statistik Harian',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: kTextColor,
+              child: InkWell(
+                onTap: widget.onNavigateToReport,
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Statistik Harian',
+                      style: TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
-                  ),
-                  Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-                ],
+                    Icon(Icons.arrow_forward_ios, size: 16, color: kLightGreyText),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 15),
-            
+
             // Daily Stats Cards
-            const DailyStatsRow(),
+            DailyStatsRow(
+              eatFrequency: eatFrequency,
+              tdee: tdee,
+            ),
             const SizedBox(height: 30),
 
             // Meal Cards (Horizontal Scroll)
-            const MealCardsSection(),
-            const SizedBox(height: 30),
-
-            // Upcoming Meals Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text(
-                    'Upcoming Meals',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: kTextColor,
-                    ),
-                  ),
-                  Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-                ],
-              ),
+            MealCardsSection(
+              meals: meals,
+              onNavigateToMeal: widget.onNavigateToMeal,
             ),
-            // (A list of upcoming meals would go here)
+            const SizedBox(height: 15),
+
+            // Upcoming Meals Header & List
+            UpcomingMealsList(
+              upcomingMeals: upcomingMeals,
+              onNavigateToSchedule: widget.onNavigateToSchedule,
+              onToggleMealDone: _toggleMealDone,
+            ),
+            const SizedBox(height: 30),
           ],
         ),
       ),
-
-      // 3. Bottom Navigation Bar
-      bottomNavigationBar: const CustomBottomNavBar(),
     );
   }
 }
 
-// --- Component 1: BMI/IMT Section ---
+// ===============================================
+// 📈 KOMPONEN: BMI SECTION
+// ===============================================
 class BmiSection extends StatelessWidget {
-  const BmiSection({super.key});
+  final double bmi;
+  final String category;
+  final Color color;
+  final String description;
+
+  const BmiSection({
+    super.key,
+    required this.bmi,
+    required this.category,
+    required this.color,
+    required this.description,
+  });
+
+  double _getIndicatorPosition(double screenWidth) {
+    // BMI ranges: <18.5, 18.5-25, 25-30, >30
+    // Position percentages: 0-25%, 25-50%, 50-75%, 75-100%
+    if (bmi < 18.5) {
+      return (bmi / 18.5) * 0.25 * (screenWidth - 32);
+    } else if (bmi < 25) {
+      return (0.25 + ((bmi - 18.5) / 6.5) * 0.25) * (screenWidth - 32);
+    } else if (bmi < 30) {
+      return (0.50 + ((bmi - 25) / 5) * 0.25) * (screenWidth - 32);
+    } else {
+      final position = 0.75 + ((bmi - 30) / 10) * 0.25;
+      return (position > 1.0 ? 1.0 : position) * (screenWidth - 32);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // This part is simplified. A real implementation would use a
-    // custom painter or a package like 'sleek_circular_slider' for the gauge.
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '26,6',
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: kTextColor,
-                ),
-              ),
-              const SizedBox(width: 5),
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  'IMT saat ini',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[700],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // Placeholder for the progress bar/gauge
-          Container(
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.blue.shade200, // Underweight
-                  kAccentGreen, // Normal
-                  Colors.orange.shade400, // Overweight
-                  kAccentRed, // Obese
-                ],
-                stops: const [0.0, 0.4, 0.7, 1.0],
-              ),
-              borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: kMutedBorderGrey, width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              // FIX: Menggunakan withOpacity
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
-            child: Stack(
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Current BMI Marker (26.6 is in the Overweight section)
-                Positioned(
-                  left: MediaQuery.of(context).size.width * 0.55, // Approximate position for 26.6
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 4,
-                    color: kTextColor,
+                Text(
+                  bmi.toStringAsFixed(1),
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                    color: color,
                   ),
                 ),
-                // Text labels (Simplified)
-                const Positioned(left: 0, child: Text('Underweight', style: TextStyle(fontSize: 10, color: Colors.white))),
-                const Positioned(left: 100, child: Text('Normal', style: TextStyle(fontSize: 10, color: Colors.white))),
-                const Positioned(right: 50, child: Text('Obese', style: TextStyle(fontSize: 10, color: Colors.white))),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'IMT saat ini',
+                        style: TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontSize: 14,
+                          color: kLightGreyText,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          // FIX: Menggunakan withOpacity
+                          color: color.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          category,
+                          style: TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 10),
-          // Description text
-          Text(
-            'Berat badan sedikit melebihi ideal, berpotensi meningkatkan risiko gangguan metabolik jika tidak dikontrol.',
-            style: TextStyle(color: Colors.grey[700], fontSize: 12),
-          ),
-        ],
+            const SizedBox(height: 20),
+            
+            // BMI Bar dengan indicator
+            Container(
+              height: 40,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    // FIX: Menggunakan withOpacity
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Gradient background
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          kBlue,
+                          kGreen,
+                          kOrange,
+                          kRed,
+                        ],
+                        stops: [0.0, 0.25, 0.50, 0.75],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  
+                  // Labels dengan angka
+                  Positioned(
+                    left: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Under',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                          Text(
+                            '<18.5',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 8,
+                              fontWeight: FontWeight.w500,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: (screenWidth - 32) * 0.25 + 4,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Normal',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                          Text(
+                            '18.5-25',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 8,
+                              fontWeight: FontWeight.w500,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: (screenWidth - 32) * 0.50 + 4,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Over',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                          Text(
+                            '25-30',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 8,
+                              fontWeight: FontWeight.w500,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Obese',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                          Text(
+                            '>30',
+                            style: TextStyle(
+                              fontFamily: 'Funnel Display',
+                              fontSize: 8,
+                              fontWeight: FontWeight.w500,
+                              // FIX: Menggunakan withOpacity
+                              color: Colors.white.withOpacity(0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  // Indicator hitam transparan (40% opacity)
+                  Positioned(
+                    left: _getIndicatorPosition(screenWidth),
+                    top: -5,
+                    bottom: -5,
+                    child: Container(
+                      width: 4,
+                      decoration: BoxDecoration(
+                        // FIX: Menggunakan withOpacity
+                        color: Colors.black.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: [
+                          BoxShadow(
+                            // FIX: Menggunakan withOpacity
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // Description
+            Text(
+              description,
+              style: const TextStyle(
+                fontFamily: 'Funnel Display',
+                color: kGreyText,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// --- Component 2: Daily Stats Row ---
+// ===============================================
+// 📊 KOMPONEN: DAILY STATS ROW & STAT CARD
+// ===============================================
 class DailyStatsRow extends StatelessWidget {
-  const DailyStatsRow({super.key});
+  final int eatFrequency;
+  final double tdee;
+
+  const DailyStatsRow({
+    super.key,
+    required this.eatFrequency,
+    required this.tdee,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final bmr = tdee / 1.375;
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: const [
-          // Stat Card 1: Makan
+        children: [
           Expanded(
             child: StatCard(
               title: 'Makan',
-              value: '2/3 kali',
-              delta: '',
+              value: '$eatFrequency',
+              delta: 'kali/hari',
+              icon: Icons.restaurant,
             ),
           ),
-          SizedBox(width: 10),
-          // Stat Card 2: Kalori
+          const SizedBox(width: 10),
           Expanded(
             child: StatCard(
-              title: 'Kalori',
-              value: '1130 kcal',
-              delta: '+680 kcal',
+              title: 'BMR',
+              value: bmr.toStringAsFixed(0),
+              delta: 'kcal/hari',
+              icon: Icons.favorite,
             ),
           ),
-          SizedBox(width: 10),
-          // Stat Card 3: Pengeluaran
+          const SizedBox(width: 10),
           Expanded(
             child: StatCard(
-              title: 'Pengeluaran',
-              value: 'Rp 82.000',
-              delta: '+Rp 42.000',
+              title: 'TDEE',
+              value: tdee.toStringAsFixed(0),
+              delta: 'kcal/hari',
+              icon: Icons.local_fire_department,
             ),
           ),
         ],
@@ -314,57 +1225,93 @@ class StatCard extends StatelessWidget {
   final String title;
   final String value;
   final String delta;
+  final IconData icon;
 
   const StatCard({
+    super.key,
     required this.title,
     required this.value,
     required this.delta,
-    super.key,
+    required this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool hasDelta = delta.isNotEmpty;
+
     return Container(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.all(14.0),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          // FIX: Menggunakan withOpacity
+          color: kMutedBorderGrey.withOpacity(0.3), 
+          width: 1
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            // FIX: Menggunakan withOpacity
+            color: Colors.black.withOpacity(0.05),
             spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 2),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  // FIX: Menggunakan withOpacity
+                  color: kGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  size: 16,
+                  color: kGreen,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 10,
+                    color: kLightGreyText,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 10),
           Text(
             value,
             style: const TextStyle(
+              fontFamily: 'Funnel Display',
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: kTextColor,
+              color: Colors.black87,
             ),
           ),
-          if (delta.isNotEmpty) ...[
+          if (hasDelta) ...[
             const SizedBox(height: 2),
             Text(
               delta,
-              style: TextStyle(
+              style: const TextStyle(
+                fontFamily: 'Funnel Display',
                 fontSize: 10,
-                color: title == 'Kalori' ? kAccentRed : kAccentGreen,
-                fontWeight: FontWeight.bold,
+                color: kLightGreyText,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -374,64 +1321,53 @@ class StatCard extends StatelessWidget {
   }
 }
 
-// --- Component 3: Meal Cards Section (Horizontal Scroll) ---
+// ===============================================
+// 🍽️ KOMPONEN: MEAL CARDS SECTION (Horizontal Scroll)
+// ===============================================
 class MealCardsSection extends StatelessWidget {
-  const MealCardsSection({super.key});
-
-  // Dummy data for the meals
-  final List<Map<String, dynamic>> meals = const [
-    {
-      'time': 'Sarapan',
-      'name': 'Caesar Salad',
-      'tag': 'Sayuran',
-      'calories': '450 kcal',
-      'price': 'Rp 40.000',
-      'imagePath': 'assets/caesar_salad.png', // Placeholder
-    },
-    {
-      'time': 'Makan Siang',
-      'name': 'Udang Saos Tiram',
-      'tag': 'Udang',
-      'calories': '510 kcal',
-      'price': 'Rp 42.000',
-      'imagePath': 'assets/udang_saos_tiram.png', // Placeholder
-    },
-    {
-      'time': 'Makan Malam',
-      'name': 'Sandwich Ayam',
-      'tag': 'Ayam',
-      'calories': '430 kcal',
-      'price': 'Rp 35.000',
-      'imagePath': 'assets/sandwich_ayam.png', // Placeholder
-    },
-  ];
+  final List<Map<String, dynamic>> meals;
+  final VoidCallback onNavigateToMeal;
+  
+  const MealCardsSection({
+    super.key,
+    required this.meals,
+    required this.onNavigateToMeal,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            'Rekomendasi Menu',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: InkWell(
+            onTap: onNavigateToMeal,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Rekomendasi Menu',
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, size: 16, color: kLightGreyText),
+              ],
             ),
           ),
         ),
         const SizedBox(height: 15),
         SizedBox(
-          height: 300, // Adjust height based on card size
+          height: 270,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: meals.length,
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            itemBuilder: (context, index) {
-              final meal = meals[index];
-              return MealCard(meal: meal);
-            },
+            itemCount: meals.length,
+            itemBuilder: (context, i) => _MealCard(meal: meals[i]),
           ),
         ),
       ],
@@ -439,125 +1375,174 @@ class MealCardsSection extends StatelessWidget {
   }
 }
 
-class MealCard extends StatelessWidget {
+class _MealCard extends StatelessWidget {
   final Map<String, dynamic> meal;
 
-  const MealCard({required this.meal, super.key});
+  const _MealCard({required this.meal});
 
   @override
   Widget build(BuildContext context) {
-    // A simplified Card to represent the meal item
+    final mealType = meal['type'] as String? ?? '';
+    final mealName = meal['name'] as String? ?? '';
+    final tag1 = meal['tag1'] as String? ?? '';
+    final calories = meal['calories'] as int? ?? 0;
+    final price = meal['price'] as int? ?? 0;
+    final imageUrl = meal['image'] as String? ?? '';
+
     return Container(
-      width: 150, // Fixed width as per prototype style
+      width: 150,
       margin: const EdgeInsets.only(right: 15.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Meal Time Label
           Text(
-            meal['time'] as String,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
+            mealType,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           ),
-          const SizedBox(height: 8),
-
-          // The main Card/Container with Image and Details
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Image Placeholder
-                Stack(
-                  children: [
-                    Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300], // Placeholder background
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                        // Use DecorationImage for the actual image
-                        // image: DecorationImage(image: AssetImage(meal['imagePath']), fit: BoxFit.cover),
-                      ),
-                      // For a real app, replace this with a real image widget
-                      child: Center(
-                        child: Text(
-                          'Image of ${meal['name']}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12, color: kTextColor),
-                        ),
-                      ),
+          const SizedBox(height: 6),
+          Flexible(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    // FIX: Menggunakan withOpacity
+                    color: Colors.grey.withOpacity(0.2),
+                    spreadRadius: 1,
+                    blurRadius: 5,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Image from Firestore - 1:1 RATIO (SQUARE) with tag overlay
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                    child: Stack(
+                      children: [
+                        imageUrl.isNotEmpty
+                            ? Image.network(
+                                imageUrl,
+                                height: 150,
+                                width: 150,
+                                fit: BoxFit.cover,
+                                cacheWidth: 450,
+                                cacheHeight: 450,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    height: 150,
+                                    width: 150,
+                                    color: Colors.grey[200],
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 30,
+                                        height: 30,
+                                        child: CircularProgressIndicator(
+                                          value: loadingProgress.expectedTotalBytes != null
+                                              ? loadingProgress.cumulativeBytesLoaded /
+                                                  loadingProgress.expectedTotalBytes!
+                                              : null,
+                                          color: kGreen,
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  debugPrint('Error loading image: $error');
+                                  return Container(
+                                    height: 150,
+                                    width: 150,
+                                    color: Colors.grey[200],
+                                    child: Center(
+                                      child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
+                                    ),
+                                  );
+                                },
+                              )
+                            : Container(
+                                height: 150,
+                                width: 150,
+                                color: Colors.grey[200],
+                                child: Center(
+                                  child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
+                                ),
+                              ),
+                        // Tag overlay at top-left corner
+                        if (tag1.isNotEmpty)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                // FIX: Menggunakan withOpacity
+                                color: kGreen.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                tag1,
+                                style: const TextStyle(
+                                  fontFamily: 'Funnel Display',
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    // Tag/Chip
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: kAccentGreen.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          meal['tag'] as String,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(7.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          mealName,
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
+                            fontFamily: 'Funnel Display',
                             fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: Colors.black87,
+                            height: 1.15,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$calories kcal',
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 9,
+                            color: kLightGreyText,
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 1),
+                        Text(
+                          'Rp ${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: kGreen,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                // Details
-                Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        meal['name'] as String,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        meal['calories'] as String,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const Divider(height: 15),
-                      Text(
-                        meal['price'] as String,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: kTextColor,
-                        ),
-                      ),
-                    ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -566,39 +1551,182 @@ class MealCard extends StatelessWidget {
   }
 }
 
-// --- Component 4: Custom Bottom Navigation Bar ---
-class CustomBottomNavBar extends StatelessWidget {
-  const CustomBottomNavBar({super.key});
+// ===============================================
+// 📅 KOMPONEN: UPCOMING MEALS LIST
+// ===============================================
+class UpcomingMealsList extends StatelessWidget {
+  final List<Map<String, dynamic>> upcomingMeals;
+  final VoidCallback onNavigateToSchedule;
+  final Function(int) onToggleMealDone;
+  
+  const UpcomingMealsList({
+    super.key,
+    required this.upcomingMeals,
+    required this.onNavigateToSchedule,
+    required this.onToggleMealDone,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed, // To show all items
-      selectedItemColor: kAccentGreen, // Highlight color for the active item
-      unselectedItemColor: Colors.grey,
-      currentIndex: 2, // 'Home' is the active item
-      showUnselectedLabels: true,
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.schedule),
-          label: 'Schedule',
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: onNavigateToSchedule,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Jadwal Makan Hari Ini',
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, size: 16, color: kLightGreyText),
+              ],
+            ),
+          ),
+          const SizedBox(height: 15),
+          Column(
+            children: upcomingMeals.asMap().entries.map((entry) {
+              final index = entry.key;
+              final meal = entry.value;
+              final isLast = index == upcomingMeals.length - 1;
+              
+              return MealListItem(
+                time: meal['time'] as String,
+                clock: meal['clock'] as String,
+                name: meal['name'] as String,
+                isDone: meal['isDone'] as bool,
+                isLast: isLast,
+                onToggle: () => onToggleMealDone(index),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MealListItem extends StatelessWidget {
+  final String time;
+  final String clock;
+  final String name;
+  final bool isDone;
+  final bool isLast;
+  final VoidCallback onToggle;
+
+  const MealListItem({
+    required this.time,
+    required this.clock,
+    required this.name,
+    required this.isDone,
+    this.isLast = false,
+    required this.onToggle,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10.0),
+          child: Row(
+            children: [
+              // Checkbox Icon - Clickable
+              GestureDetector(
+                onTap: onToggle,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isDone ? kGreen : kMutedBorderGrey,
+                      width: 1.5,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                    color: isDone ? kGreen : Colors.white,
+                  ),
+                  child: isDone
+                      ? const Icon(
+                            Icons.check,
+                            size: 16,
+                            color: Colors.white,
+                          )
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Meal Time and Clock
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      time,
+                      style: const TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: kLightGreyText,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          clock,
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 12,
+                            color: kLightGreyText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Meal Name (Aligned Right)
+              Flexible(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.right,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.restaurant),
-          label: 'Meal',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home', // Active item
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.bar_chart),
-          label: 'Report',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
-        ),
+        if (!isLast)
+          Divider(
+            // FIX: Menggunakan withOpacity
+            color: kMutedBorderGrey.withOpacity(0.3),
+            height: 1,
+            thickness: 1,
+          ),
       ],
     );
   }

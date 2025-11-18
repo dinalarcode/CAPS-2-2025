@@ -1,21 +1,79 @@
 name: nutrilink
-description: "A new Flutter project."
+description: "Recommender System for Dynamic Meal Scheduling and Caloric Intake Management."
 publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: ^3.8.0
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  fl_chart: ^0.68.0  # Untuk Pie chart dan Bar chart
-  intl: ^0.19.0     # Untuk format tanggal (Senin, 15 April 2025)
+  flutter_localizations:
+    sdk: flutter
+
+  # Util
+  intl: ^0.20.2
+  logger: ^2.6.2
+  shared_preferences: ^2.3.3
+
+  # Firebase (versi sudah generasi baru, keep konsisten)
+  firebase_core: ^4.2.1
+  firebase_auth: ^6.1.2
+  cloud_firestore: ^6.1.0
+  firebase_storage: ^13.0.4   # Updated to fix dependency conflict
+
+  # Sign-in & lokasi
+  google_sign_in: ^6.2.2
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
+
+  # UI helper
+  flutter_cupertino_datetime_picker: ^3.0.0
+
+  # File picker / image picker (buat upload ke Storage)
+  image_picker: ^1.1.2        # <── TAMBAHAN: ambil foto/galeri di mobile
+  # file_picker: ^8.0.0       # (opsional kalau mau support web/other files)
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: "^0.14.4"
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/Logo NutriLink.png"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/images/Logo NutriLink.png"
+    background_color: "#FFFFFF"   # ganti dari "#hexcode"
+    theme_color: "#5F9C3F"        # misal hijau NutriLink
+  windows:
+    generate: true
+    image_path: "assets/images/Logo NutriLink.png"
+    icon_size: 48
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/images/Data Privacy Illustration.png
+    - assets/images/Login Illustration.png
+    - assets/images/Logo Google.png
+    - assets/images/Logo HealthyGo.png
+    - assets/images/Logo NutriLink.png
+    - assets/images/Male Avatar.png
+    - assets/images/Female Avatar.png
+    - assets/images/Seafood.png
+    - assets/images/Fish.png
+    - assets/images/Shrimp.png
+    - assets/images/Beef.png
+    - assets/images/Chicken.png
+
+  fonts:
+    - family: Funnel Display
+      fonts:
+        - asset: assets/fonts/FunnelDisplay.ttf

@@ -1,0 +1,28 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "nutrilink-5f07f",
+          "appId": "1:1599486853:android:d69e3594599b5a0f5b62ec",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "nutrilink-5f07f",
+          "configurations": {
+            "android": "1:1599486853:android:d69e3594599b5a0f5b62ec",
+            "web": "1:1599486853:web:4eeb171338c8e72c5b62ec"
+          }
+        }
+      }
+    }
+  }
+}
