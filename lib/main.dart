@@ -62,10 +62,10 @@ Future<void> main() async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
-  // Init locale untuk DateFormat('...', 'id')
-  await initializeDateFormatting('id', null);
-
-  runApp(const NutriLinkApp());
+  // 7) Run
+  runZonedGuarded(() => runApp(const NutriLinkApp()), (e, s) {
+    debugPrint('UNCAUGHT ZONE ERROR: $e\n$s');
+  });
 }
 
 class NutriLinkApp extends StatelessWidget {
@@ -100,31 +100,7 @@ class NutriLinkApp extends StatelessWidget {
         ),
       ),
 
-      // HOME dengan Auth State Persistence
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          // Loading state
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF5F9C3F),
-                ),
-              ),
-            );
-          }
-          
-          // Jika user sudah login, langsung ke home
-          if (snapshot.hasData && snapshot.data != null) {
-            return const home.HomePage();
-          }
-          
-          // Jika belum login, ke welcome page
-          return const welcome.WelcomePage();
-        },
-      ),
-
+      // Semua named routes
       routes: {
         '/welcome': (_) => const welcome.WelcomePage(),
         '/terms': (_) => const terms.TermsAndConditionsPage(),
