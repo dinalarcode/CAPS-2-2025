@@ -14,7 +14,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 // ====== Palet warna konsisten dengan aplikasi ======
-const Color kGreen = Color(0xFF5F9C3F);
+// const Color kGreen = Color(0xFF5F9C3F);
+const Color kGreen = Color(0xFF84DA87);
 const Color kGreenLight = Color(0xFF7BB662);
 const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
@@ -452,10 +453,12 @@ class _HomePageContentState extends State<HomePageContent> {
           .get();
 
       if (doc.exists) {
-        setState(() {
-          userData = doc.data();
-          isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            userData = doc.data();
+            isLoading = false;
+          });
+        }
         // Load meals after user data is loaded
         await _loadMeals();
       }
@@ -636,7 +639,7 @@ class _HomePageContentState extends State<HomePageContent> {
       backgroundColor: Colors.white,
       appBar: PreferredSize(
         // 1. MELEBARKAN APPBAR: Tambah tinggi (misalnya 8.0 atas + 8.0 bawah = 16.0)
-        preferredSize: const Size.fromHeight(kToolbarHeight + 16.0),
+        preferredSize: const Size.fromHeight(kToolbarHeight + 14.0),
         child: Container(
           decoration: BoxDecoration(
             color: kGreen,
@@ -652,7 +655,7 @@ class _HomePageContentState extends State<HomePageContent> {
           ),
           // 2. MENAMBAHKAN PADDING ATAS & BAWAH di sekitar AppBar
           child: Padding(
-            padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+            padding: const EdgeInsets.only(top: 7.0, bottom: 7.0),
             child: AppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,

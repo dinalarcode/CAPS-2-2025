@@ -149,7 +149,7 @@ class _TagFilterSection extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6.0),
                 child: Chip(
                   label: Text(activeTags[index]),
-                  backgroundColor: Colors.green.shade100,
+                  backgroundColor: const Color(0xFFC8E6C9),
                   side: BorderSide.none,
                 ),
               );

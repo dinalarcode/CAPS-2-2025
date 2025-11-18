@@ -31,6 +31,8 @@ import 'package:nutrilink/summaryPage.dart' as summary_page;
 import 'package:nutrilink/reportPage.dart' as report_page;
 import 'package:nutrilink/firestore_test.dart';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
+
 // reCAPTCHA web
 const String kRecaptchaV3SiteKey = '6Lf2pQMsAAAAALiEdH2KdQ3ThKzZ2IlJQAw7HJxG';
 
@@ -58,6 +60,10 @@ Future<void> main() async {
   if (!kIsWeb) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
+
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.playIntegrity, // Paling disarankan 
+  );
 
   // 7) Run
   runZonedGuarded(() => runApp(const NutriLinkApp()), (e, s) {

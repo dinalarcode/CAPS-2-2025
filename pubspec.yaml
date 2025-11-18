@@ -21,8 +21,13 @@ dependencies:
   fl_chart: ^0.65.0
   geolocator: ^14.0.2        # Add Geolocator
   geocoding: ^4.0.0
-  shared_preferences: ^2.2.2
-  firebase_storage: ^12.0.1
+
+  # UI helper
+  flutter_cupertino_datetime_picker: ^3.0.0
+
+  # File picker / image picker (buat upload ke Storage)
+  image_picker: ^1.1.2        # <── TAMBAHAN: ambil foto/galeri di mobile
+  # file_picker: ^8.0.0       # (opsional kalau mau support web/other files)
 
 dev_dependencies:
   flutter_test:
