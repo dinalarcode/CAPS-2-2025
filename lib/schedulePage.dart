@@ -1,58 +1,40 @@
+// lib/schedulePage.dart
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'editedMenuPage.dart'; // Import EditedMenuPage
 import 'tambahMenuPage.dart';
 
-// --- Data Model Sederhana ---
+// Import warna (untuk konsistensi dengan homePage.dart)
+const Color kGreen = Color(0xFF5F9C3F);
+const Color kLightGreyText = Color(0xFF888888);
+const Color kMutedBorderGrey = Color(0xFFA9ABAD);
+const Color kYellow = Color(0xFFFFA726);
+
+// --- Data Model Real (untuk referensi Meal Card) ---
 class Meal {
-  final String time;
+  final String time; // Sarapan/Makan Siang/Makan Malam
+  final String clock; // 07:00 - 08:00
   final String name;
-  final String calories;
-  final String protein;
+  final int calories;
+  final String imageUrl;
+  final bool isDone;
+  final String protein; 
   final String fat;
   final String carbs;
-  final String imageUrl;
 
   Meal({
     required this.time,
+    required this.clock,
     required this.name,
     required this.calories,
-    required this.protein,
-    required this.fat,
-    required this.carbs,
     required this.imageUrl,
+    this.isDone = false,
+    this.protein = '?',
+    this.fat = '?',
+    this.carbs = '?',
   });
 }
-
-// Data dummy (Pastikan path asset di pubspec.yaml sudah benar)
-final List<Meal> dummyMeals = [
-  Meal(
-    time: '06:30',
-    name: 'Roti Ayam Panggang',
-    calories: '250',
-    protein: '37g',
-    fat: '43g',
-    carbs: '31g',
-    imageUrl: 'assets/images/roti_ayam_panggang.jpg', // Contoh path asset
-  ),
-  Meal(
-    time: '14:00',
-    name: 'Roti Bakar Telur',
-    calories: '250',
-    protein: '35g',
-    fat: '55g',
-    carbs: '34g',
-    imageUrl: 'assets/images/makan_siang.jpg', // Contoh path asset
-  ),
-  Meal(
-    time: '19:00',
-    name: 'roti bakar telur',
-    calories: '240',
-    protein: '32g',
-    fat: '51g',
-    carbs: '32g',
-    imageUrl: 'assets/images/makan_malam.jpg', // Contoh path asset
-  ),
-];
 
 // ===============================================
 // 🎯 KELAS UTAMA: SCHEDULEPAGE
@@ -66,53 +48,173 @@ class SchedulePage extends StatefulWidget {
 }
 
 class _SchedulePageState extends State<SchedulePage> {
-  String _selectedMonthYear = 'April 2025';
-  int _selectedDate = 1;
+  List<Map<String, dynamic>> upcomingMeals = [];
+  bool isLoading = true;
 
-  // Daftar bulan/tahun untuk Dropdown
-  final List<String> _monthYears = [
-    'April 2025',
-    'Maret 2025',
-    'Februari 2025',
-    'Januari 2025',
-  ];
+  // --- REVISI 1: TANGGAL AWAL DITETAPKAN SECARA DINAMIS ---
+  late DateTime _selectedDate;
+  late String _selectedMonthYear;
+  
+  final List<String> _monthYears = [];
+  List<Map<String, dynamic>> dailySchedule = [];
 
-  // Data dummy untuk hari dan tanggal, DITINGKATKAN untuk menyimpan nama hari lengkap
-  final List<Map<String, dynamic>> dailySchedule = [
-    {'day': 'Senin', 'date': 1, 'isToday': true},
-    {'day': 'Selasa', 'date': 2, 'isToday': false},
-    {'day': 'Rabu', 'date': 3, 'isToday': false},
-    {'day': 'Kamis', 'date': 4, 'isToday': false},
-    {'day': 'Jumat', 'date': 5, 'isToday': false},
-    {'day': 'Sabtu', 'date': 6, 'isToday': false},
-    {'day': 'Minggu', 'date': 7, 'isToday': false},
-    {'day': 'Senin', 'date': 8, 'isToday': false},
-    {'day': 'Selasa', 'date': 9, 'isToday': false},
-    {'day': 'Rabu', 'date': 10, 'isToday': false},
-    {'day': 'Kamis', 'date': 11, 'isToday': false},
-    {'day': 'Jumat', 'date': 12, 'isToday': false},
-    {'day': 'Sabtu', 'date': 13, 'isToday': false},
-    {'day': 'Minggu', 'date': 14, 'isToday': false},
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = DateTime.now();
+    _initMonthYears();
+    
+    _selectedMonthYear = '${_getMonthName(_selectedDate.month)} ${_selectedDate.year}';
+    _calculateDailySchedule(_selectedDate);
 
-  ];
+    _loadUpcomingMeals(); 
+  }
+  
+  String _getMonthName(int month) {
+    const names = [
+      '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return names[month];
+  }
+  
+  String _getDayName(int weekday) {
+    const names = [
+      '', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'
+    ];
+    return names[weekday];
+  }
 
-  // Fungsi untuk mendapatkan teks tanggal lengkap
+  void _calculateDailySchedule(DateTime date) {
+    final startOfMonth = DateTime(date.year, date.month, 1);
+    final nextMonth = DateTime(date.year, date.month + 1, 1);
+    final daysInMonth = nextMonth.difference(startOfMonth).inDays;
+    
+    final List<Map<String, dynamic>> calculatedSchedule = [];
+    
+    for (int i = 0; i < daysInMonth; i++) {
+      final currentDay = startOfMonth.add(Duration(days: i));
+      calculatedSchedule.add({
+        'day': _getDayName(currentDay.weekday),
+        'date': currentDay.day,
+        'isToday': currentDay.year == DateTime.now().year && 
+                   currentDay.month == DateTime.now().month && 
+                   currentDay.day == DateTime.now().day,
+        'fullDate': currentDay,
+      });
+    }
+
+    // Hanya panggil setState jika widget masih mounted
+    if (mounted) {
+      setState(() {
+        dailySchedule = calculatedSchedule;
+      });
+    }
+  }
+  
+  void _initMonthYears() {
+    final now = DateTime.now();
+    final List<String> list = [];
+    for (int i = 0; i < 12; i++) {
+      final date = DateTime(now.year, now.month - i, 1);
+      list.add('${_getMonthName(date.month)} ${date.year}');
+    }
+    _monthYears.addAll(list.toSet().toList());
+  }
+
   String _getFullDateText() {
-    final selectedDay = dailySchedule.firstWhere(
-        (day) => day['date'] == _selectedDate,
-        orElse: () => {'day': 'Senin', 'date': 1, 'isToday': true});
-
-    final dayName = selectedDay['day'];
-    final date = selectedDay['date'].toString().padLeft(2, '0');
-    final monthYear = _selectedMonthYear.replaceAll(' ', ' ');
+    final dayName = _getDayName(_selectedDate.weekday);
+    final date = _selectedDate.day.toString().padLeft(2, '0');
+    final monthYear = _selectedMonthYear;
     return '$dayName, $date $monthYear';
   }
+  
+  Future<void> _loadUpcomingMeals() async {
+    final selectedIsToday = _selectedDate.year == DateTime.now().year &&
+                            _selectedDate.month == DateTime.now().month &&
+                            _selectedDate.day == DateTime.now().day;
+    
+    if (!selectedIsToday) {
+      if (mounted) {
+        setState(() {
+          upcomingMeals = [];
+          isLoading = false;
+        });
+      }
+      return;
+    }
+    
+    if (mounted) setState(() => isLoading = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final todayKey = DateTime.now().toString().split(' ')[0];
+      final cachedUpcomingJson = prefs.getString('cached_upcoming_$todayKey');
+
+      if (cachedUpcomingJson != null) {
+        final List<dynamic> cachedUpcomingList = json.decode(cachedUpcomingJson);
+        if (mounted) {
+          setState(() {
+            upcomingMeals = cachedUpcomingList.cast<Map<String, dynamic>>();
+            isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => isLoading = false);
+      }
+    } catch (e) {
+      debugPrint('SchedulePage Error loading meals: $e');
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _saveUpcomingMealsToCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toString().split(' ')[0];
+      await prefs.setString('cached_upcoming_$today', json.encode(upcomingMeals));
+    } catch (e) {
+      debugPrint('SchedulePage Error saving upcoming meals cache: $e');
+    }
+  }
+
+  void _onMonthYearChanged(String? newValue) {
+    if (newValue != null) {
+      final parts = newValue.split(' ');
+      final monthName = parts[0];
+      final year = int.tryParse(parts[1]) ?? DateTime.now().year;
+      
+      final month = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ].indexOf(monthName) + 1;
+      
+      final newSelectedDate = DateTime(year, month, 1);
+
+      if (mounted) {
+        setState(() {
+          _selectedMonthYear = newValue;
+          _selectedDate = newSelectedDate;
+          _calculateDailySchedule(newSelectedDate);
+        });
+      }
+      _loadUpcomingMeals();
+    }
+  }
+  
+  void _onDateSelected(DateTime newFullDate) {
+    if (mounted) {
+      setState(() {
+        _selectedDate = newFullDate;
+      });
+    }
+    _loadUpcomingMeals();
+  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // AppBar transparan dan tanpa bayangan
         backgroundColor: Colors.transparent,
         elevation: 0,
         toolbarHeight: 0,
@@ -121,8 +223,7 @@ class _SchedulePageState extends State<SchedulePage> {
         children: [
           const SizedBox(height: 16),
 
-          // Bagian Header (Tombol Kembali, Judul)
-          _AppBarContent(),
+          const _AppBarContent(), // FIX: Dipanggil sebagai const widget
 
           const SizedBox(height: 10),
 
@@ -130,33 +231,21 @@ class _SchedulePageState extends State<SchedulePage> {
           _MonthYearSelector(
             selectedMonthYear: _selectedMonthYear,
             monthYears: _monthYears,
-            onChanged: (newValue) {
-              if (newValue != null) {
-                setState(() {
-                  _selectedMonthYear = newValue;
-                  // Reset tanggal saat bulan berubah
-                  _selectedDate = 1;
-                });
-              }
-            },
+            onChanged: _onMonthYearChanged,
           ),
 
           const SizedBox(height: 16),
 
-          // Pemilih Hari/Tanggal
+          // Pemilih Hari/Tanggal (semua tanggal bulan ini)
           _DayOfWeekSelector(
             selectedDate: _selectedDate,
-            dailySchedule: dailySchedule, // Kirim data jadwal
-            onDateSelected: (newDate) {
-              setState(() {
-                _selectedDate = newDate;
-              });
-            },
+            dailySchedule: dailySchedule,
+            onDateSelected: _onDateSelected,
           ),
 
-          const SizedBox(height: 10), // Jarak pemisah
+          const SizedBox(height: 10), 
 
-          // TANGGAL LENGKAP & ICON PLUS (DIPINDAHKAN KE SINI)
+          // TANGGAL LENGKAP & ICON PLUS
           _FullDateDisplay(
             fullDateText: _getFullDateText(),
           ),
@@ -165,20 +254,54 @@ class _SchedulePageState extends State<SchedulePage> {
 
           // Daftar Jadwal Makan
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: dummyMeals.length,
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: _MealCard(meal: dummyMeals[index]),
-                );
-              },
-            ),
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator(color: kGreen))
+                : upcomingMeals.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Center(
+                      child: Text(
+                        _selectedDate.day == DateTime.now().day
+                            ? 'Tidak ada jadwal makan hari ini. Kembali ke Home untuk memuat rekomendasi.'
+                            : 'Tidak ada jadwal makan yang tersimpan untuk tanggal ini.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: kLightGreyText),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: upcomingMeals.length,
+                    itemBuilder: (context, index) {
+                      final mealMap = upcomingMeals[index];
+                      final meal = Meal(
+                        time: mealMap['time'] as String? ?? 'N/A', 
+                        clock: mealMap['clock'] as String? ?? '00:00',
+                        name: mealMap['name'] as String? ?? 'Menu',
+                        calories: mealMap['calories'] as int? ?? 0,
+                        imageUrl: mealMap['image'] as String? ?? '', 
+                        isDone: mealMap['isDone'] as bool? ?? false,
+                      );
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: _MealCard(
+                          meal: meal, 
+                          onToggleDone: (bool value) {
+                            if (mounted) {
+                              setState(() {
+                                upcomingMeals[index]['isDone'] = value;
+                              });
+                            }
+                            _saveUpcomingMealsToCache();
+                          },
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
-      // bottomNavigationBar di-handle oleh HomeShell
     );
   }
 }
@@ -187,62 +310,16 @@ class _SchedulePageState extends State<SchedulePage> {
 // 🖼️ WIDGET PENDUKUNG
 // ===============================================
 
-// Widget baru untuk menampilkan Tanggal Lengkap dan Icon Plus
-class _FullDateDisplay extends StatelessWidget {
-  final String fullDateText;
-  const _FullDateDisplay({required this.fullDateText});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            fullDateText,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
-          ),
-          InkResponse(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const TambahMenuPage(), // <--- NAVIGASI KE HALAMAN BARU
-                ),
-              );
-            },
-            radius: 20,
-            child: const Padding(
-              padding: EdgeInsets.all(4.0),
-              child: Icon(
-                Icons.add_circle_outline, // Icon Plus
-                color: Color(0xFF4CAF50),
-                size: 28,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _AppBarContent extends StatelessWidget {
+  const _AppBarContent(); // Tambahkan const constructor
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          // Tombol Kembali
           GestureDetector(
             onTap: () {
-              // Jika halaman ini didorong (pushed) ke stack, gunakan pop
               if (Navigator.of(context).canPop()) {
                 Navigator.of(context).pop();
               }
@@ -254,7 +331,6 @@ class _AppBarContent extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Judul
           const Text(
             'Jadwal Makan',
             style: TextStyle(
@@ -290,7 +366,7 @@ class _MonthYearSelector extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0.5),
             decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50), // Background hijau muda
+              color: kGreen, 
               borderRadius: BorderRadius.circular(10),
             ),
             child: DropdownButtonHideUnderline(
@@ -302,12 +378,12 @@ class _MonthYearSelector extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
-                dropdownColor: const Color(0xFF4CAF50),
+                dropdownColor: kGreen,
                 elevation: 1,
                 items: monthYears.map<DropdownMenuItem<String>>((String value) {
                   return DropdownMenuItem<String>(
                     value: value,
-                    child: Text(value.split(' ')[0]), // Hanya menampilkan Bulan
+                    child: Text(value.split(' ')[0]),
                   );
                 }).toList(),
                 onChanged: onChanged,
@@ -321,9 +397,9 @@ class _MonthYearSelector extends StatelessWidget {
 }
 
 class _DayOfWeekSelector extends StatelessWidget {
-  final int selectedDate;
-  final ValueChanged<int> onDateSelected;
-  final List<Map<String, dynamic>> dailySchedule; // Tambahkan data jadwal
+  final DateTime selectedDate; 
+  final ValueChanged<DateTime> onDateSelected;
+  final List<Map<String, dynamic>> dailySchedule; 
 
   const _DayOfWeekSelector({
     required this.selectedDate,
@@ -336,7 +412,6 @@ class _DayOfWeekSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Daftar Hari (PADA BAGIAN ATAS)
         SizedBox(
           height: 70,
           child: ListView.builder(
@@ -345,18 +420,23 @@ class _DayOfWeekSelector extends StatelessWidget {
             itemCount: dailySchedule.length,
             itemBuilder: (context, index) {
               final item = dailySchedule[index];
-              final isSelected = item['date'] == selectedDate;
+              final dateNumber = item['date'] as int;
+              final fullDate = item['fullDate'] as DateTime;
+              
+              final isSelected = fullDate.day == selectedDate.day && 
+                                 fullDate.month == selectedDate.month && 
+                                 fullDate.year == selectedDate.year;
 
               return GestureDetector(
-                onTap: () => onDateSelected(item['date']),
+                onTap: () => onDateSelected(fullDate),
                 child: Container(
                   width: 50,
                   margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFF4CAF50) : Colors.white,
+                    color: isSelected ? kGreen : Colors.white,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: isSelected ? const Color(0xFF4CAF50) : Colors.grey[300]!,
+                      color: isSelected ? kGreen : Colors.grey[300]!,
                       width: 1,
                     ),
                   ),
@@ -378,11 +458,11 @@ class _DayOfWeekSelector extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Text(
-                          item['date'].toString(),
+                          dateNumber.toString(),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: isSelected ? const Color(0xFF4CAF50) : Colors.black,
+                            color: isSelected ? kGreen : Colors.black,
                           ),
                         ),
                       ),
@@ -398,28 +478,117 @@ class _DayOfWeekSelector extends StatelessWidget {
   }
 }
 
-class _MealCard extends StatelessWidget {
-  final Meal meal;
-  const _MealCard({required this.meal});
-
-  String _getMealType(String time) {
-    // Memecah string waktu "HH:MM" menjadi jam (HH)
-    final hour = int.tryParse(time.split(':')[0]) ?? 0;
-
-    if (hour >= 4 && hour <= 10) {
-      return 'Sarapan';
-    } else if (hour >= 11 && hour <= 16) {
-      return 'Makan Siang';
-    } else if (hour >= 17 && hour <= 23) {
-      return 'Makan Malam';
-    } else {
-      return 'Camilan';
-    }
-  }
+class _FullDateDisplay extends StatelessWidget {
+  final String fullDateText;
+  const _FullDateDisplay({required this.fullDateText});
 
   @override
   Widget build(BuildContext context) {
-    final mealType = _getMealType(meal.time);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            fullDateText,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+          InkResponse(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TambahMenuPage(),
+                ),
+              );
+            },
+            radius: 20,
+            child: const Padding(
+              padding: EdgeInsets.all(4.0),
+              child: Icon(
+                Icons.add_circle_outline, 
+                color: kGreen, 
+                size: 28,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MealCard extends StatelessWidget {
+  final Meal meal;
+  final ValueChanged<bool> onToggleDone;
+
+  const _MealCard({required this.meal, required this.onToggleDone});
+
+  String _getMealTimeRange(String time) {
+    return meal.clock;
+  }
+  
+  // Widget Pembantu untuk Item Makro (Revisi agar label/value lebih jelas)
+  Widget _buildMacroItem(String title, String value, {Color color = Colors.black}) {
+    final secondaryColor = Colors.grey[600];
+    
+    return Padding(
+      padding: const EdgeInsets.only(right: 15),
+      child: Row(
+        children: [
+          Text(
+            title, 
+            style: TextStyle(color: secondaryColor, fontSize: 14),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            value, 
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildIconAction({
+    required IconData icon,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkResponse(
+        onTap: onTap,
+        radius: 20,
+        splashColor: kGreen.withOpacity(0.2),
+        highlightColor: Colors.transparent,
+        containedInkWell: true,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            icon,
+            color: color,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    final mealTimeRange = _getMealTimeRange(meal.clock);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -427,7 +596,7 @@ class _MealCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: const Color.fromARGB(255, 0, 0, 0).withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             spreadRadius: 2,
             blurRadius: 5,
             offset: const Offset(0, 3),
@@ -437,76 +606,83 @@ class _MealCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- BARIS 1: WAKTU MAKAN & IKON ---
+          // --- BARIS 1: WAKTU MAKAN, ICON EDIT, DONE/PENDING ---
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '${meal.time} $mealType', // Tambah label Sarapan/Makan Siang
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    meal.time, // Tipe Makan: Sarapan/Siang/Malam
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time, size: 14, color: kLightGreyText),
+                      const SizedBox(width: 4),
+                      Text(
+                        mealTimeRange, // Jam makan spesifik
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: kLightGreyText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
               Row(
                 children: [
                   // Icon Edit
-                  Material(
-                    color: Colors.transparent,
-                    shape: const CircleBorder(),
-                    child: InkResponse(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const EditedMenuPage(), // Perbaikan nama kelas
-                          ),
-                        );
-                      },
-                      radius: 20,
-                      splashColor: const Color.fromARGB(
-                        255,
-                        137,
-                        230,
-                        98,
-                      ).withValues(alpha: 0.2),
-                      highlightColor: Colors.transparent,
-                      containedInkWell: true,
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.edit_outlined,
-                          color: Color.fromARGB(255, 0, 0, 0),
-                          size: 20,
+                  _buildIconAction(
+                    icon: Icons.edit_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const EditedMenuPage(),
                         ),
-                      ),
-                    ),
+                      );
+                    },
+                    color: Colors.black,
                   ),
                   const SizedBox(width: 10),
-                  // Icon Notifikasi
-                  Material(
-                    color: Colors.transparent,
-                    shape: const CircleBorder(),
-                    child: InkResponse(
-                      onTap: () {
-                      },
-                      radius: 20,
-                      splashColor: const Color.fromARGB(
-                        255,
-                        137,
-                        230,
-                        98,
-                      ).withValues(alpha: 0.2),
-                      highlightColor: Colors.transparent,
-                      containedInkWell: true,
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.notifications_none,
-                          color: Color.fromARGB(255, 0, 0, 0),
-                          size: 20,
+                  // Tombol Done/Pending
+                  InkWell(
+                    onTap: () => onToggleDone(!meal.isDone),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: meal.isDone ? kGreen : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: meal.isDone ? kGreen : kMutedBorderGrey,
+                          width: 1.5,
                         ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            meal.isDone ? Icons.check_circle_outline : Icons.pending_actions,
+                            size: 18,
+                            color: meal.isDone ? Colors.white : kYellow,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            meal.isDone ? 'Selesai' : 'Tandai Selesai',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: meal.isDone ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -517,90 +693,87 @@ class _MealCard extends StatelessWidget {
           const SizedBox(height: 10),
 
           // --- BARIS 2: GAMBAR MAKANAN (ASPEK RASIO 1:1) ---
-          AspectRatio(
-            aspectRatio: 1.0, // Memaksa rasio 1:1 (Kotak)
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                image: DecorationImage(
-                  image: NetworkImage(meal.imageUrl), // <--- NetworkImage digunakan untuk URL,
-                  fit: BoxFit.cover,
-                ),
-              ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: AspectRatio(
+              aspectRatio: 1.0, 
+              child: meal.imageUrl.isNotEmpty
+                  ? Image.network(
+                      meal.imageUrl, 
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: kGreen,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey[200],
+                          child: Center(
+                            child: Icon(Icons.restaurant, size: 50, color: Colors.grey[400]),
+                          ),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: Colors.grey[200],
+                      child: Center(
+                        child: Icon(Icons.restaurant_menu, size: 50, color: Colors.grey[400]),
+                      ),
+                    ),
             ),
           ),
 
-          // --- BATAS NYATA ---
-          const SizedBox(height: 5), // Jarak antara gambar dan detail
-          // --- BARIS 3: DETAIL MAKANAN (Makro, Nama & Kalori) ---
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Detail Makro
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    _buildMacroItem(meal.protein, 'P', isBlack: true),
-                    _buildMacroItem(meal.fat, 'L', isBlack: true),
-                    _buildMacroItem(meal.carbs, 'K', isBlack: true),
-                  ],
-                ),
-                const SizedBox(height: 8),
+          const SizedBox(height: 15),
 
-                // Nama Makanan dan Kalori
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
+          // --- BARIS 3: DETAIL MAKANAN (Makro, Nama & Kalori) ---
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Detail Makro
+              Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  _buildMacroItem('Protein', meal.protein, color: Colors.black),
+                  _buildMacroItem('Lemak', meal.fat, color: Colors.black),
+                  _buildMacroItem('Karbo', meal.carbs, color: Colors.black),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Nama Makanan dan Kalori
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
                       meal.name,
                       style: const TextStyle(
                         color: Colors.black,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      '${meal.calories} kalori',
-                      style: const TextStyle(
-                        color: Colors.black54,
-                        fontSize: 14,
-                      ),
+                  ),
+                  Text(
+                    '${meal.calories} kalori',
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 14,
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-
-  // Widget Pembantu untuk Item Makro
-  Widget _buildMacroItem(String value, String label, {bool isBlack = false}) {
-    final color = isBlack ? Colors.black : Colors.white;
-    final secondaryColor = isBlack ? Colors.grey : Colors.white70;
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 15),
-      child: Row(
-        children: [
-          // Icon untuk membedakan item (opsional, bisa diganti)
-          Icon(Icons.circle, size: 8, color: secondaryColor),
-          const SizedBox(width: 4),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: secondaryColor, fontSize: 12)),
         ],
       ),
     );
