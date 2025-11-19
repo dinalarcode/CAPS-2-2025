@@ -49,12 +49,16 @@ class _FoodDetailContent extends StatelessWidget {
                 Text(
                   item['name']!,
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 20),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
                 ),
                 Text(
                   item['cal']!,
                   style: const TextStyle(
-                      fontWeight: FontWeight.w600, color: Colors.black54),
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
+                  ),
                 ),
               ],
             ),
@@ -67,7 +71,10 @@ class _FoodDetailContent extends StatelessWidget {
                 if (tag == 'Ayam') color = Colors.redAccent;
                 if (tag == 'Ikan') color = Colors.blueAccent;
                 return Chip(
-                  label: Text(tag, style: const TextStyle(color: Colors.white)),
+                  label: Text(
+                    tag,
+                    style: const TextStyle(color: Colors.white),
+                  ),
                   backgroundColor: color,
                   side: BorderSide.none,
                   padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -85,17 +92,25 @@ class _FoodDetailContent extends StatelessWidget {
             Row(
               children: const [
                 _NutrisiCard(
-                    label: 'Protein', value: '32g', color: Colors.blueAccent),
+                  label: 'Protein',
+                  value: '32g',
+                  color: Colors.blueAccent,
+                ),
                 _NutrisiCard(
-                    label: 'Karbohidrat',
-                    value: '50g',
-                    color: Colors.amberAccent),
-                _NutrisiCard(label: 'Lemak', value: '27g', color: Colors.red),
+                  label: 'Karbohidrat',
+                  value: '50g',
+                  color: Colors.amberAccent,
+                ),
+                _NutrisiCard(
+                  label: 'Lemak',
+                  value: '27g',
+                  color: Colors.red,
+                ),
               ],
             ),
             const SizedBox(height: 16),
 
-            // Deskripsi (bisa kamu ubah sesuai item['desc'] kalau nanti ada)
+            // Deskripsi (dummy)
             const Text(
               'Caesar Salad adalah salad klasik berbasis sayuran segar '
               'yang umumnya menggunakan daun selada romaine, disajikan dengan '
@@ -113,11 +128,17 @@ class _FoodDetailContent extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item['price']!,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 20)),
-                    const Text('Sudah termasuk ongkir',
-                        style: TextStyle(color: Colors.grey)),
+                    Text(
+                      item['price']!,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+                    const Text(
+                      'Sudah termasuk ongkir',
+                      style: TextStyle(color: Colors.grey),
+                    ),
                   ],
                 ),
                 ElevatedButton(
@@ -127,7 +148,8 @@ class _FoodDetailContent extends StatelessWidget {
                     shape: const CircleBorder(),
                     padding: const EdgeInsets.all(14),
                   ),
-                  child: const Icon(Icons.shopping_cart, color: Colors.white),
+                  child:
+                      const Icon(Icons.shopping_cart, color: Colors.white),
                 ),
               ],
             ),
@@ -143,8 +165,11 @@ class _NutrisiCard extends StatelessWidget {
   final String value;
   final Color color;
 
-  const _NutrisiCard(
-      {required this.label, required this.value, required this.color});
+  const _NutrisiCard({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -153,18 +178,26 @@ class _NutrisiCard extends StatelessWidget {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.9),
+          color: color.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
           children: [
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(value,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600)),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
@@ -173,7 +206,10 @@ class _NutrisiCard extends StatelessWidget {
 }
 
 void _showCalendarPopup(BuildContext context) async {
-  DateTime? picked = await showDatePicker(
+  // 🔹 Ambil messenger di awal, sebelum async gap
+  final messenger = ScaffoldMessenger.of(context);
+
+  final DateTime? picked = await showDatePicker(
     context: context,
     initialDate: DateTime.now(),
     firstDate: DateTime.now(),
@@ -192,7 +228,8 @@ void _showCalendarPopup(BuildContext context) async {
 
   if (picked != null) {
     final formattedDate = DateFormat('dd MMM yyyy').format(picked);
-    ScaffoldMessenger.of(context).showSnackBar(
+    // 🔹 Pakai messenger, bukan lagi context langsung
+    messenger.showSnackBar(
       SnackBar(
         content: Text('Pesanan dijadwalkan untuk $formattedDate'),
         behavior: SnackBarBehavior.floating,
