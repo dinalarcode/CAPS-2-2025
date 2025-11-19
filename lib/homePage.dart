@@ -8,6 +8,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:nutrilink/schedulePage.dart';
 import 'package:nutrilink/navbar.dart';
 import 'package:nutrilink/profilePage.dart';
+import 'package:nutrilink/reportPage.dart';
 import 'package:nutrilink/meal/recomendation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -25,22 +26,13 @@ const Color kOrange = Color(0xFFFF7043);
 const Color kRed = Color(0xFFE53935);
 const Color kBlue = Color(0xFF42A5F5);
 
-// Placeholder halaman lain (supaya _pages tidak error)
-// class MealPage extends StatelessWidget {
-//   const MealPage({super.key});
+// class ReportPage extends StatelessWidget {
+//   const ReportPage({super.key});
 
 //   @override
 //   Widget build(BuildContext context) =>
-//       const Center(child: Text('Halaman Meal (Index 1)'));
+//       const Center(child: Text('Halaman Report (Index 3)'));
 // }
-
-class ReportPage extends StatelessWidget {
-  const ReportPage({super.key});
-
-  @override
-  Widget build(BuildContext context) =>
-      const Center(child: Text('Halaman Report (Index 3)'));
-}
 
 // ===============================================
 // 🎯 KELAS UTAMA: HOMEPAGE (MENANGANI NAVIGASI)
@@ -62,33 +54,21 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _buildPages();
+  }
+
+  void _buildPages() {
     _pages = [
-      SchedulePage(),     // Index 0: Schedule
-      const RecommendationScreen(),         // Index 1: Meal
+      const SchedulePage(),
+      const RecommendationScreen(),
       HomePageContent(
-        onNavigateToProfile: () {
-          setState(() {
-            _currentIndex = 4;
-          });
-        },
-        onNavigateToReport: () {
-          setState(() {
-            _currentIndex = 3;
-          });
-        },
-        onNavigateToMeal: () {
-          setState(() {
-            _currentIndex = 1;
-          });
-        },
-        onNavigateToSchedule: () {
-          setState(() {
-            _currentIndex = 0;
-          });
-        },
-      ),  // Index 2: Home (Konten utama)
-      const ReportPage(),       // Index 3: Report
-      const ProfilePage(),      // Index 4: Profile
+        onNavigateToProfile: () => setState(() => _currentIndex = 4),
+        onNavigateToReport: () => setState(() => _currentIndex = 3),
+        onNavigateToMeal: () => setState(() => _currentIndex = 1),
+        onNavigateToSchedule: () => setState(() => _currentIndex = 0),
+      ),
+      const ReportScreen(),
+      const ProfilePage(),
     ];
   }
 

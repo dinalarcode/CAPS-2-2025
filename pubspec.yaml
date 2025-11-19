@@ -11,29 +11,24 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-
-  # Util
   intl: ^0.20.2
-  logger: ^2.6.2
-  shared_preferences: ^2.3.3
-
-  # Firebase (versi sudah generasi baru, keep konsisten)
-  firebase_core: ^4.2.1
-  firebase_auth: ^6.1.2
-  cloud_firestore: ^6.1.0
-  firebase_storage: ^13.0.4   # Updated to fix dependency conflict
-
-  # Sign-in & lokasi
-  google_sign_in: ^6.2.2
-  geolocator: ^14.0.2
+  cupertino_icons: ^1.0.6
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.7.0
+  firebase_app_check: ^0.3.2+10
+  google_sign_in: ^6.3.0
+  cloud_firestore: ^5.5.0
+  fl_chart: ^1.1.1
+  geolocator: ^14.0.2        # Add Geolocator
   geocoding: ^4.0.0
+  shared_preferences: ^2.5.3
+  firebase_storage: ^12.4.10
 
   # UI helper
   flutter_cupertino_datetime_picker: ^3.0.0
 
   # File picker / image picker (buat upload ke Storage)
   image_picker: ^1.1.2        # <── TAMBAHAN: ambil foto/galeri di mobile
-  firebase_app_check: ^0.4.1+2
   # file_picker: ^8.0.0       # (opsional kalau mau support web/other files)
 
 dev_dependencies:
