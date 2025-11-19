@@ -1,1 +1,9 @@
 include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    file_names: ignore   # biarkan camelCase untuk nama file
+
+linter:
+  rules:
+    file_names: false    # matikan aturan nama file snake_case
