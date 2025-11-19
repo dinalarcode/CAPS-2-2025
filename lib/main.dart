@@ -8,7 +8,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:nutrilink/meal/recomendation.dart';
 
 import 'firebase_options.dart';
 
@@ -36,7 +35,7 @@ import 'package:nutrilink/summaryPage.dart' as summary_page;
 import 'package:nutrilink/meal/recomendation.dart' as recomendation;
 import 'package:nutrilink/firestore_test.dart';
 
-import 'package:firebase_app_check/firebase_app_check.dart';
+// import 'package:firebase_app_check/firebase_app_check.dart'; // Package not installed
 
 // reCAPTCHA web
 const String kRecaptchaV3SiteKey = '6Lf2pQMsAAAAALiEdH2KdQ3ThKzZ2IlJQAw7HJxG';
@@ -66,9 +65,10 @@ Future<void> main() async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.playIntegrity, // Paling disarankan 
-  );
+  // Firebase App Check - Commented out (package not installed)
+  // await FirebaseAppCheck.instance.activate(
+  //   androidProvider: AndroidProvider.playIntegrity,
+  // );
 
   // Init locale untuk DateFormat('...', 'id')
   await initializeDateFormatting('id', null);

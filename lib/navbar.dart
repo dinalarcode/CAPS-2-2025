@@ -22,7 +22,7 @@ class CustomNavbar extends StatelessWidget {
     {'icon': Icons.local_dining, 'label': 'Meal', 'index': 1},
     {'icon': Icons.home, 'label': 'Home', 'index': 2},
     {'icon': Icons.bar_chart, 'label': 'Report', 'index': 3},
-    {'icon': Icons.person, 'label': 'Profil', 'index': 4},
+    {'icon': Icons.person, 'label': 'Profile', 'index': 4},
   ];
 
   @override
@@ -43,10 +43,9 @@ class CustomNavbar extends StatelessWidget {
         child: SizedBox(
           height: 70,
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: _navItems.map((item) {
-              return SizedBox(
-                width: 70,
+              return Expanded(
                 child: InkWell(
                   onTap: () => onTap(item['index'] as int),
                   child: _buildNavItem(
