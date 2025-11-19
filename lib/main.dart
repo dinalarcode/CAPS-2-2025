@@ -8,6 +8,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:nutrilink/meal/recomendation.dart';
 
 import 'firebase_options.dart';
 
@@ -32,6 +33,7 @@ import 'package:nutrilink/allergyPage.dart' as allergy_page;
 import 'package:nutrilink/eatFrequencyPage.dart' as eat_freq;
 import 'package:nutrilink/sleepSchedulePage.dart' as sleep_sched;
 import 'package:nutrilink/summaryPage.dart' as summary_page;
+import 'package:nutrilink/meal/recomendation.dart' as recomendation;
 import 'package:nutrilink/firestore_test.dart';
 
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -152,6 +154,7 @@ class NutriLinkApp extends StatelessWidget {
         '/eat-frequency': (_) => const eat_freq.EatFrequencyPage(),
         '/sleep-schedule': (_) => const sleep_sched.SleepSchedulePage(),
         '/summary': (_) => const summary_page.SummaryPage(),
+        '/recommendation': (_) => const recomendation.RecommendationScreen(),
 
         '/firestore-test': (_) => const FirestoreTestPage(),
       },

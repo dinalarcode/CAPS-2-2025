@@ -14,7 +14,7 @@ import 'dart:convert';
 
 // ====== Palet warna konsisten dengan aplikasi ======
 // const Color kGreen = Color(0xFF5F9C3F);
-const Color kGreen = Color(0xFF84DA87);
+const Color kGreen = Color.fromRGBO(117, 199, 120, 1);
 const Color kGreenLight = Color(0xFF7BB662);
 const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
@@ -1325,12 +1325,13 @@ class StatCard extends StatelessWidget {
 }
 
 // ===============================================
-// 🍽️ KOMPONEN: MEAL CARDS SECTION (Horizontal Scroll)
+// 🍽️ MEAL CARDS SECTION (Horizontal Scroll)
 // ===============================================
+
 class MealCardsSection extends StatelessWidget {
   final List<Map<String, dynamic>> meals;
   final VoidCallback onNavigateToMeal;
-  
+
   const MealCardsSection({
     super.key,
     required this.meals,
@@ -1342,6 +1343,7 @@ class MealCardsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: InkWell(
@@ -1363,20 +1365,40 @@ class MealCardsSection extends StatelessWidget {
             ),
           ),
         ),
+
         const SizedBox(height: 15),
-        SizedBox(
-          height: 270,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            itemCount: meals.length,
-            itemBuilder: (context, i) => _MealCard(meal: meals[i]),
+
+        // Empty state
+        if (meals.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text(
+              'Tidak ada rekomendasi menu yang tersedia saat ini (periksa data Firestore/Storage).',
+              style: TextStyle(
+                fontFamily: 'Funnel Display',
+                color: kLightGreyText,
+                fontSize: 12,
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 220,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              itemCount: meals.length,
+              itemBuilder: (context, i) => _MealCard(meal: meals[i]),
+            ),
           ),
-        ),
       ],
     );
   }
 }
+
+// ===============================================
+// 🍱 MEAL CARD ITEM
+// ===============================================
 
 class _MealCard extends StatelessWidget {
   final Map<String, dynamic> meal;
@@ -1385,174 +1407,198 @@ class _MealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mealType = meal['type'] as String? ?? '';
-    final mealName = meal['name'] as String? ?? '';
-    final tag1 = meal['tag1'] as String? ?? '';
-    final calories = meal['calories'] as int? ?? 0;
-    final price = meal['price'] as int? ?? 0;
-    final imageUrl = meal['image'] as String? ?? '';
+    final mealType = meal['type'] ?? '';
+    final mealName = meal['name'] ?? '';
+    final tag1 = meal['tag1'] ?? '';
+    final calories = meal['calories'] ?? 0;
+    final price = meal['price'] ?? 0;
+    final imageUrl = meal['image'] ?? '';
 
     return Container(
       width: 150,
       margin: const EdgeInsets.only(right: 15.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
+          // Meal Type
           Text(
             mealType,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            style: const TextStyle(
+              fontFamily: 'Funnel Display',
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
           ),
+
           const SizedBox(height: 6),
-          Flexible(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    // FIX: Menggunakan withOpacity
-                    color: Colors.grey.withOpacity(0.2),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Image from Firestore - 1:1 RATIO (SQUARE) with tag overlay
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                    child: Stack(
-                      children: [
-                        imageUrl.isNotEmpty
-                            ? Image.network(
-                                imageUrl,
-                                height: 150,
-                                width: 150,
-                                fit: BoxFit.cover,
-                                cacheWidth: 450,
-                                cacheHeight: 450,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
-                                    height: 150,
-                                    width: 150,
-                                    color: Colors.grey[200],
-                                    child: Center(
-                                      child: SizedBox(
-                                        width: 30,
-                                        height: 30,
-                                        child: CircularProgressIndicator(
-                                          value: loadingProgress.expectedTotalBytes != null
-                                              ? loadingProgress.cumulativeBytesLoaded /
-                                                  loadingProgress.expectedTotalBytes!
-                                              : null,
-                                          color: kGreen,
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (context, error, stackTrace) {
-                                  debugPrint('Error loading image: $error');
-                                  return Container(
-                                    height: 150,
-                                    width: 150,
-                                    color: Colors.grey[200],
-                                    child: Center(
-                                      child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
-                                    ),
-                                  );
-                                },
-                              )
-                            : Container(
-                                height: 150,
-                                width: 150,
-                                color: Colors.grey[200],
-                                child: Center(
-                                  child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
-                                ),
-                              ),
-                        // Tag overlay at top-left corner
-                        if (tag1.isNotEmpty)
-                          Positioned(
-                            top: 8,
-                            left: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                // FIX: Menggunakan withOpacity
-                                color: kGreen.withOpacity(0.9),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                tag1,
-                                style: const TextStyle(
-                                  fontFamily: 'Funnel Display',
-                                  fontSize: 10,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
+
+          // Card Wrapper
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.2),
+                  spreadRadius: 1,
+                  blurRadius: 5,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // IMAGE + TAG
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                  child: Stack(
+                    children: [
+                      _buildMealImage(imageUrl),
+
+                      // TAG
+                      if (tag1.isNotEmpty)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: kGreen.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              tag1,
+                              style: const TextStyle(
+                                fontFamily: 'Funnel Display',
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(7.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          mealName,
-                          style: const TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                            color: Colors.black87,
-                            height: 1.15,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                ),
+
+                // TEXT CONTENT
+                Padding(
+                  padding: const EdgeInsets.all(7.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        mealName,
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          color: Colors.black87,
+                          height: 1.15,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$calories kcal',
-                          style: const TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontSize: 9,
-                            color: kLightGreyText,
-                          ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                      const SizedBox(height: 2),
+
+                      Text(
+                        '$calories kcal',
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontSize: 9,
+                          color: kLightGreyText,
                         ),
-                        const SizedBox(height: 1),
-                        Text(
-                          'Rp ${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
-                          style: const TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                            color: kGreen,
-                          ),
+                      ),
+
+                      const SizedBox(height: 1),
+
+                      Text(
+                        'Rp ${_formatRupiah(price)}',
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          color: kGreen,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  // =======================================================
+  // 🔧 Helper: Image Loader
+  // =======================================================
+  Widget _buildMealImage(String url) {
+    if (url.isEmpty) {
+      return _placeholderImage();
+    }
+
+    return Image.network(
+      url,
+      height: 150,
+      width: 150,
+      fit: BoxFit.cover,
+      cacheWidth: 450,
+      cacheHeight: 450,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+
+        return Container(
+          height: 150,
+          width: 150,
+          color: Colors.grey[200],
+          child: Center(
+            child: SizedBox(
+              width: 30,
+              height: 30,
+              child: CircularProgressIndicator(
+                value: progress.expectedTotalBytes != null
+                  ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                  : null,
+                color: kGreen,
+                strokeWidth: 2,
+              ),
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint('Error loading image: $error');
+        return _placeholderImage();
+      },
+    );
+  }
+
+  // Placeholder untuk gambar gagal
+  Widget _placeholderImage() {
+    return Container(
+      height: 150,
+      width: 150,
+      color: Colors.grey[200],
+      child: Center(
+        child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
+      ),
+    );
+  }
+
+  // Helper format harga
+  String _formatRupiah(int number) {
+    return number.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+  }
 }
+
 
 // ===============================================
 // 📅 KOMPONEN: UPCOMING MEALS LIST
