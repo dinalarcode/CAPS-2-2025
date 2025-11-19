@@ -569,7 +569,7 @@ class _MealCard extends StatelessWidget {
       child: InkResponse(
         onTap: onTap,
         radius: 20,
-        splashColor: kGreen.withOpacity(0.2),
+        splashColor: kGreen.withValues(alpha: 0.2),
         highlightColor: Colors.transparent,
         containedInkWell: true,
         child: Padding(
@@ -596,7 +596,7 @@ class _MealCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             spreadRadius: 2,
             blurRadius: 5,
             offset: const Offset(0, 3),
