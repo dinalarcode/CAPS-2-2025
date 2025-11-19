@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; 
+import 'package:intl/intl.dart';
+import 'utils/meal_schedule_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 // --- Global Constants ---
 const Color kBackgroundColor = Colors.white;
@@ -8,8 +11,8 @@ const Color kTextColor = Colors.black;
 const Color kAccentGreen = Color(0xFF4CAF50);
 const Color kLightYellow = Color(0xFFFFFBE0);
 const Color kLightGreenBackground = Color(0xFFE5F5E5);
-const Color kLightGreyText = Color(0xFF9E9E9E); 
-const Color kGreen = Color(0xFF5F9C3F); 
+const Color kLightGreyText = Color(0xFF9E9E9E);
+const Color kGreen = Color(0xFF5F9C3F);
 
 // ===============================================
 // 🎯 KELAS UTAMA: TambahMenuPage (Stateful untuk Stream)
@@ -24,17 +27,42 @@ class TambahMenuPage extends StatefulWidget {
 
 class _TambahMenuPageState extends State<TambahMenuPage> {
   // ✅ BASE URL DENGAN PROJECT ID ANDA SUDAH BENAR
-  final String baseImageUrl = 'https://firebasestorage.googleapis.com/v0/b/nutrilink-5f07f.appspot.com/o/menus%2F';
-  final String imageSuffix = '?alt=media'; 
+  final String baseImageUrl =
+      'https://firebasestorage.googleapis.com/v0/b/nutrilink-5f07f.appspot.com/o/menus%2F';
+  final String imageSuffix = '?alt=media';
 
-  final Stream<QuerySnapshot> _menuStream = 
+  final Stream<QuerySnapshot> _menuStream =
       FirebaseFirestore.instance.collection('menus').snapshots();
 
   // Data Dummy untuk Bagian Menu Hari Ini
   final List<Map<String, dynamic>> currentDayMeals = const [
-    {'type': 'Sarapan', 'name': 'Roti Ayam Panggang', 'calories': '250 Kcal', 'protein': '37g', 'fat': '43g', 'carbs': '31g', 'imageUrl': '1001.png'},
-    {'type': 'Makan Siang', 'name': 'Ayam Teriyaki brokoli', 'calories': '550 Kcal', 'protein': '35g', 'fat': '55g', 'carbs': '34g', 'imageUrl': '1002.png'},
-    {'type': 'Makan Malam', 'name': 'Salad', 'calories': '450 Kcal', 'protein': '28g', 'fat': '45g', 'carbs': '25g', 'imageUrl': '1003.png'},
+    {
+      'type': 'Sarapan',
+      'name': 'Roti Ayam Panggang',
+      'calories': '250 Kcal',
+      'protein': '37g',
+      'fat': '43g',
+      'carbs': '31g',
+      'imageUrl': '1001.png'
+    },
+    {
+      'type': 'Makan Siang',
+      'name': 'Ayam Teriyaki brokoli',
+      'calories': '550 Kcal',
+      'protein': '35g',
+      'fat': '55g',
+      'carbs': '34g',
+      'imageUrl': '1002.png'
+    },
+    {
+      'type': 'Makan Malam',
+      'name': 'Salad',
+      'calories': '450 Kcal',
+      'protein': '28g',
+      'fat': '45g',
+      'carbs': '25g',
+      'imageUrl': '1003.png'
+    },
   ];
 
   // Helper Statis untuk Makro (Protein, Fat, Carbs)
@@ -45,12 +73,14 @@ class _TambahMenuPageState extends State<TambahMenuPage> {
         children: [
           Icon(icon, size: 14, color: kTextColor.withOpacity(0.7)),
           const SizedBox(width: 2),
-          Text(value, style: TextStyle(fontSize: 12, color: kTextColor.withOpacity(0.8))),
+          Text(value,
+              style:
+                  TextStyle(fontSize: 12, color: kTextColor.withOpacity(0.8))),
         ],
       ),
     );
   }
-  
+
   static Widget _buildMacroText(String value, String label) {
     return Text(
       '$value $label',
@@ -67,10 +97,10 @@ class _TambahMenuPageState extends State<TambahMenuPage> {
           icon: const Icon(Icons.arrow_back_ios, color: kTextColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Tambah Menu Makan', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Tambah Menu Makan',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
-      
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -78,7 +108,7 @@ class _TambahMenuPageState extends State<TambahMenuPage> {
           children: <Widget>[
             // --- Menu Hari Ini ---
             const Text(
-              'Menu Hari Senin', 
+              'Menu Hari Senin',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -86,8 +116,11 @@ class _TambahMenuPageState extends State<TambahMenuPage> {
               ),
             ),
             const SizedBox(height: 10),
-            CurrentDayMealsBox(meals: currentDayMeals, baseImageUrl: baseImageUrl, imageSuffix: imageSuffix),
-            
+            CurrentDayMealsBox(
+                meals: currentDayMeals,
+                baseImageUrl: baseImageUrl,
+                imageSuffix: imageSuffix),
+
             const SizedBox(height: 25),
 
             // --- Menu/Camilan Lain ---
@@ -101,8 +134,8 @@ class _TambahMenuPageState extends State<TambahMenuPage> {
             ),
             const SizedBox(height: 10),
             SuggestedMealsBox(
-              menuStream: _menuStream, 
-              baseImageUrl: baseImageUrl, 
+              menuStream: _menuStream,
+              baseImageUrl: baseImageUrl,
               imageSuffix: imageSuffix,
               // ✅ NAVIGASI KE RECOMMENDATION SCREEN
               onViewAll: () {
@@ -124,14 +157,18 @@ class CurrentDayMealsBox extends StatelessWidget {
   final List<Map<String, dynamic>> meals;
   final String baseImageUrl;
   final String imageSuffix;
-  const CurrentDayMealsBox({required this.meals, required this.baseImageUrl, required this.imageSuffix, super.key});
+  const CurrentDayMealsBox(
+      {required this.meals,
+      required this.baseImageUrl,
+      required this.imageSuffix,
+      super.key});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(10.0),
       decoration: BoxDecoration(
-        color: kLightYellow, 
+        color: kLightYellow,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: kTextColor.withOpacity(0.1), width: 1.0),
         boxShadow: [
@@ -150,14 +187,15 @@ class CurrentDayMealsBox extends StatelessWidget {
           return Column(
             children: [
               CurrentMealItem(
-                meal: meal, 
-                baseImageUrl: baseImageUrl, 
+                meal: meal,
+                baseImageUrl: baseImageUrl,
                 imageSuffix: imageSuffix,
               ),
               if (i < meals.length - 1)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Divider(height: 1, color: Colors.black12, thickness: 1),
+                  child:
+                      Divider(height: 1, color: Colors.black12, thickness: 1),
                 ),
             ],
           );
@@ -171,7 +209,11 @@ class CurrentMealItem extends StatelessWidget {
   final Map<String, dynamic> meal;
   final String baseImageUrl;
   final String imageSuffix;
-  const CurrentMealItem({required this.meal, required this.baseImageUrl, required this.imageSuffix, super.key});
+  const CurrentMealItem(
+      {required this.meal,
+      required this.baseImageUrl,
+      required this.imageSuffix,
+      super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +230,7 @@ class CurrentMealItem extends StatelessWidget {
           // Gambar (Rasio 1:1)
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Image.network( 
+            child: Image.network(
               imageUrl,
               width: 70,
               height: 70,
@@ -197,7 +239,8 @@ class CurrentMealItem extends StatelessWidget {
                 width: 70,
                 height: 70,
                 color: Colors.grey.shade300,
-                child: const Center(child: Icon(Icons.error_outline, color: kTextColor)),
+                child: const Center(
+                    child: Icon(Icons.error_outline, color: kTextColor)),
               ),
             ),
           ),
@@ -230,14 +273,21 @@ class CurrentMealItem extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        _TambahMenuPageState._buildMacroIcon(Icons.monitor_weight_outlined, meal['protein']), // P
-                        _TambahMenuPageState._buildMacroIcon(Icons.egg_outlined, meal['fat']), // L
-                        _TambahMenuPageState._buildMacroIcon(Icons.bakery_dining_outlined, meal['carbs']), // K
+                        _TambahMenuPageState._buildMacroIcon(
+                            Icons.monitor_weight_outlined,
+                            meal['protein']), // P
+                        _TambahMenuPageState._buildMacroIcon(
+                            Icons.egg_outlined, meal['fat']), // L
+                        _TambahMenuPageState._buildMacroIcon(
+                            Icons.bakery_dining_outlined, meal['carbs']), // K
                       ],
                     ),
                     Text(
                       meal['calories'],
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: kTextColor),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: kTextColor),
                     ),
                   ],
                 ),
@@ -258,11 +308,11 @@ class SuggestedMealsBox extends StatelessWidget {
   final Stream<QuerySnapshot> menuStream;
   final String baseImageUrl;
   final String imageSuffix;
-  final VoidCallback onViewAll; 
+  final VoidCallback onViewAll;
 
   const SuggestedMealsBox({
-    required this.menuStream, 
-    required this.baseImageUrl, 
+    required this.menuStream,
+    required this.baseImageUrl,
     required this.imageSuffix,
     required this.onViewAll,
     super.key,
@@ -307,40 +357,43 @@ class SuggestedMealsBox extends StatelessWidget {
               ...displayedMeals.asMap().entries.map((entry) {
                 final i = entry.key;
                 final data = entry.value.data()! as Map<String, dynamic>;
-                
+
                 final mealData = {
                   'name': data['name'],
                   // Pastikan konversi ke String untuk Kcal, g
-                  'calories': '${data['calories'].toString()} Kcal', 
+                  'calories': '${data['calories'].toString()} Kcal',
                   'protein': '${data['protein'].toString()}g',
                   'fat': '${data['fat'].toString()}g',
-                  'carbs': '${data['carbohydrate'].toString()}g', 
+                  'carbs': '${data['carbohydrate'].toString()}g',
                   'imageUrl': data['image'], // Nama file dari Firestore
                 };
 
                 return Column(
                   children: [
                     SuggestionMealItem(
-                      meal: mealData, 
-                      baseImageUrl: baseImageUrl, 
+                      meal: mealData,
+                      baseImageUrl: baseImageUrl,
                       imageSuffix: imageSuffix,
                     ),
                     if (i < displayedMeals.length - 1)
-                      Divider(height: 5, color: Colors.grey.shade200, thickness: 1),
+                      Divider(
+                          height: 5, color: Colors.grey.shade200, thickness: 1),
                   ],
                 );
               }),
-              
+
               // Tombol Lihat Semua Menu
               if (hasMore) ...[
                 const SizedBox(height: 20),
                 Center(
                   child: OutlinedButton(
-                    onPressed: onViewAll, // Memicu Navigator.pushNamed('/recommendation')
+                    onPressed:
+                        onViewAll, // Memicu Navigator.pushNamed('/recommendation')
                     style: OutlinedButton.styleFrom(
                       foregroundColor: kAccentGreen,
                       side: BorderSide(color: kAccentGreen, width: 1.5),
-                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 40, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -361,17 +414,21 @@ class SuggestionMealItem extends StatelessWidget {
   final Map<String, dynamic> meal;
   final String baseImageUrl;
   final String imageSuffix;
-  const SuggestionMealItem({required this.meal, required this.baseImageUrl, required this.imageSuffix, super.key});
+  const SuggestionMealItem(
+      {required this.meal,
+      required this.baseImageUrl,
+      required this.imageSuffix,
+      super.key});
 
   @override
   Widget build(BuildContext context) {
     // URL ENCODING
     final String imageFileName = meal['imageUrl'] as String? ?? '';
     final String encodedFileName = Uri.encodeComponent(imageFileName);
-    final String imageUrl = imageFileName.isNotEmpty 
-                            ? '$baseImageUrl$encodedFileName$imageSuffix' 
-                            : '';
-                            
+    final String imageUrl = imageFileName.isNotEmpty
+        ? '$baseImageUrl$encodedFileName$imageSuffix'
+        : '';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -389,7 +446,8 @@ class SuggestionMealItem extends StatelessWidget {
                 width: 70,
                 height: 70,
                 color: Colors.grey.shade300,
-                child: const Center(child: Icon(Icons.error_outline, color: kTextColor)),
+                child: const Center(
+                    child: Icon(Icons.error_outline, color: kTextColor)),
               ),
             ),
           ),
@@ -428,15 +486,70 @@ class SuggestionMealItem extends StatelessWidget {
           // Tombol Tambah
           Container(
             decoration: BoxDecoration(
-              color: kAccentGreen, 
+              color: kAccentGreen,
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
-              icon: const Icon(Icons.add, color: Colors.white),
-              onPressed: () {
-                // Logika Tambah Menu
-              },
-            ),
+                icon: const Icon(Icons.add, color: Colors.white),
+                onPressed: () async {
+                  print("=== ADD BUTTON PRESSED ===");
+
+                  final now = DateTime.now();
+                  final todayKey = "${now.year}-${now.month}-${now.day}";
+
+                  // convert meal into correct format
+                  final menuToSave = {
+                    "name": meal['name'],
+                    "imageUrl": meal['imageUrl'],
+                    "calories": int.tryParse(meal['calories']
+                            .toString()
+                            .replaceAll(" Kcal", "")) ??
+                        0,
+                    "protein": int.tryParse(
+                            meal['protein'].toString().replaceAll("g", "")) ??
+                        0,
+                    "carbs": int.tryParse(
+                            meal['carbs'].toString().replaceAll("g", "")) ??
+                        0,
+                    "fat": int.tryParse(
+                            meal['fat'].toString().replaceAll("g", "")) ??
+                        0,
+                    "isDone": false,
+                  };
+
+                  print("Saving menu:");
+                  print(menuToSave);
+
+                  // load old data
+                  final prefs = await SharedPreferences.getInstance();
+                  final existing = prefs.getString(todayKey);
+
+                  List meals = [];
+
+                  if (existing != null) {
+                    final decoded = jsonDecode(existing);
+                    meals = decoded["meals"];
+                  }
+
+                  // add new meal
+                  meals.add(menuToSave);
+
+                  final finalData = {
+                    "date": todayKey,
+                    "meals": meals,
+                  };
+
+                  // save it
+                  await prefs.setString(todayKey, jsonEncode(finalData));
+
+                  print("=== SAVED ===");
+                  print(jsonEncode(finalData));
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text("${meal['name']} ditambahkan ke jadwal")),
+                  );
+                }),
           ),
         ],
       ),
