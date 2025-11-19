@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class UserProfileDraft {
   String? name;
   String? target;
@@ -12,6 +14,10 @@ class UserProfileDraft {
   List<String> allergies = [];
   int? eatFrequency;
   double? sleepHours;
+
+  // --- Properti yang digunakan oleh SleepSchedulePage.dart ---
+  TimeOfDay? wakeTime;
+  TimeOfDay? sleepTime;
 
   UserProfileDraft();
 
@@ -30,7 +36,9 @@ class UserProfileDraft {
       ..activityLevel = activityLevel
       ..allergies = List.of(allergies)
       ..eatFrequency = eatFrequency
-      ..sleepHours = sleepHours;
+      ..wakeTime = wakeTime
+      ..sleepTime = sleepTime
+      ;
     return c;
   }
 }

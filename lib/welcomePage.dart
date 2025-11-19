@@ -3,199 +3,190 @@ import 'package:flutter/material.dart';
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
 
+  // Responsive scaling helper methods (kalau mau di-scale nanti)
+  double fw(double width) => width; // figure width
+  double fh(double height) => height; // figure height
+  double fx(double x) => x; // figure x position
+  double fy(double y) => y; // figure y position
+
+  // Layout constants
+  final double padLeft = 0;
+  final double padTop = 0;
+  final double canvasW = 390;
+  final double canvasH = 844;
+
+  // Posisi tombol (sudah dinaikkan ke bawah logo HealthyGo)
+  final double btnLeftFig = 45;
+  final double registerTopFig = 520; // dulu 696
+  final double loginTopFig = 580; // dulu 749
+
+  final double btnWFig = 300;
+  final double btnHFig = 48;
+
+  final List<BoxShadow> softShadow = const [
+    BoxShadow(
+      color: Color(0x0A000000),
+      blurRadius: 12,
+      offset: Offset(0, 4),
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     // Brand colors
     const Color green = Color(0xFF5F9C3F);
     const Color greenLight = Color(0xFF7BB662);
     const Color gray = Color(0xFFBDBDBD);
-
-    // Kanvas Figma asli
-    const double baseW = 393.0;
-    const double baseH = 850.0;
-
-    // Dimensi tombol dari desain Figma
-    const double btnWFig = 313.0;
-    const double btnHFig = 46.22;
-    const double btnLeftFig = 40.0;
-
-    // Di Figma: login di bawah, register di atasnya
-    const double loginTopFig = 606.43;
-    const double gapFig = 13.2; // jarak di Figma antara 2 tombol (biar rapat)
-    final double registerTopFig = loginTopFig - btnHFig - gapFig;
+    final double scale = 1.0;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final double screenW = c.maxWidth;
-            final double screenH = c.maxHeight;
-
-            // Skala proporsional terhadap kanvas Figma
-            final double scale =
-                (screenW / baseW < screenH / baseH) ? (screenW / baseW) : (screenH / baseH);
-
-            // Ukuran kanvas terskala + center di layar
-            final double canvasW = baseW * scale;
-            final double canvasH = baseH * scale;
-            final double padLeft = (screenW - canvasW) / 2;
-            final double padTop = (screenH - canvasH) / 2;
-
-            // Helper konversi koordinat Figma → layar
-            double fx(double figLeft) => padLeft + figLeft * scale;
-            double fy(double figTop) => padTop + figTop * scale;
-            double fw(double figW) => figW * scale;
-            double fh(double figH) => figH * scale;
-
-            // Shadow lembut (gunakan withValues, bukan withOpacity yang deprecated)
-            final List<BoxShadow> softShadow = [
-              BoxShadow(
-                color: const Color(0xFF000000).withValues(alpha: 0.12),
-                offset: const Offset(0, 6),
-                blurRadius: 12,
+      body: Center(
+        child: SizedBox(
+          width: canvasW,
+          height: canvasH,
+          child: Stack(
+            children: [
+              // Latar putih (kanvas)
+              Positioned(
+                left: padLeft,
+                top: padTop,
+                width: canvasW,
+                height: canvasH,
+                child: const DecoratedBox(
+                  decoration: BoxDecoration(color: Colors.white),
+                ),
               ),
-            ];
 
-            return Stack(
-              children: [
-                // Latar putih (kanvas)
-                Positioned(
-                  left: padLeft,
-                  top: padTop,
-                  width: canvasW,
-                  height: canvasH,
-                  child: const DecoratedBox(
-                    decoration: BoxDecoration(color: Colors.white),
+              // ===== LOGO NUTRILINK (atas) =====
+              Positioned(
+                left: fx(86),
+                top: fy(111),
+                width: fw(220),
+                height: fh(210),
+                child: Image.asset(
+                  'assets/images/Logo NutriLink.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+
+              // ===== JUDUL =====
+              Positioned(
+                left: fx(86),
+                top: fy(330),
+                width: fw(220),
+                child: Text(
+                  'NutriLink x',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: green,
+                    fontSize: 32 * scale,
+                    fontWeight: FontWeight.w700,
+                    height: 0.94,
+                    letterSpacing: 1 * scale,
                   ),
                 ),
+              ),
 
-                // ===== FOOTER TEXT (2 baris, center) =====
-                Positioned(
-                  left: fx(0),
-                  top: fy(796),
-                  width: canvasW,
-                  child: Column(
-                    children: [
-                      Text(
-                        'Version 1.0',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.50),
-                          fontSize: 13 * scale,
-                          fontWeight: FontWeight.w500,
-                        ),
+              // ===== LOGO HEALTHY GO (bawah judul) =====
+              Positioned(
+                left: fx(120),
+                top: fy(368),
+                width: fw(159),
+                height: fh(95),
+                child: Image.asset(
+                  'assets/images/Logo HealthyGo.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+
+              // (Subtitle dihapus sesuai request)
+
+              // ===== TOMBOL REGISTER (atas) =====
+              Positioned(
+                left: fx(btnLeftFig),
+                top: fy(registerTopFig),
+                width: fw(btnWFig),
+                height: fh(btnHFig),
+                child: InteractiveButton(
+                  text: 'Saya pengguna baru',
+                  onPressed: () => Navigator.pushNamed(context, '/terms'),
+                  // idle -> putih + abu
+                  idleFillColor: Colors.white,
+                  idleBorderColor: gray,
+                  idleTextColor: Colors.black,
+                  // aktif -> gradient hijau halus
+                  activeColor: greenLight,
+                  activeGradientColors: const [greenLight, green],
+                  activeTextColor: Colors.white,
+                  borderRadius: 8.87 * scale,
+                  borderWidth: 2 * scale,
+                  fontSize: 17.73 * scale,
+                  fontWeight: FontWeight.w500,
+                  padding: EdgeInsets.zero,
+                  duration: const Duration(milliseconds: 120),
+                  boxShadow: softShadow,
+                ),
+              ),
+
+              // ===== TOMBOL LOGIN (bawah, rapat) =====
+              Positioned(
+                left: fx(btnLeftFig),
+                top: fy(loginTopFig),
+                width: fw(btnWFig),
+                height: fh(btnHFig),
+                child: InteractiveButton(
+                  text: 'Saya sudah punya akun',
+                  onPressed: () => Navigator.pushNamed(context, '/login'),
+                  // idle -> putih + abu
+                  idleFillColor: Colors.white,
+                  idleBorderColor: gray,
+                  idleTextColor: Colors.black,
+                  // aktif -> gradient hijau halus
+                  activeColor: green,
+                  activeGradientColors: const [green, greenLight],
+                  activeTextColor: Colors.white,
+                  borderRadius: 8.87 * scale,
+                  borderWidth: 2.66 * scale,
+                  fontSize: 17.73 * scale,
+                  fontWeight: FontWeight.w500,
+                  padding: EdgeInsets.zero,
+                  duration: const Duration(milliseconds: 120),
+                  boxShadow: softShadow,
+                ),
+              ),
+
+              // ===== FOOTER TEXT (2 baris, center) =====
+              Positioned(
+                left: fx(0),
+                top: fy(796),
+                width: canvasW,
+                child: Column(
+                  children: [
+                    Text(
+                      'Version 1.2',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.black.withValues(alpha: 0.50),
+                        fontSize: 13 * scale,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'By Kelompok 3 SI Capstone C',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.50),
-                          fontSize: 13 * scale,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ===== TOMBOL REGISTER (atas) =====
-                Positioned(
-                  left: fx(btnLeftFig),
-                  top: fy(registerTopFig),
-                  width: fw(btnWFig),
-                  height: fh(btnHFig),
-                  child: InteractiveButton(
-                    text: 'Saya pengguna baru',
-                    onPressed: () => Navigator.pushNamed(context, '/terms'),
-                    // state idle -> putih + abu
-                    idleFillColor: Colors.white,
-                    idleBorderColor: gray,
-                    idleTextColor: Colors.black,
-                    // state aktif -> hijau sekunder
-                    activeColor: greenLight,
-                    activeTextColor: Colors.white,
-                    borderRadius: 8.87 * scale,
-                    borderWidth: 2 * scale,
-                    fontSize: 17.73 * scale,
-                    fontWeight: FontWeight.w500,
-                    padding: EdgeInsets.zero,
-                    duration: const Duration(milliseconds: 120),
-                    boxShadow: softShadow,
-                  ),
-                ),
-
-                // ===== TOMBOL LOGIN (bawah, rapat) =====
-                Positioned(
-                  left: fx(btnLeftFig),
-                  top: fy(loginTopFig),
-                  width: fw(btnWFig),
-                  height: fh(btnHFig),
-                  child: InteractiveButton(
-                    text: 'Saya sudah punya akun',
-                    onPressed: () => Navigator.pushNamed(context, '/login'),
-                    // idle -> putih + abu
-                    idleFillColor: Colors.white,
-                    idleBorderColor: gray,
-                    idleTextColor: Colors.black,
-                    // aktif -> hijau utama outline & fill
-                    activeColor: green,
-                    activeTextColor: Colors.white,
-                    borderRadius: 8.87 * scale,
-                    borderWidth: 2.66 * scale,
-                    fontSize: 17.73 * scale,
-                    fontWeight: FontWeight.w500,
-                    padding: EdgeInsets.zero,
-                    duration: const Duration(milliseconds: 120),
-                    boxShadow: softShadow,
-                  ),
-                ),
-
-                // ===== LOGO HEALTHY GO (bawah judul) =====
-                Positioned(
-                  left: fx(120),
-                  top: fy(368),
-                  width: fw(159),
-                  height: fh(95),
-                  child: Image.asset(
-                    'assets/images/Logo HealthyGo.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-
-                // ===== JUDUL =====
-                Positioned(
-                  left: fx(86),
-                  top: fy(330),
-                  width: fw(220),
-                  child: Text(
-                    'NutriLink x',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: green,
-                      fontSize: 32 * scale,
-                      fontWeight: FontWeight.w700,
-                      height: 0.94,
-                      letterSpacing: 1 * scale,
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'By Kelompok 2 SI Capstone C',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.black.withValues(alpha: 0.50),
+                        fontSize: 13 * scale,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-
-                // ===== LOGO NUTRILINK (atas) =====
-                Positioned(
-                  left: fx(86),
-                  top: fy(111),
-                  width: fw(220),
-                  height: fh(210),
-                  child: Image.asset(
-                    'assets/images/Logo NutriLink.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ],
-            );
-          },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -215,7 +206,8 @@ class InteractiveButton extends StatefulWidget {
   final Color idleTextColor;
 
   // Active (hover/press)
-  final Color activeColor; // untuk fill & border
+  final Color activeColor; // fallback untuk fill & border
+  final List<Color>? activeGradientColors;
   final Color activeTextColor;
 
   final double borderRadius;
@@ -234,6 +226,7 @@ class InteractiveButton extends StatefulWidget {
     this.idleFillColor = Colors.white,
     this.idleTextColor = Colors.black,
     this.activeColor = const Color(0xFF7BB662),
+    this.activeGradientColors,
     this.activeTextColor = Colors.white,
     this.borderRadius = 8,
     this.borderWidth = 2,
@@ -264,9 +257,16 @@ class _InteractiveButtonState extends State<InteractiveButton> {
   Widget build(BuildContext context) {
     final bool active = _isHovered || _isPressed;
 
-    final Color fillColor = active ? widget.activeColor : widget.idleFillColor;
-    final Color borderColor = active ? widget.activeColor : widget.idleBorderColor;
-    final Color textColor = active ? widget.activeTextColor : widget.idleTextColor;
+    final Color textColor =
+        active ? widget.activeTextColor : widget.idleTextColor;
+
+    final bool useGradient =
+        active && widget.activeGradientColors != null;
+
+    // Untuk border: gunakan warna pertama dari gradient jika aktif
+    final Color borderColor = active
+        ? (widget.activeGradientColors?.first ?? widget.activeColor)
+        : widget.idleBorderColor;
 
     return MouseRegion(
       onEnter: (_) => _setHovered(true),
@@ -279,9 +279,19 @@ class _InteractiveButtonState extends State<InteractiveButton> {
           duration: widget.duration,
           padding: widget.padding,
           decoration: BoxDecoration(
-            color: fillColor,
+            gradient: useGradient
+                ? LinearGradient(
+                    colors: widget.activeGradientColors!,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: useGradient ? null : (active ? widget.activeColor : widget.idleFillColor),
             borderRadius: BorderRadius.circular(widget.borderRadius),
-            border: Border.all(color: borderColor, width: widget.borderWidth),
+            border: Border.all(
+              color: borderColor,
+              width: widget.borderWidth,
+            ),
             boxShadow: widget.boxShadow ??
                 [
                   if (active)
