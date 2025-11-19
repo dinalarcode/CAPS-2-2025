@@ -173,34 +173,9 @@ class _AllergyPageState extends State<AllergyPage> {
                             decoration: _cardDecoration(
                               isSelected: isSelected,
                             ),
-                            child: Row(
-                              children: [
-                                // Bagian Gambar (80x80)
-                                Container(
-                                  width: 80,
-                                  height: 80,
-                                  clipBehavior: Clip.antiAlias,
-                                  decoration: BoxDecoration(
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(10),
-                                      bottomLeft: Radius.circular(10),
-                                    ),
-                                    image: DecorationImage(
-                                      image: AssetImage(option['image']!),
-                                      fit: BoxFit.cover,
-                                      filterQuality: FilterQuality.medium,
-                                      colorFilter: ColorFilter.mode(
-                                        Colors.black.withValues(
-                                          alpha: isSelected ? 0.0 : 0.2,
-                                        ),
-                                        BlendMode.darken,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                // Bagian Label Teks
-                                Expanded(
-                                  child: Center(
+                            child: isNoAllergy
+                                ? Center(
+                                    // Card "Tidak Ada Alergi" - rata tengah tanpa gambar
                                     child: Text(
                                       name,
                                       style: TextStyle(
@@ -212,10 +187,51 @@ class _AllergyPageState extends State<AllergyPage> {
                                             : Colors.black87,
                                       ),
                                     ),
+                                  )
+                                : Row(
+                                    // Card alergi lain - dengan gambar
+                                    children: [
+                                      // Bagian Gambar (80x80)
+                                      Container(
+                                        width: 80,
+                                        height: 80,
+                                        clipBehavior: Clip.antiAlias,
+                                        decoration: BoxDecoration(
+                                          borderRadius: const BorderRadius.only(
+                                            topLeft: Radius.circular(10),
+                                            bottomLeft: Radius.circular(10),
+                                          ),
+                                          image: DecorationImage(
+                                            image: AssetImage(option['image']!),
+                                            fit: BoxFit.cover,
+                                            filterQuality: FilterQuality.medium,
+                                            colorFilter: ColorFilter.mode(
+                                              Colors.black.withValues(
+                                                alpha: isSelected ? 0.0 : 0.2,
+                                              ),
+                                              BlendMode.darken,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      // Bagian Label Teks
+                                      Expanded(
+                                        child: Center(
+                                          child: Text(
+                                            name,
+                                            style: TextStyle(
+                                              fontFamily: 'Funnel Display',
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : Colors.black87,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
-                            ),
                           ),
                         ),
                       );

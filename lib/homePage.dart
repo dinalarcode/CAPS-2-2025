@@ -136,6 +136,7 @@ class _HomePageContentState extends State<HomePageContent> {
   List<Map<String, dynamic>> meals = [];
   List<Map<String, dynamic>> upcomingMeals = [];
   String? cachedDate;
+  String? currentUserId;
 
   @override
   void initState() {
@@ -148,10 +149,11 @@ class _HomePageContentState extends State<HomePageContent> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final today = DateTime.now().toString().split(' ')[0]; // Format: YYYY-MM-DD
+      final userId = currentUserId ?? '';
       
-      // Check if we have cached data for today
-      final cachedMealsJson = prefs.getString('cached_meals_$today');
-      final cachedUpcomingJson = prefs.getString('cached_upcoming_$today');
+      // Check if we have cached data for today AND this user
+      final cachedMealsJson = prefs.getString('cached_meals_${userId}_$today');
+      final cachedUpcomingJson = prefs.getString('cached_upcoming_${userId}_$today');
       
       if (cachedMealsJson != null && cachedUpcomingJson != null) {
         debugPrint('✅ Loading meals from cache for $today');
@@ -164,8 +166,8 @@ class _HomePageContentState extends State<HomePageContent> {
           final firstMeal = cachedUpcomingList[0] as Map<String, dynamic>;
           if (!firstMeal.containsKey('calories')) {
             debugPrint('⚠️ Old cache format detected (missing calories field), clearing cache...');
-            await prefs.remove('cached_meals_$today');
-            await prefs.remove('cached_upcoming_$today');
+            await prefs.remove('cached_meals_${userId}_$today');
+            await prefs.remove('cached_upcoming_${userId}_$today');
             // Don't return, let it reload from Firestore
           } else {
             debugPrint('   Sample meal from cache: ${firstMeal['name']} - ${firstMeal['calories']} kcal');
@@ -347,17 +349,19 @@ class _HomePageContentState extends State<HomePageContent> {
         };
       }).toList();
       
-      // Save to cache for today
-      await prefs.setString('cached_meals_$today', json.encode(selectedMeals));
-      await prefs.setString('cached_upcoming_$today', json.encode(upcomingWithTime));
+      // Save to cache for today with user ID
+      await prefs.setString('cached_meals_${userId}_$today', json.encode(selectedMeals));
+      await prefs.setString('cached_upcoming_${userId}_$today', json.encode(upcomingWithTime));
       
-      // Clean up old cache (keep only today's cache)
+      // Clean up old cache (keep only today's cache for current user)
       final keys = prefs.getKeys();
       for (final key in keys) {
-        if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_')) && 
-            !key.endsWith(today)) {
-          await prefs.remove(key);
-          debugPrint('🗑️ Removed old cache: $key');
+        if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_'))) {
+          // Remove if different user or different date
+          if (!key.contains('_${userId}_') || !key.endsWith(today)) {
+            await prefs.remove(key);
+            debugPrint('🗑️ Removed old cache: $key');
+          }
         }
       }
       
@@ -437,7 +441,8 @@ class _HomePageContentState extends State<HomePageContent> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final today = DateTime.now().toString().split(' ')[0];
-      await prefs.setString('cached_upcoming_$today', json.encode(upcomingMeals));
+      final userId = currentUserId ?? '';
+      await prefs.setString('cached_upcoming_${userId}_$today', json.encode(upcomingMeals));
       debugPrint('💾 Updated upcoming meals cache with isDone status');
     } catch (e) {
       debugPrint('Error saving upcoming meals cache: $e');
@@ -466,6 +471,22 @@ class _HomePageContentState extends State<HomePageContent> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
+
+      // Check if user changed
+      if (currentUserId != null && currentUserId != user.uid) {
+        // Clear cache from previous user
+        final prefs = await SharedPreferences.getInstance();
+        final keys = prefs.getKeys();
+        for (final key in keys) {
+          if (key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_')) {
+            await prefs.remove(key);
+            debugPrint('🗑️ Cleared cache from previous user: $key');
+          }
+        }
+      }
+      
+      currentUserId = user.uid;
+      debugPrint('👤 Current user ID: $currentUserId');
 
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -628,6 +649,26 @@ class _HomePageContentState extends State<HomePageContent> {
     return bmr * multiplier;
   }
 
+  // Singkat nama jika lebih dari 3 kata
+  String _shortenName(String fullName) {
+    final words = fullName.trim().split(' ');
+    if (words.length <= 2) {
+      return fullName;
+    }
+    
+    // Ambil 2 kata pertama, singkat kata ke-3 dan seterusnya
+    final result = StringBuffer();
+    result.write('${words[0]} ${words[1]}');
+    
+    for (int i = 2; i < words.length; i++) {
+      if (words[i].isNotEmpty) {
+        result.write(' ${words[i][0].toUpperCase()}.');
+      }
+    }
+    
+    return result.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -639,7 +680,8 @@ class _HomePageContentState extends State<HomePageContent> {
     }
 
     final profile = userData?['profile'] as Map<String, dynamic>?;
-    final name = profile?['name'] ?? 'User';
+    final fullName = profile?['name'] ?? 'User';
+    final name = _shortenName(fullName);
     final profilePicture = profile?['profilePicture'] ?? 'assets/images/Male Avatar.png';
     final weightKg = (profile?['weightKg'] as num?)?.toDouble() ?? 0;
     final targetWeightKg = (profile?['targetWeightKg'] as num?)?.toDouble() ?? 0;
@@ -662,11 +704,15 @@ class _HomePageContentState extends State<HomePageContent> {
         preferredSize: const Size.fromHeight(kToolbarHeight + 14.0),
         child: Container(
           decoration: BoxDecoration(
-            color: kGreen,
+            gradient: const LinearGradient(
+              colors: [kGreenLight, kGreen],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             boxShadow: [
               BoxShadow(
                 // FIX: Menggunakan withOpacity
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
                 spreadRadius: 0,
@@ -688,7 +734,7 @@ class _HomePageContentState extends State<HomePageContent> {
                   child: CircleAvatar(
                     backgroundImage: AssetImage(profilePicture),
                     // FIX: Menggunakan withOpacity
-                    backgroundColor: Colors.white.withOpacity(0.2),
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
                   ),
                 ),
               ),
@@ -718,7 +764,7 @@ class _HomePageContentState extends State<HomePageContent> {
                               fontFamily: 'Funnel Display',
                               fontSize: 12,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                         ],
@@ -750,7 +796,7 @@ class _HomePageContentState extends State<HomePageContent> {
                           fontFamily: 'Funnel Display',
                           fontSize: 12,
                           // FIX: Menggunakan withOpacity
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                         ),
                       ),
                     ],
@@ -773,7 +819,18 @@ class _HomePageContentState extends State<HomePageContent> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 16, color: kGreen),
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [kGreenLight, kGreen],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
+                        child: const Icon(
+                          Icons.location_on,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         location,
@@ -899,7 +956,7 @@ class BmiSection extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               // FIX: Menggunakan withOpacity
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -943,7 +1000,7 @@ class BmiSection extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           // FIX: Menggunakan withOpacity
-                          color: color.withOpacity(0.15),
+                          color: color.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -971,7 +1028,7 @@ class BmiSection extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     // FIX: Menggunakan withOpacity
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -1011,7 +1068,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                           Text(
@@ -1021,7 +1078,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],
@@ -1043,7 +1100,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                           Text(
@@ -1053,7 +1110,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],
@@ -1075,7 +1132,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                           Text(
@@ -1085,7 +1142,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],
@@ -1107,7 +1164,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                           Text(
@@ -1117,7 +1174,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],
@@ -1134,12 +1191,12 @@ class BmiSection extends StatelessWidget {
                       width: 4,
                       decoration: BoxDecoration(
                         // FIX: Menggunakan withOpacity
-                        color: Colors.black.withOpacity(0.4),
+                        color: Colors.black.withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(2),
                         boxShadow: [
                           BoxShadow(
                             // FIX: Menggunakan withOpacity
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -1249,13 +1306,13 @@ class StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           // FIX: Menggunakan withOpacity
-          color: kMutedBorderGrey.withOpacity(0.3), 
+          color: kMutedBorderGrey.withValues(alpha: 0.3), 
           width: 1
         ),
         boxShadow: [
           BoxShadow(
             // FIX: Menggunakan withOpacity
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 3),
@@ -1270,14 +1327,27 @@ class StatCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  // FIX: Menggunakan withOpacity
-                  color: kGreen.withOpacity(0.1),
+                  gradient: LinearGradient(
+                    colors: [
+                      kGreenLight.withValues(alpha: 0.2),
+                      kGreen.withValues(alpha: 0.2),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  icon,
-                  size: 16,
-                  color: kGreen,
+                child: ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [kGreenLight, kGreen],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ).createShader(bounds),
+                  child: Icon(
+                    icon,
+                    size: 16,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1383,7 +1453,7 @@ class MealCardsSection extends StatelessWidget {
           )
         else
           SizedBox(
-            height: 220,
+            height: 250,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -1439,7 +1509,7 @@ class _MealCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   spreadRadius: 1,
                   blurRadius: 5,
                   offset: const Offset(0, 3),
@@ -1464,7 +1534,11 @@ class _MealCard extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: kGreen.withOpacity(0.9),
+                              gradient: const LinearGradient(
+                                colors: [kGreenLight, kGreen],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -1772,7 +1846,7 @@ class MealListItem extends StatelessWidget {
         if (!isLast)
           Divider(
             // FIX: Menggunakan withOpacity
-            color: kMutedBorderGrey.withOpacity(0.3),
+            color: kMutedBorderGrey.withValues(alpha: 0.3),
             height: 1,
             thickness: 1,
           ),
