@@ -15,7 +15,7 @@ import 'dart:convert';
 
 // ====== Palet warna konsisten dengan aplikasi ======
 // const Color kGreen = Color(0xFF5F9C3F);
-const Color kGreen = Color(0xFF84DA87);
+const Color kGreen = Color.fromRGBO(117, 199, 120, 1);
 const Color kGreenLight = Color(0xFF7BB662);
 const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
@@ -116,6 +116,7 @@ class _HomePageContentState extends State<HomePageContent> {
   List<Map<String, dynamic>> meals = [];
   List<Map<String, dynamic>> upcomingMeals = [];
   String? cachedDate;
+  String? currentUserId;
 
   @override
   void initState() {
@@ -128,10 +129,11 @@ class _HomePageContentState extends State<HomePageContent> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final today = DateTime.now().toString().split(' ')[0]; // Format: YYYY-MM-DD
+      final userId = currentUserId ?? '';
       
-      // Check if we have cached data for today
-      final cachedMealsJson = prefs.getString('cached_meals_$today');
-      final cachedUpcomingJson = prefs.getString('cached_upcoming_$today');
+      // Check if we have cached data for today AND this user
+      final cachedMealsJson = prefs.getString('cached_meals_${userId}_$today');
+      final cachedUpcomingJson = prefs.getString('cached_upcoming_${userId}_$today');
       
       if (cachedMealsJson != null && cachedUpcomingJson != null) {
         debugPrint('✅ Loading meals from cache for $today');
@@ -144,8 +146,8 @@ class _HomePageContentState extends State<HomePageContent> {
           final firstMeal = cachedUpcomingList[0] as Map<String, dynamic>;
           if (!firstMeal.containsKey('calories')) {
             debugPrint('⚠️ Old cache format detected (missing calories field), clearing cache...');
-            await prefs.remove('cached_meals_$today');
-            await prefs.remove('cached_upcoming_$today');
+            await prefs.remove('cached_meals_${userId}_$today');
+            await prefs.remove('cached_upcoming_${userId}_$today');
             // Don't return, let it reload from Firestore
           } else {
             debugPrint('   Sample meal from cache: ${firstMeal['name']} - ${firstMeal['calories']} kcal');
@@ -327,17 +329,19 @@ class _HomePageContentState extends State<HomePageContent> {
         };
       }).toList();
       
-      // Save to cache for today
-      await prefs.setString('cached_meals_$today', json.encode(selectedMeals));
-      await prefs.setString('cached_upcoming_$today', json.encode(upcomingWithTime));
+      // Save to cache for today with user ID
+      await prefs.setString('cached_meals_${userId}_$today', json.encode(selectedMeals));
+      await prefs.setString('cached_upcoming_${userId}_$today', json.encode(upcomingWithTime));
       
-      // Clean up old cache (keep only today's cache)
+      // Clean up old cache (keep only today's cache for current user)
       final keys = prefs.getKeys();
       for (final key in keys) {
-        if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_')) && 
-            !key.endsWith(today)) {
-          await prefs.remove(key);
-          debugPrint('🗑️ Removed old cache: $key');
+        if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_'))) {
+          // Remove if different user or different date
+          if (!key.contains('_${userId}_') || !key.endsWith(today)) {
+            await prefs.remove(key);
+            debugPrint('🗑️ Removed old cache: $key');
+          }
         }
       }
       
@@ -417,7 +421,8 @@ class _HomePageContentState extends State<HomePageContent> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final today = DateTime.now().toString().split(' ')[0];
-      await prefs.setString('cached_upcoming_$today', json.encode(upcomingMeals));
+      final userId = currentUserId ?? '';
+      await prefs.setString('cached_upcoming_${userId}_$today', json.encode(upcomingMeals));
       debugPrint('💾 Updated upcoming meals cache with isDone status');
     } catch (e) {
       debugPrint('Error saving upcoming meals cache: $e');
@@ -446,6 +451,22 @@ class _HomePageContentState extends State<HomePageContent> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
+
+      // Check if user changed
+      if (currentUserId != null && currentUserId != user.uid) {
+        // Clear cache from previous user
+        final prefs = await SharedPreferences.getInstance();
+        final keys = prefs.getKeys();
+        for (final key in keys) {
+          if (key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_')) {
+            await prefs.remove(key);
+            debugPrint('🗑️ Cleared cache from previous user: $key');
+          }
+        }
+      }
+      
+      currentUserId = user.uid;
+      debugPrint('👤 Current user ID: $currentUserId');
 
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -608,6 +629,26 @@ class _HomePageContentState extends State<HomePageContent> {
     return bmr * multiplier;
   }
 
+  // Singkat nama jika lebih dari 3 kata
+  String _shortenName(String fullName) {
+    final words = fullName.trim().split(' ');
+    if (words.length <= 2) {
+      return fullName;
+    }
+    
+    // Ambil 2 kata pertama, singkat kata ke-3 dan seterusnya
+    final result = StringBuffer();
+    result.write('${words[0]} ${words[1]}');
+    
+    for (int i = 2; i < words.length; i++) {
+      if (words[i].isNotEmpty) {
+        result.write(' ${words[i][0].toUpperCase()}.');
+      }
+    }
+    
+    return result.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -619,7 +660,8 @@ class _HomePageContentState extends State<HomePageContent> {
     }
 
     final profile = userData?['profile'] as Map<String, dynamic>?;
-    final name = profile?['name'] ?? 'User';
+    final fullName = profile?['name'] ?? 'User';
+    final name = _shortenName(fullName);
     final profilePicture = profile?['profilePicture'] ?? 'assets/images/Male Avatar.png';
     final weightKg = (profile?['weightKg'] as num?)?.toDouble() ?? 0;
     final targetWeightKg = (profile?['targetWeightKg'] as num?)?.toDouble() ?? 0;
@@ -642,11 +684,15 @@ class _HomePageContentState extends State<HomePageContent> {
         preferredSize: const Size.fromHeight(kToolbarHeight + 14.0),
         child: Container(
           decoration: BoxDecoration(
-            color: kGreen,
+            gradient: const LinearGradient(
+              colors: [kGreenLight, kGreen],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             boxShadow: [
               BoxShadow(
                 // FIX: Menggunakan withOpacity
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
                 spreadRadius: 0,
@@ -668,7 +714,7 @@ class _HomePageContentState extends State<HomePageContent> {
                   child: CircleAvatar(
                     backgroundImage: AssetImage(profilePicture),
                     // FIX: Menggunakan withOpacity
-                    backgroundColor: Colors.white.withOpacity(0.2),
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
                   ),
                 ),
               ),
@@ -698,7 +744,7 @@ class _HomePageContentState extends State<HomePageContent> {
                               fontFamily: 'Funnel Display',
                               fontSize: 12,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                         ],
@@ -730,7 +776,7 @@ class _HomePageContentState extends State<HomePageContent> {
                           fontFamily: 'Funnel Display',
                           fontSize: 12,
                           // FIX: Menggunakan withOpacity
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                         ),
                       ),
                     ],
@@ -753,7 +799,18 @@ class _HomePageContentState extends State<HomePageContent> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 16, color: kGreen),
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [kGreenLight, kGreen],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
+                        child: const Icon(
+                          Icons.location_on,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         location,
@@ -879,7 +936,7 @@ class BmiSection extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               // FIX: Menggunakan withOpacity
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -923,7 +980,7 @@ class BmiSection extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           // FIX: Menggunakan withOpacity
-                          color: color.withOpacity(0.15),
+                          color: color.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -951,7 +1008,7 @@ class BmiSection extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     // FIX: Menggunakan withOpacity
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -991,7 +1048,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                           Text(
@@ -1001,7 +1058,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],
@@ -1023,7 +1080,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                           Text(
@@ -1033,7 +1090,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],
@@ -1055,7 +1112,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                           Text(
@@ -1065,7 +1122,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],
@@ -1087,7 +1144,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                           Text(
@@ -1097,7 +1154,7 @@ class BmiSection extends StatelessWidget {
                               fontSize: 8,
                               fontWeight: FontWeight.w500,
                               // FIX: Menggunakan withOpacity
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],
@@ -1114,12 +1171,12 @@ class BmiSection extends StatelessWidget {
                       width: 4,
                       decoration: BoxDecoration(
                         // FIX: Menggunakan withOpacity
-                        color: Colors.black.withOpacity(0.4),
+                        color: Colors.black.withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(2),
                         boxShadow: [
                           BoxShadow(
                             // FIX: Menggunakan withOpacity
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -1229,13 +1286,13 @@ class StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           // FIX: Menggunakan withOpacity
-          color: kMutedBorderGrey.withOpacity(0.3), 
+          color: kMutedBorderGrey.withValues(alpha: 0.3), 
           width: 1
         ),
         boxShadow: [
           BoxShadow(
             // FIX: Menggunakan withOpacity
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 3),
@@ -1250,14 +1307,27 @@ class StatCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  // FIX: Menggunakan withOpacity
-                  color: kGreen.withOpacity(0.1),
+                  gradient: LinearGradient(
+                    colors: [
+                      kGreenLight.withValues(alpha: 0.2),
+                      kGreen.withValues(alpha: 0.2),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  icon,
-                  size: 16,
-                  color: kGreen,
+                child: ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [kGreenLight, kGreen],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ).createShader(bounds),
+                  child: Icon(
+                    icon,
+                    size: 16,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1305,12 +1375,13 @@ class StatCard extends StatelessWidget {
 }
 
 // ===============================================
-// 🍽️ KOMPONEN: MEAL CARDS SECTION (Horizontal Scroll)
+// 🍽️ MEAL CARDS SECTION (Horizontal Scroll)
 // ===============================================
+
 class MealCardsSection extends StatelessWidget {
   final List<Map<String, dynamic>> meals;
   final VoidCallback onNavigateToMeal;
-  
+
   const MealCardsSection({
     super.key,
     required this.meals,
@@ -1322,6 +1393,7 @@ class MealCardsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: InkWell(
@@ -1343,20 +1415,40 @@ class MealCardsSection extends StatelessWidget {
             ),
           ),
         ),
+
         const SizedBox(height: 15),
-        SizedBox(
-          height: 270,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            itemCount: meals.length,
-            itemBuilder: (context, i) => _MealCard(meal: meals[i]),
+
+        // Empty state
+        if (meals.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text(
+              'Tidak ada rekomendasi menu yang tersedia saat ini (periksa data Firestore/Storage).',
+              style: TextStyle(
+                fontFamily: 'Funnel Display',
+                color: kLightGreyText,
+                fontSize: 12,
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 250,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              itemCount: meals.length,
+              itemBuilder: (context, i) => _MealCard(meal: meals[i]),
+            ),
           ),
-        ),
       ],
     );
   }
 }
+
+// ===============================================
+// 🍱 MEAL CARD ITEM
+// ===============================================
 
 class _MealCard extends StatelessWidget {
   final Map<String, dynamic> meal;
@@ -1365,174 +1457,202 @@ class _MealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mealType = meal['type'] as String? ?? '';
-    final mealName = meal['name'] as String? ?? '';
-    final tag1 = meal['tag1'] as String? ?? '';
-    final calories = meal['calories'] as int? ?? 0;
-    final price = meal['price'] as int? ?? 0;
-    final imageUrl = meal['image'] as String? ?? '';
+    final mealType = meal['type'] ?? '';
+    final mealName = meal['name'] ?? '';
+    final tag1 = meal['tag1'] ?? '';
+    final calories = meal['calories'] ?? 0;
+    final price = meal['price'] ?? 0;
+    final imageUrl = meal['image'] ?? '';
 
     return Container(
       width: 150,
       margin: const EdgeInsets.only(right: 15.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
+          // Meal Type
           Text(
             mealType,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            style: const TextStyle(
+              fontFamily: 'Funnel Display',
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
           ),
+
           const SizedBox(height: 6),
-          Flexible(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    // FIX: Menggunakan withOpacity
-                    color: Colors.grey.withOpacity(0.2),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Image from Firestore - 1:1 RATIO (SQUARE) with tag overlay
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                    child: Stack(
-                      children: [
-                        imageUrl.isNotEmpty
-                            ? Image.network(
-                                imageUrl,
-                                height: 150,
-                                width: 150,
-                                fit: BoxFit.cover,
-                                cacheWidth: 450,
-                                cacheHeight: 450,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
-                                    height: 150,
-                                    width: 150,
-                                    color: Colors.grey[200],
-                                    child: Center(
-                                      child: SizedBox(
-                                        width: 30,
-                                        height: 30,
-                                        child: CircularProgressIndicator(
-                                          value: loadingProgress.expectedTotalBytes != null
-                                              ? loadingProgress.cumulativeBytesLoaded /
-                                                  loadingProgress.expectedTotalBytes!
-                                              : null,
-                                          color: kGreen,
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (context, error, stackTrace) {
-                                  debugPrint('Error loading image: $error');
-                                  return Container(
-                                    height: 150,
-                                    width: 150,
-                                    color: Colors.grey[200],
-                                    child: Center(
-                                      child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
-                                    ),
-                                  );
-                                },
-                              )
-                            : Container(
-                                height: 150,
-                                width: 150,
-                                color: Colors.grey[200],
-                                child: Center(
-                                  child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
-                                ),
+
+          // Card Wrapper
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withValues(alpha: 0.2),
+                  spreadRadius: 1,
+                  blurRadius: 5,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // IMAGE + TAG
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                  child: Stack(
+                    children: [
+                      _buildMealImage(imageUrl),
+
+                      // TAG
+                      if (tag1.isNotEmpty)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [kGreenLight, kGreen],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                        // Tag overlay at top-left corner
-                        if (tag1.isNotEmpty)
-                          Positioned(
-                            top: 8,
-                            left: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                // FIX: Menggunakan withOpacity
-                                color: kGreen.withOpacity(0.9),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                tag1,
-                                style: const TextStyle(
-                                  fontFamily: 'Funnel Display',
-                                  fontSize: 10,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              tag1,
+                              style: const TextStyle(
+                                fontFamily: 'Funnel Display',
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(7.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          mealName,
-                          style: const TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                            color: Colors.black87,
-                            height: 1.15,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                ),
+
+                // TEXT CONTENT
+                Padding(
+                  padding: const EdgeInsets.all(7.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        mealName,
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          color: Colors.black87,
+                          height: 1.15,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$calories kcal',
-                          style: const TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontSize: 9,
-                            color: kLightGreyText,
-                          ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                      const SizedBox(height: 2),
+
+                      Text(
+                        '$calories kcal',
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontSize: 9,
+                          color: kLightGreyText,
                         ),
-                        const SizedBox(height: 1),
-                        Text(
-                          'Rp ${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
-                          style: const TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                            color: kGreen,
-                          ),
+                      ),
+
+                      const SizedBox(height: 1),
+
+                      Text(
+                        'Rp ${_formatRupiah(price)}',
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          color: kGreen,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  // =======================================================
+  // 🔧 Helper: Image Loader
+  // =======================================================
+  Widget _buildMealImage(String url) {
+    if (url.isEmpty) {
+      return _placeholderImage();
+    }
+
+    return Image.network(
+      url,
+      height: 150,
+      width: 150,
+      fit: BoxFit.cover,
+      cacheWidth: 450,
+      cacheHeight: 450,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+
+        return Container(
+          height: 150,
+          width: 150,
+          color: Colors.grey[200],
+          child: Center(
+            child: SizedBox(
+              width: 30,
+              height: 30,
+              child: CircularProgressIndicator(
+                value: progress.expectedTotalBytes != null
+                  ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                  : null,
+                color: kGreen,
+                strokeWidth: 2,
+              ),
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint('Error loading image: $error');
+        return _placeholderImage();
+      },
+    );
+  }
+
+  // Placeholder untuk gambar gagal
+  Widget _placeholderImage() {
+    return Container(
+      height: 150,
+      width: 150,
+      color: Colors.grey[200],
+      child: Center(
+        child: Icon(Icons.restaurant, size: 40, color: Colors.grey[400]),
+      ),
+    );
+  }
+
+  // Helper format harga
+  String _formatRupiah(int number) {
+    return number.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+  }
 }
+
 
 // ===============================================
 // 📅 KOMPONEN: UPCOMING MEALS LIST
@@ -1706,7 +1826,7 @@ class MealListItem extends StatelessWidget {
         if (!isLast)
           Divider(
             // FIX: Menggunakan withOpacity
-            color: kMutedBorderGrey.withOpacity(0.3),
+            color: kMutedBorderGrey.withValues(alpha: 0.3),
             height: 1,
             thickness: 1,
           ),

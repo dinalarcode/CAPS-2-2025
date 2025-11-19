@@ -29,9 +29,10 @@ import 'package:nutrilink/eatFrequencyPage.dart' as eat_freq;
 import 'package:nutrilink/sleepSchedulePage.dart' as sleep_sched;
 import 'package:nutrilink/summaryPage.dart' as summary_page;
 import 'package:nutrilink/reportPage.dart' as report_page;
+import 'package:nutrilink/meal/recomendation.dart' as recomendation;
 import 'package:nutrilink/firestore_test.dart';
 
-import 'package:firebase_app_check/firebase_app_check.dart';
+// import 'package:firebase_app_check/firebase_app_check.dart'; // Package not installed
 
 // reCAPTCHA web
 const String kRecaptchaV3SiteKey = '6Lf2pQMsAAAAALiEdH2KdQ3ThKzZ2IlJQAw7HJxG';
@@ -61,9 +62,10 @@ Future<void> main() async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.playIntegrity, // Paling disarankan 
-  );
+  // Firebase App Check - Commented out (package not installed)
+  // await FirebaseAppCheck.instance.activate(
+  //   androidProvider: AndroidProvider.playIntegrity,
+  // );
 
   // 7) Run
   runZonedGuarded(() => runApp(const NutriLinkApp()), (e, s) {
@@ -127,6 +129,7 @@ class NutriLinkApp extends StatelessWidget {
         '/eat-frequency': (_) => const eat_freq.EatFrequencyPage(),
         '/sleep-schedule': (_) => const sleep_sched.SleepSchedulePage(),
         '/summary': (_) => const summary_page.SummaryPage(),
+        '/recommendation': (_) => const recomendation.RecommendationScreen(),
         '/report': (_) => const report_page.ReportScreen(),
 
         '/firestore-test': (_) => const FirestoreTestPage(),
