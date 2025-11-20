@@ -8,7 +8,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:nutrilink/_onb_helpers.dart';
 import 'package:nutrilink/models/user_profile_draft.dart';
 import 'package:nutrilink/termsAndConditionsDetailPage.dart';
-import 'dart:math';
 
 // ====== Palet warna konsisten dengan ChallengePage ======
 const Color kGreen = Color(0xFF5F9C3F);
@@ -868,48 +867,3 @@ class _GradientButtonState extends State<GradientButton> {
   }
 }
 
-
-Future<void> generateMenuForUser(String uid, Map<String, dynamic> profile) async {
-  final db = FirebaseFirestore.instance;
-
-  // Ambil data penting
-  final int eatFreq = profile['eatFrequency'] ?? 3;
-  final String? wake = profile['wakeTime'];
-  final String? sleep = profile['sleepTime'];
-  final String? goal = profile['healthGoal'];
-  final List<dynamic>? allergies = profile['allergies'];
-  final List<dynamic>? challenges = profile['challenges'];
-
-  // List dummy menu, nanti bisa kamu ganti ke API kamu
-  final meals = {
-    'breakfast': [
-      'Oatmeal + buah', 'Roti gandum + telur', 'Yogurt + granola'
-    ],
-    'lunch': [
-      'Nasi merah + ayam', 'Salad sayur + tuna', 'Kentang + dada ayam'
-    ],
-    'dinner': [
-      'Sup sayur', 'Ikan kukus + sayur', 'Tahu tempe + sayur'
-    ]
-  };
-
-  Random r = Random();
-
-  final batch = db.batch();
-  final scheduleRef = db.collection('users').doc(uid).collection('schedule');
-
-  for (int i = 1; i <= 7; i++) {
-    final data = {
-      'day': i,
-      'breakfast': meals['breakfast']?[r.nextInt(meals['breakfast']!.length)],
-      'lunch': meals['lunch']?[r.nextInt(meals['lunch']!.length)],
-      'dinner': meals['dinner']?[r.nextInt(meals['dinner']!.length)],
-      'generatedAt': FieldValue.serverTimestamp(),
-    };
-
-    batch.set(scheduleRef.doc('day_$i'), data);
-  }
-
-  await batch.commit();
-  debugPrint("✅ Jadwal makanan untuk $uid berhasil dibuat!");
-}
