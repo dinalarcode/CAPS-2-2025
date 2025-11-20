@@ -186,4 +186,49 @@ class OrderService {
       return false;
     }
   }
+
+  /// Check if user has ordered for specific date and meal types
+  /// Returns `Map<String, bool>` with meal types as keys (e.g., {"Sarapan": true, "Makan Siang": false})
+  static Future<Map<String, bool>> checkOrderedMeals(DateTime date) async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return {};
+
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      
+      // Query orders yang statusnya paid atau lebih tinggi
+      final snapshot = await _db
+          .collection('users')
+          .doc(uid)
+          .collection('orders')
+          .where('status', whereIn: ['paid', 'preparing', 'delivered'])
+          .get();
+
+      final orderedMeals = <String, bool>{
+        'Sarapan': false,
+        'Makan Siang': false,
+        'Makan Malam': false,
+      };
+
+      for (var doc in snapshot.docs) {
+        final orderData = doc.data();
+        final items = orderData['items'] as List<dynamic>? ?? [];
+        
+        for (var item in items) {
+          final itemDate = item['date'] as String?;
+          final mealType = item['mealType'] as String?;
+          
+          if (itemDate == dateStr && mealType != null) {
+            orderedMeals[mealType] = true;
+          }
+        }
+      }
+
+      debugPrint('📋 Ordered meals for $dateStr: $orderedMeals');
+      return orderedMeals;
+    } catch (e) {
+      debugPrint('❌ Error checking ordered meals: $e');
+      return {};
+    }
+  }
 }

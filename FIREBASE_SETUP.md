@@ -36,6 +36,11 @@ service cloud.firestore {
         allow update: if request.auth != null && request.auth.uid == userId;
         allow delete: if request.auth != null && request.auth.uid == userId;
       }
+      
+      // Subcollection: recommendationCache (cache hasil filtering)
+      match /recommendationCache/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // ==========================================

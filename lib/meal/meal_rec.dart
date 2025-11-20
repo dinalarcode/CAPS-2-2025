@@ -156,6 +156,36 @@ class MealRecommendationEngine {
     debugPrint('🚀 Getting meal recommendations for user: $userId');
     
     try {
+      // 0. Check cache first - jika ada dan masih fresh (< 24 jam), gunakan cache
+      final cacheDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('recommendationCache')
+          .doc('latest')
+          .get();
+      
+      if (cacheDoc.exists) {
+        final cacheData = cacheDoc.data()!;
+        final cacheTime = (cacheData['cachedAt'] as Timestamp?)?.toDate();
+        final cacheAllergies = List<String>.from(cacheData['allergies'] ?? []);
+        
+        // Cache valid jika < 24 jam dan allergies sama
+        if (cacheTime != null && 
+            DateTime.now().difference(cacheTime).inHours < 24 &&
+            _allergiesMatch(cacheAllergies, allergies)) {
+          debugPrint('✅ Using cached recommendations (${DateTime.now().difference(cacheTime).inMinutes} min old)');
+          
+          return {
+            'sarapan': List<Map<String, dynamic>>.from(cacheData['sarapan'] ?? []),
+            'makanSiang': List<Map<String, dynamic>>.from(cacheData['makanSiang'] ?? []),
+            'makanMalam': List<Map<String, dynamic>>.from(cacheData['makanMalam'] ?? []),
+            'dailyStats': List<Map<String, dynamic>>.from(cacheData['dailyStats'] ?? []),
+          };
+        } else {
+          debugPrint('⚠️ Cache expired or allergies changed, fetching fresh data');
+        }
+      }
+      
       // 1. Hitung kebutuhan kalori & macro
       final dailyCalories = NutritionCalculator.calculateDailyCalories(
         tdee: tdee,
@@ -198,7 +228,7 @@ class MealRecommendationEngine {
       
       debugPrint('✅ Recommendations ready');
       
-      return {
+      final result = {
         'sarapan': sarapanRecs,
         'makanSiang': makanSiangRecs,
         'makanMalam': makanMalamRecs,
@@ -211,6 +241,28 @@ class MealRecommendationEngine {
           }
         ],
       };
+      
+      // Cache hasil untuk performa di masa depan
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('recommendationCache')
+            .doc('latest')
+            .set({
+          'sarapan': sarapanRecs,
+          'makanSiang': makanSiangRecs,
+          'makanMalam': makanMalamRecs,
+          'dailyStats': result['dailyStats'],
+          'allergies': allergies,
+          'cachedAt': FieldValue.serverTimestamp(),
+        });
+        debugPrint('💾 Recommendations cached for future use');
+      } catch (e) {
+        debugPrint('⚠️ Failed to cache recommendations: $e');
+      }
+      
+      return result;
     } catch (e) {
       debugPrint('❌ Error getting recommendations: $e');
       rethrow;
@@ -333,6 +385,14 @@ class MealRecommendationEngine {
     }
   }
 
+  /// Check if two allergy lists are equal (for cache validation)
+  static bool _allergiesMatch(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    final aSet = a.map((e) => e.toLowerCase()).toSet();
+    final bSet = b.map((e) => e.toLowerCase()).toSet();
+    return aSet.difference(bSet).isEmpty && bSet.difference(aSet).isEmpty;
+  }
+  
   /// Check apakah menu mengandung alergen user
   static bool _hasAllergen(Map<String, dynamic> menu, List<String> allergies) {
     if (allergies.isEmpty) return false;

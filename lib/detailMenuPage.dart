@@ -87,27 +87,6 @@ class DetailMenuPage extends StatelessWidget {
 
             const SizedBox(height: 35),
 
-            // Button Edit Menu
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, "/editMenu", arguments: meal);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kGreen,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  "Edit Menu",
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                ),
-              ),
-            ),
-
             const SizedBox(height: 20),
           ],
         ),
