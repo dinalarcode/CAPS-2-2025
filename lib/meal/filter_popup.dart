@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FilterFoodPopup extends StatefulWidget {
   final Set<String> initialFilters;
@@ -15,32 +16,9 @@ class FilterFoodPopup extends StatefulWidget {
 }
 
 class _FilterFoodPopupState extends State<FilterFoodPopup> {
-  final List<Map<String, dynamic>> filterGroups = [
-    {
-      'title': 'Kambing', 
-      'tags': ['Daging', 'Sate', 'Gulai', 'Sop', 'Tongseng', 'Krengsengan', 'Nasi Goreng Kambing']
-    },
-    {
-      'title': 'Sapi', 
-      'tags': ['Rendang', 'Asem-Asem', 'Gepuk', 'Rawon', 'Empal']
-    },
-    {
-      'title': 'Ayam', 
-      'tags': ['Goreng', 'Bakar', 'Panggang', 'Kukus', 'Betutu', 'Opor']
-    },
-    {
-      'title': 'Sayuran',
-      'tags': ['Salad', 'Tumis', 'Rebus', 'Goreng', 'Kukus']
-    },
-    {
-      'title': 'Ikan',
-      'tags': ['Bakar', 'Goreng', 'Panggang', 'Kukus', 'Asam Manis']
-    },
-    {
-      'title': 'Udang', 
-      'tags': ['Bakar', 'Goreng', 'Panggang', 'Asam Manis', 'Saos Tiram']
-    },
-  ];
+  // Tags loaded dynamically from Firestore `menus` collection (tag1/tag2/tag3 or 'tags' field)
+  List<String> _allTags = [];
+  bool _loadingTags = true;
 
   late Set<String> _selectedFilters;
   String _searchQuery = '';
@@ -50,6 +28,47 @@ class _FilterFoodPopupState extends State<FilterFoodPopup> {
     super.initState();
     // INISIALISASI DENGAN FILTER YANG DITERIMA DARI PARENT
     _selectedFilters = Set<String>.from(widget.initialFilters);
+    _loadTags();
+  }
+
+  Future<void> _loadTags() async {
+    try {
+      final Set<String> tagSet = {};
+      final snap = await FirebaseFirestore.instance.collection('menus').get();
+      for (var doc in snap.docs) {
+        final data = doc.data();
+        // field 'tags' could be String (CSV) or List
+        final tagsRaw = data['tags'];
+        if (tagsRaw is String) {
+          for (var t in tagsRaw.split(',')) {
+            final v = t.toString().trim();
+            if (v.isNotEmpty) tagSet.add(v);
+          }
+        } else if (tagsRaw is List) {
+          for (var t in tagsRaw) {
+            final v = t.toString().trim();
+            if (v.isNotEmpty) tagSet.add(v);
+          }
+        }
+
+        // also check tag1/tag2/tag3 fields if present
+        for (var k in ['tag1', 'tag2', 'tag3']) {
+          final v = data[k];
+          if (v is String && v.trim().isNotEmpty) tagSet.add(v.trim());
+        }
+      }
+
+      final tagsList = tagSet.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      setState(() {
+        _allTags = tagsList;
+        _loadingTags = false;
+      });
+    } catch (e) {
+      setState(() {
+        _allTags = [];
+        _loadingTags = false;
+      });
+    }
   }
 
   void _toggleFilter(String tag) {
@@ -74,21 +93,10 @@ class _FilterFoodPopupState extends State<FilterFoodPopup> {
     });
   }
 
-  List<Map<String, dynamic>> get _filteredGroups {
-    if (_searchQuery.isEmpty) {
-      return filterGroups;
-    }
-    
-    return filterGroups.map((group) {
-      final filteredTags = (group['tags'] as List<String>)
-          .where((tag) => tag.toLowerCase().contains(_searchQuery.toLowerCase()))
-          .toList();
-      
-      return {
-        'title': group['title'],
-        'tags': filteredTags,
-      };
-    }).where((group) => (group['tags'] as List).isNotEmpty).toList();
+  List<String> get _filteredTags {
+    if (_searchQuery.isEmpty) return _allTags;
+    final q = _searchQuery.toLowerCase();
+    return _allTags.where((t) => t.toLowerCase().contains(q)).toList();
   }
 
   @override
@@ -157,43 +165,35 @@ class _FilterFoodPopupState extends State<FilterFoodPopup> {
             )).toList(),
           ),
           const Divider(height: 30),
-
-          // Daftar Filter Berdasarkan Kategori
+          // Daftar Filter (All unique tags from DB)
           Expanded(
-            child: _filteredGroups.isEmpty
-                ? const Center(
-                    child: Text('Tidak ada tag yang sesuai dengan pencarian'),
-                  )
-                : ListView(
-                    children: _filteredGroups.map((group) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+            child: _loadingTags
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredTags.isEmpty
+                    ? const Center(child: Text('Tidak ada tag yang sesuai dengan pencarian'))
+                    : ListView(
+                        padding: EdgeInsets.zero,
                         children: [
-                          Text(
-                            group['title'],
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
+                            child: Wrap(
+                              spacing: 8.0,
+                              runSpacing: 8.0,
+                              children: _filteredTags.map((tag) {
+                                final isSelected = _selectedFilters.contains(tag);
+                                return ActionChip(
+                                  label: Text(tag),
+                                  backgroundColor: isSelected ? Colors.green.shade100 : Colors.grey.shade200,
+                                  side: BorderSide(
+                                    color: isSelected ? Colors.green : Colors.grey.shade400,
+                                  ),
+                                  onPressed: () => _toggleFilter(tag),
+                                );
+                              }).toList(),
+                            ),
                           ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8.0,
-                            runSpacing: 8.0,
-                            children: (group['tags'] as List<String>).map((tag) {
-                              final isSelected = _selectedFilters.contains(tag);
-                              return ActionChip(
-                                label: Text(tag),
-                                backgroundColor: isSelected ? Colors.green.shade100 : Colors.grey.shade200,
-                                side: BorderSide(
-                                  color: isSelected ? Colors.green : Colors.grey.shade400,
-                                ),
-                                onPressed: () => _toggleFilter(tag),
-                              );
-                            }).toList(),
-                          ),
-                          const Divider(height: 30),
                         ],
-                      );
-                    }).toList(),
-                  ),
+                      ),
           ),
 
           // Tombol Apply Filter
@@ -202,13 +202,13 @@ class _FilterFoodPopupState extends State<FilterFoodPopup> {
             child: ElevatedButton(
               onPressed: _applyFilters,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+                backgroundColor: _selectedFilters.isNotEmpty ? Colors.green : Colors.grey.shade400,
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: const Text(
+              child: Text(
                 'Apply Filter',
-                style: TextStyle(fontSize: 18, color: Colors.white),
+                style: const TextStyle(fontSize: 18, color: Colors.white),
               ),
             ),
           ),
