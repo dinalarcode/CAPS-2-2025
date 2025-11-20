@@ -541,9 +541,11 @@ class _FoodRecommendationListState extends State<_FoodRecommendationList> {
     super.didUpdateWidget(oldWidget);
     // Reset page when date changes
     if (oldWidget.selectedDate != widget.selectedDate) {
-      _currentPage = 0;
-      // Initialize tracking for new date if needed
-      _recentlyShown[_trackingKey] ??= <String>{};
+      setState(() {
+        _currentPage = 0;
+        // Initialize tracking for new date if needed
+        _recentlyShown[_trackingKey] ??= <String>{};
+      });
     }
   }
 
