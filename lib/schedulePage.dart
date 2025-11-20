@@ -819,7 +819,7 @@ class SuggestionMealItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    meal['name'] ?? 'Unknown Menu',
+                    meal['name']?.toString().isNotEmpty == true ? meal['name'] : 'Unknown Menu',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
