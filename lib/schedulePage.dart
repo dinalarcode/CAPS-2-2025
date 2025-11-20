@@ -216,11 +216,111 @@ class SuggestedMealsBox extends StatelessWidget {
   }
 }
 
-// =======================================================
-// 🟣 SUGGESTION ITEM CARD
-// =======================================================
-class SuggestionMealItem extends StatelessWidget {
-  final Map<String, dynamic> meal;
+class _FullDateDisplay extends StatelessWidget {
+  final String fullDateText;
+  const _FullDateDisplay({required this.fullDateText});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            fullDateText,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+          InkResponse(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TambahMenuPage(),
+                ),
+              );
+            },
+            radius: 20,
+            child: const Padding(
+              padding: EdgeInsets.all(4.0),
+              child: Icon(
+                Icons.add_circle_outline, 
+                color: kGreen, 
+                size: 28,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MealCard extends StatelessWidget {
+  final Meal meal;
+  final ValueChanged<bool> onToggleDone;
+
+  const _MealCard({required this.meal, required this.onToggleDone});
+
+  String _getMealTimeRange(String time) {
+    return meal.clock;
+  }
+  
+  // Widget Pembantu untuk Item Makro (Revisi agar label/value lebih jelas)
+  Widget _buildMacroItem(String title, String value, {Color color = Colors.black}) {
+    final secondaryColor = Colors.grey[600];
+    
+    return Padding(
+      padding: const EdgeInsets.only(right: 15),
+      child: Row(
+        children: [
+          Text(
+            title, 
+            style: TextStyle(color: secondaryColor, fontSize: 14),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            value, 
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildIconAction({
+    required IconData icon,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkResponse(
+        onTap: onTap,
+        radius: 20,
+        splashColor: kGreen.withValues(alpha: 0.2),
+        highlightColor: Colors.transparent,
+        containedInkWell: true,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            icon,
+            color: color,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
 
   const SuggestionMealItem({super.key, required this.meal});
 
@@ -230,8 +330,15 @@ class SuggestionMealItem extends StatelessWidget {
       margin: EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
