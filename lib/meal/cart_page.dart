@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:nutrilink/services/order_service.dart';
+import 'package:nutrilink/services/schedule_service.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -322,27 +324,143 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
-  void _processCheckout() {
+  void _processCheckout() async {
     // Close confirmation dialog
     Navigator.pop(context);
     
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pesanan berhasil dibuat! Tim kami akan menghubungi Anda segera.'),
-        backgroundColor: Color(0xFF75C778),
-        duration: Duration(seconds: 3),
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF75C778)),
+        ),
       ),
     );
 
-    // Clear cart after successful order
-    CartManager.clearCart();
-    
-    // Refresh the page
-    setState(() {});
-    
-    // Navigate back to previous screen
-    Navigator.pop(context);
+    try {
+      // Get cart data
+      final cartItems = CartManager.getCartItems();
+      final totalPrice = CartManager.getTotalPrice();
+      
+      // Convert CartItem objects to Map for order service
+      Map<String, Map<String, dynamic>> orderData = {};
+      cartItems.forEach((dateKey, meals) {
+        orderData[dateKey] = {};
+        meals.forEach((mealType, cartItem) {
+          orderData[dateKey]![mealType] = {
+            'name': cartItem.name,
+            'price': cartItem.price,
+            'calories': cartItem.calories,
+            'protein': cartItem.fullData['protein'] ?? '',
+            'carbs': cartItem.fullData['carbs'] ?? '',
+            'fat': cartItem.fullData['fat'] ?? '',
+            'image': cartItem.imageUrl,
+            'clock': cartItem.fullData['clock'] ?? '',
+          };
+        });
+      });
+
+      // Create order in Firestore
+      final orderId = await OrderService.createOrder(
+        cartItems: orderData,
+        totalPrice: totalPrice,
+        paymentMethod: 'pending',
+      );
+
+      if (orderId == null) {
+        // Close loading
+        if (!mounted) return;
+        Navigator.pop(context);
+        
+        // Show error
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Gagal membuat pesanan. Silakan coba lagi.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Simulate payment processing (dalam production, ini akan integrate dengan payment gateway)
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // Mark order as paid
+      final paymentSuccess = await OrderService.markOrderAsPaid(orderId);
+      
+      if (!paymentSuccess) {
+        // Close loading
+        if (!mounted) return;
+        Navigator.pop(context);
+        
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pembayaran gagal. Silakan coba lagi.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Populate schedule dari order yang sudah dibayar
+      final schedulePopulated = await ScheduleService.populateScheduleFromOrder(orderId);
+      
+      if (!schedulePopulated) {
+        // Close loading
+        if (!mounted) return;
+        Navigator.pop(context);
+        
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pesanan berhasil dibuat, tapi gagal menambahkan ke jadwal. Silakan refresh jadwal.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+
+      // Clear cart after successful order
+      CartManager.clearCart();
+      
+      // Close loading
+      if (!mounted) return;
+      Navigator.pop(context);
+      
+      // Show success message
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pesanan berhasil! Order ID: $orderId'),
+          backgroundColor: const Color(0xFF75C778),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      
+      // Refresh the page and navigate back
+      if (!mounted) return;
+      setState(() {});
+      if (!mounted) return;
+      Navigator.pop(context);
+      
+    } catch (e) {
+      // Close loading if still open
+      if (!mounted) return;
+      Navigator.pop(context);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   String _formatPrice(num price) {

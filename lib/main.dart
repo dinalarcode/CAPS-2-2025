@@ -32,7 +32,6 @@ import 'package:nutrilink/summaryPage.dart' as summary_page;
 import 'package:nutrilink/reportPage.dart' as report_page;
 import 'package:nutrilink/meal/recomendation.dart' as recomendation;
 import 'package:nutrilink/tambahMenuPage.dart' as tambah_menu;
-import 'package:nutrilink/editedMenuPage.dart' as edited_menu;
 import 'package:nutrilink/detailMenuPage.dart' as detail_menu;
 import 'package:nutrilink/firestore_test.dart';
 
@@ -136,7 +135,6 @@ class NutriLinkApp extends StatelessWidget {
         '/recommendation': (_) => const recomendation.RecommendationScreen(),
         '/report': (_) => const report_page.ReportScreen(),
         '/tambahMenu': (_) => const tambah_menu.TambahMenuPage(),
-        '/editedMenu': (_) => const edited_menu.EditedMenuPage(),
         '/firestore-test': (_) => const FirestoreTestPage(),
       },
       onGenerateRoute: (settings) {
