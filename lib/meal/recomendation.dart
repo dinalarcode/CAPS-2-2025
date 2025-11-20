@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:nutrilink/meal/filter_popup.dart';
 import 'package:nutrilink/meal/food_detail_popup.dart';
 import 'package:nutrilink/meal/meal_rec.dart';
@@ -351,6 +352,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 userAllergies: _userAllergies,
                 selectedDate: _selectedDate,
               ),
+            const SizedBox(height: 24),
             // 5. Daftar Rekomendasi Makanan - Makan Siang
             if (_recommendationResult != null)
               _FoodRecommendationList(
@@ -359,6 +361,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 userAllergies: _userAllergies,
                 selectedDate: _selectedDate,
               ),
+            const SizedBox(height: 24),
             // 6. Daftar Rekomendasi Makanan - Makan Malam
             if (_recommendationResult != null)
               _FoodRecommendationList(
@@ -458,20 +461,52 @@ class _TagFilterSection extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: GestureDetector(
-            onTap: onFilterPressed,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.filter_list, color: headerColor, size: 22),
-                const SizedBox(width: 8),
-                Text(
-                  'Tag Filter',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: headerColor),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: onFilterPressed,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: selectedFilters.isNotEmpty ? kGreen.withValues(alpha: 0.1) : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: selectedFilters.isNotEmpty ? kGreen : Colors.grey.shade300,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.filter_list, color: headerColor, size: 20),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Filter',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: headerColor),
+                      ),
+                      if (selectedFilters.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: kGreen,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${selectedFilters.length}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         // Dynamic spacing: only add space if there are active tags
@@ -643,7 +678,7 @@ class _FoodRecommendationListState extends State<_FoodRecommendationList> {
           ),
         ),
         SizedBox(
-          height: 286,
+          height: 300,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 10.0),
@@ -912,31 +947,27 @@ class _FoodCard extends StatelessWidget {
     if (imageUrl.isNotEmpty) {
       return AspectRatio(
         aspectRatio: 1.0, // 1:1 ratio
-        child: Image.network(
-          imageUrl,
+        child: CachedNetworkImage(
+          imageUrl: imageUrl,
           fit: BoxFit.cover,
-          cacheWidth: 480,
-          cacheHeight: 480,
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return Container(
-              color: Colors.grey[200],
-              child: Center(
-                    child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    value: progress.expectedTotalBytes != null
-                        ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
-                        : null,
-                    color: kGreen,
-                    strokeWidth: 2,
-                  ),
+          memCacheWidth: 400,
+          memCacheHeight: 400,
+          maxWidthDiskCache: 600,
+          maxHeightDiskCache: 600,
+          placeholder: (context, url) => Container(
+            color: Colors.grey[200],
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(kGreen),
                 ),
               ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) => _buildFallbackImage(name),
+            ),
+          ),
+          errorWidget: (context, url, error) => _buildFallbackImage(name),
         ),
       );
     }

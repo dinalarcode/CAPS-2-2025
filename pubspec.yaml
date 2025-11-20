@@ -23,6 +23,7 @@ dependencies:
   geocoding: ^4.0.0
   shared_preferences: ^2.5.3
   firebase_storage: ^12.4.10
+  cached_network_image: ^3.4.1
 
   # UI helper
   flutter_cupertino_datetime_picker: ^3.0.0

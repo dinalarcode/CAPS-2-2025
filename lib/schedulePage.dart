@@ -560,7 +560,6 @@ class MealScheduleCard extends StatelessWidget {
       },
       child: Container(
         margin: EdgeInsets.only(bottom: 16),
-        padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -573,162 +572,147 @@ class MealScheduleCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-          // Image from Firebase
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: imageUrl.isNotEmpty
-                ? Image.network(
-                    imageUrl,
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                : null,
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(kGreen),
-                          ),
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      debugPrint('❌ Failed to load image: $imageUrl');
-                      debugPrint('   Error: $error');
-                      return Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+            // Image from Firebase
+            Expanded(
+              flex: 2,
+              child: ClipRRect(
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
+                ),
+                child: imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: Colors.grey[100],
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                    : null,
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(kGreen),
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          debugPrint('❌ Failed to load image: $imageUrl');
+                          debugPrint('   Error: $error');
+                          return Container(
+                            color: Colors.grey[100],
+                            child: Icon(
+                              Icons.restaurant,
+                              size: 40,
+                              color: Colors.grey[400],
+                            ),
+                          );
+                        },
+                      )
+                    : Container(
+                        color: Colors.grey[100],
                         child: Icon(
                           Icons.restaurant,
                           size: 40,
                           color: Colors.grey[400],
                         ),
-                      );
-                    },
-                  )
-                : Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.restaurant,
-                      size: 40,
-                      color: Colors.grey[400],
-                    ),
-                  ),
-          ),
-          SizedBox(width: 16),
-          // Meal details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Meal type tag with edit icon and checkbox
-                Row(
+                      ),
+              ),
+            ),
+            // Meal details
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: kGreen.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        meal['time'] ?? '', // Pakai 'time' untuk konsistensi dengan HomePage
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: kGreen,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        IconButton(
-                          icon: Icon(Icons.edit, color: kGreen, size: 18),
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/editedMenu');
-                          },
-                          tooltip: 'Edit Menu',
-                          constraints: BoxConstraints(),
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
+                        // Meal type tag with checkbox
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: kGreen.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                meal['time'] ?? '',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: kGreen,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Checkbox(
+                              value: isDone,
+                              onChanged: onCheckChanged,
+                              activeColor: kGreen,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
                         ),
-                        Checkbox(
-                          value: isDone,
-                          onChanged: onCheckChanged,
-                          activeColor: kGreen,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
+                        SizedBox(height: 8),
+                        // Scheduled time
+                        Row(
+                          children: [
+                            Icon(Icons.access_time, size: 14, color: kLightGreyText),
+                            SizedBox(width: 4),
+                            Text(
+                              meal['clock'] ?? '',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: kLightGreyText,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        // Meal name
+                        Text(
+                          meal['name'] ?? '',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: kTextColor,
                           ),
-                          visualDensity: VisualDensity.compact,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                // Scheduled time
-                Row(
-                  children: [
-                    Icon(Icons.access_time, size: 14, color: kLightGreyText),
-                    SizedBox(width: 4),
+                    // Calories at bottom
                     Text(
-                      meal['clock'] ?? '', // Pakai 'clock' untuk konsistensi dengan HomePage
+                      '${meal['calories']} Kalori',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: kLightGreyText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: kGreen,
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 8),
-                // Meal name
-                Text(
-                  meal['name'] ?? '',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: kTextColor,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: 4),
-                // Calories
-                Text(
-                  '${meal['calories']} Kalori',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: kLightGreyText,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+        ),
       ),
     );
   }
