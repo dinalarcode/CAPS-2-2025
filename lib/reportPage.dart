@@ -38,7 +38,7 @@ class _ReportScreenState extends State<ReportScreen> {
       // Load monthly statistics for favorite food
       _monthlyStats = await FirebaseService.getMonthlyFoodStats(_selectedDate);
     } catch (e) {
-      print('Error loading data: $e');
+      debugPrint('Error loading data: $e');
     }
 
     setState(() {
