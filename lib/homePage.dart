@@ -59,7 +59,7 @@ class _HomePageState extends State<HomePage> {
 
   void _buildPages() {
     _pages = [
-      const SchedulePage(),
+      SchedulePage(),
       const RecommendationScreen(),
       HomePageContent(
         onNavigateToProfile: () => setState(() => _currentIndex = 4),

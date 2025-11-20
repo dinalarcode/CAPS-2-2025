@@ -872,12 +872,18 @@ class _GradientButtonState extends State<GradientButton> {
 Future<void> generateMenuForUser(String uid, Map<String, dynamic> profile) async {
   final db = FirebaseFirestore.instance;
 
-  // Ambil data penting
+  // Ambil data penting (untuk digunakan di versi mendatang)
+  // ignore: unused_local_variable
   final int eatFreq = profile['eatFrequency'] ?? 3;
+  // ignore: unused_local_variable
   final String? wake = profile['wakeTime'];
+  // ignore: unused_local_variable
   final String? sleep = profile['sleepTime'];
+  // ignore: unused_local_variable
   final String? goal = profile['healthGoal'];
+  // ignore: unused_local_variable
   final List<dynamic>? allergies = profile['allergies'];
+  // ignore: unused_local_variable
   final List<dynamic>? challenges = profile['challenges'];
 
   // List dummy menu, nanti bisa kamu ganti ke API kamu

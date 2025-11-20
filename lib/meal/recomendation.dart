@@ -28,10 +28,14 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
   String? _errorMessage;
   // User allergies cache (used to filter tags shown)
   Set<String> _userAllergies = {};
+  // Selected date for meal prep (default to tomorrow)
+  late DateTime _selectedDate;
 
   @override
   void initState() {
     super.initState();
+    // Default to tomorrow for meal prep
+    _selectedDate = DateTime.now().add(const Duration(days: 1));
     _loadRecommendations();
   }
 
@@ -89,6 +93,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
       debugPrint('🎯 User target: $target');
 
       // Get rekomendasi
+      // Date-based variety is handled by tracking shown items per day
       final recommendations = await MealRecommendationEngine.getRecommendations(
         userId: user.uid,
         allergies: allergies,
@@ -194,6 +199,34 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
     return bmr * multiplier;
   }
 
+  Future<void> _pickDate() async {
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: tomorrow,
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: kGreen,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+        _isLoading = true;
+      });
+      await _loadRecommendations();
+    }
+  }
+
   void _showFilter(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -257,6 +290,54 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
           children: [
             // 1. Header Profil Pengguna dan Target
             _UserProfileHeader(onFilterPressed: () => _showFilter(context)),
+            const SizedBox(height: 8),
+            // Date Picker Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: kGreen.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: kGreen, width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today, color: kGreen, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Tanggal Meal Prep',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: kGreyText,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(_selectedDate),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: kGreen,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_drop_down, color: kGreen, size: 28),
+                    ],
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
             // 2. Filter Tag yang Aktif
             _TagFilterSection(selectedFilters: _selectedFilters, onFilterPressed: () => _showFilter(context)),
@@ -268,6 +349,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 title: 'Sarapan',
                 items: _recommendationResult!.sarapan,
                 userAllergies: _userAllergies,
+                selectedDate: _selectedDate,
               ),
             // 5. Daftar Rekomendasi Makanan - Makan Siang
             if (_recommendationResult != null)
@@ -275,6 +357,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 title: 'Makan Siang',
                 items: _recommendationResult!.makanSiang,
                 userAllergies: _userAllergies,
+                selectedDate: _selectedDate,
               ),
             // 6. Daftar Rekomendasi Makanan - Makan Malam
             if (_recommendationResult != null)
@@ -282,6 +365,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 title: 'Makan Malam',
                 items: _recommendationResult!.makanMalam,
                 userAllergies: _userAllergies,
+                selectedDate: _selectedDate,
               ),
             const SizedBox(height: 100),
           ],
@@ -366,47 +450,55 @@ class _TagFilterSection extends StatelessWidget {
     final List<String> activeTags = selectedFilters.toList();
     // Show filter icon inline with the label. Icon and label change color when filters active.
     final Color headerColor = selectedFilters.isNotEmpty ? kGreen : Colors.grey;
+    // Dynamic spacing: no padding if empty, add spacing if tags present
+    final bool hasActiveTags = selectedFilters.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: onFilterPressed,
-                child: Icon(Icons.filter_list, color: headerColor, size: 22),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Tag Filter',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: headerColor),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 40,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
-            itemCount: activeTags.length,
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                child: Chip(
-                  label: Text(activeTags[index]),
-                  backgroundColor: const Color(0xFFC8E6C9),
-                  side: BorderSide.none,
+          child: GestureDetector(
+            onTap: onFilterPressed,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.filter_list, color: headerColor, size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  'Tag Filter',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: headerColor),
                 ),
-              );
-            },
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 12),
+        // Dynamic spacing: only add space if there are active tags
+        if (hasActiveTags) const SizedBox(height: 8),
+        if (hasActiveTags)
+          SizedBox(
+            height: 40,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 10.0),
+              itemCount: activeTags.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                  child: Chip(
+                    label: Text(
+                      activeTags[index],
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                    backgroundColor: kGreen, // Solid green like in filter popup
+                    side: BorderSide.none,
+                  ),
+                );
+              },
+            ),
+          ),
+        if (hasActiveTags) const SizedBox(height: 12),
       ],
     );
   }
@@ -416,8 +508,9 @@ class _FoodRecommendationList extends StatefulWidget {
   final String title;
   final List<Map<String, dynamic>> items;
   final Set<String> userAllergies;
+  final DateTime selectedDate;
 
-  const _FoodRecommendationList({required this.title, required this.items, required this.userAllergies});
+  const _FoodRecommendationList({required this.title, required this.items, required this.userAllergies, required this.selectedDate});
 
   @override
   State<_FoodRecommendationList> createState() => _FoodRecommendationListState();
@@ -427,19 +520,35 @@ class _FoodRecommendationListState extends State<_FoodRecommendationList> {
   int _currentPage = 0;
   static const int _itemsPerPage = 3; // Show 3 items per expansion
   
-  // Track recently shown items for variety
+  // Track recently shown items for variety - use date+mealType as key
   static final Map<String, Set<String>> _recentlyShown = {};
-  static const int _maxRecentItems = 9; // Track last 9 shown per meal type
+  static const int _maxRecentItems = 9; // Track last 9 shown per meal type per date
+
+  String get _trackingKey {
+    final dateKey = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
+    return '$dateKey-${widget.title}';
+  }
 
   @override
   void initState() {
     super.initState();
-    // Initialize recent tracking for this meal type
-    _recentlyShown[widget.title] ??= <String>{};
+    // Initialize recent tracking for this date+meal type combination
+    _recentlyShown[_trackingKey] ??= <String>{};
+  }
+
+  @override
+  void didUpdateWidget(_FoodRecommendationList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset page when date changes
+    if (oldWidget.selectedDate != widget.selectedDate) {
+      _currentPage = 0;
+      // Initialize tracking for new date if needed
+      _recentlyShown[_trackingKey] ??= <String>{};
+    }
   }
 
   List<Map<String, dynamic>> _getVariedItems() {
-    final recentSet = _recentlyShown[widget.title]!;
+    final recentSet = _recentlyShown[_trackingKey]!;
     final items = List<Map<String, dynamic>>.from(widget.items);
     
     // Sort: non-recent items first, then by personal score if available
@@ -447,7 +556,9 @@ class _FoodRecommendationListState extends State<_FoodRecommendationList> {
       final aRecent = recentSet.contains(a['docId']) ? 1 : 0;
       final bRecent = recentSet.contains(b['docId']) ? 1 : 0;
       
-      if (aRecent != bRecent) return aRecent.compareTo(bRecent);
+      if (aRecent != bRecent) {
+        return aRecent.compareTo(bRecent);
+      }
       
       // If both recent or both new, sort by personal score if available
       final aScore = (a['personalScore'] as double?) ?? 50.0;
@@ -465,8 +576,8 @@ class _FoodRecommendationListState extends State<_FoodRecommendationList> {
     final displayItems = variedItems.take(maxItems).toList();
     final hasMore = variedItems.length > maxItems;
     
-    // Track shown items for variety
-    final recentSet = _recentlyShown[widget.title]!;
+    // Track shown items for variety using date-specific key
+    final recentSet = _recentlyShown[_trackingKey]!;
     for (var item in displayItems) {
       recentSet.add(item['docId'] ?? '');
     }
@@ -476,6 +587,47 @@ class _FoodRecommendationListState extends State<_FoodRecommendationList> {
       final excess = recentSet.length - _maxRecentItems;
       final toRemove = recentSet.take(excess).toList();
       recentSet.removeAll(toRemove);
+    }
+
+    // Show empty state if no items after filtering
+    if (displayItems.isEmpty) {
+      final formattedDate = DateFormat('dd MMM yyyy', 'id_ID').format(widget.selectedDate);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.title,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.grey.shade600, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Tidak ada menu ${widget.title.toLowerCase()} dengan tag yang dipilih untuk tanggal $formattedDate',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     return Column(
@@ -502,7 +654,12 @@ class _FoodRecommendationListState extends State<_FoodRecommendationList> {
                 );
               }
               final item = displayItems[index];
-              return _FoodCard(item: item, userAllergies: widget.userAllergies);
+              return _FoodCard(
+                item: item,
+                userAllergies: widget.userAllergies,
+                selectedDate: widget.selectedDate,
+                mealType: widget.title,
+              );
             },
           ),
         ),
@@ -569,8 +726,10 @@ class _ExpandButton extends StatelessWidget {
 class _FoodCard extends StatelessWidget {
   final Map<String, dynamic> item;
   final Set<String> userAllergies;
+  final DateTime selectedDate;
+  final String mealType;
 
-  const _FoodCard({required this.item, required this.userAllergies});
+  const _FoodCard({required this.item, required this.userAllergies, required this.selectedDate, required this.mealType});
 
   @override
   Widget build(BuildContext context) {
@@ -615,9 +774,13 @@ class _FoodCard extends StatelessWidget {
       onTap: () {
         // Debug: print the item passed to the popup so we can verify fields
         debugPrint('🔎 Opening detail popup for item: ${item.toString()}');
-        // Pass the full item map so the popup can display all fields
-        // and optionally fetch/update from Firestore if needed.
-        showFoodDetailPopup(context, Map<String, dynamic>.from(item));
+        // Pass the full item map with selected date and meal type
+        showFoodDetailPopup(
+          context,
+          Map<String, dynamic>.from(item),
+          selectedDate: selectedDate,
+          mealType: mealType,
+        );
       },
       child: Container(
         width: 180,

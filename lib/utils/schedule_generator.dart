@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nutrilink/models/meal_models.dart';
+import 'dart:developer' as developer;
 
 final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -29,7 +30,7 @@ Future<void> generateMenuForToday({
       .get();
 
   if (existing.exists) {
-    print("Schedule hari ini sudah ada → tidak generate ulang.");
+    developer.log("Schedule hari ini sudah ada → tidak generate ulang.");
     return;
   }
 
@@ -51,7 +52,7 @@ Future<void> generateMenuForToday({
   }).toList();
 
   if (safeMeals.isEmpty) {
-    print("⚠ Tidak ada makanan yang aman dari alergi user!");
+    developer.log("⚠ Tidak ada makanan yang aman dari alergi user!");
     return;
   }
 
@@ -83,5 +84,5 @@ Future<void> generateMenuForToday({
     "meals": generated,
   });
 
-  print("✅ Jadwal makan berhasil digenerate untuk hari ini!");
+  developer.log("✅ Jadwal makan berhasil digenerate untuk hari ini!");
 }

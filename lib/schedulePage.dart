@@ -12,8 +12,10 @@ const Color kLightGreyText = Color(0xFF6B6B6B);
 const Color kTextColor = Color(0xFF2C2C2C);
 
 class SchedulePage extends StatefulWidget {
+  const SchedulePage({super.key});
+
   @override
-  _SchedulePageState createState() => _SchedulePageState();
+  State<SchedulePage> createState() => _SchedulePageState();
 }
 
 class _SchedulePageState extends State<SchedulePage> {
@@ -216,111 +218,11 @@ class SuggestedMealsBox extends StatelessWidget {
   }
 }
 
-class _FullDateDisplay extends StatelessWidget {
-  final String fullDateText;
-  const _FullDateDisplay({required this.fullDateText});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            fullDateText,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
-          ),
-          InkResponse(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const TambahMenuPage(),
-                ),
-              );
-            },
-            radius: 20,
-            child: const Padding(
-              padding: EdgeInsets.all(4.0),
-              child: Icon(
-                Icons.add_circle_outline, 
-                color: kGreen, 
-                size: 28,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MealCard extends StatelessWidget {
-  final Meal meal;
-  final ValueChanged<bool> onToggleDone;
-
-  const _MealCard({required this.meal, required this.onToggleDone});
-
-  String _getMealTimeRange(String time) {
-    return meal.clock;
-  }
-  
-  // Widget Pembantu untuk Item Makro (Revisi agar label/value lebih jelas)
-  Widget _buildMacroItem(String title, String value, {Color color = Colors.black}) {
-    final secondaryColor = Colors.grey[600];
-    
-    return Padding(
-      padding: const EdgeInsets.only(right: 15),
-      child: Row(
-        children: [
-          Text(
-            title, 
-            style: TextStyle(color: secondaryColor, fontSize: 14),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            value, 
-            style: TextStyle(
-              color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildIconAction({
-    required IconData icon,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkResponse(
-        onTap: onTap,
-        radius: 20,
-        splashColor: kGreen.withValues(alpha: 0.2),
-        highlightColor: Colors.transparent,
-        containedInkWell: true,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Icon(
-            icon,
-            color: color,
-            size: 20,
-          ),
-        ),
-      ),
-    );
-  }
+// =======================================================
+// 🟡 SUGGESTION MEAL ITEM WIDGET
+// =======================================================
+class SuggestionMealItem extends StatelessWidget {
+  final Map<String, dynamic> meal;
 
   const SuggestionMealItem({super.key, required this.meal});
 
@@ -348,10 +250,16 @@ class _MealCard extends StatelessWidget {
               bottomLeft: Radius.circular(14),
             ),
             child: Image.network(
-              buildImageUrl(meal['image']),
+              buildImageUrl(meal['image'] ?? ''),
               width: 90,
               height: 90,
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                width: 90,
+                height: 90,
+                color: Colors.grey[300],
+                child: Icon(Icons.restaurant, color: Colors.grey),
+              ),
             ),
           ),
           SizedBox(width: 12),
@@ -361,15 +269,23 @@ class _MealCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(meal['name'], style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(
+                    meal['name'] ?? 'Unknown Menu',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   SizedBox(height: 4),
-                  Row(children: [
-                    macro(Icons.monitor_weight_outlined, meal['protein']),
-                    macro(Icons.bakery_dining_outlined, meal['carb']),
-                    macro(Icons.egg_outlined, meal['fat']),
-                  ]),
+                  Row(
+                    children: [
+                      _buildMacro(Icons.monitor_weight_outlined, meal['protein']?.toString() ?? '-'),
+                      _buildMacro(Icons.bakery_dining_outlined, meal['carb']?.toString() ?? '-'),
+                      _buildMacro(Icons.egg_outlined, meal['fat']?.toString() ?? '-'),
+                    ],
+                  ),
                   SizedBox(height: 6),
-                  Text(meal['calories'], style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(
+                    '${meal['calories']?.toString() ?? '-'} kkal',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
             ),
@@ -377,7 +293,10 @@ class _MealCard extends StatelessWidget {
           Container(
             margin: EdgeInsets.only(right: 10),
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: kGreen, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kGreen,
+                foregroundColor: Colors.white,
+              ),
               onPressed: () {
                 Navigator.pop(context, meal);
               },
@@ -389,7 +308,15 @@ class _MealCard extends StatelessWidget {
     );
   }
 
-  Widget macro(IconData icon, String val) {
-    return Row(children: [Icon(icon, size: 14), SizedBox(width: 3), Text(val), SizedBox(width: 8)]);
+  Widget _buildMacro(IconData icon, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 14),
+        SizedBox(width: 3),
+        Text(value),
+        SizedBox(width: 8),
+      ],
+    );
   }
 }
+
