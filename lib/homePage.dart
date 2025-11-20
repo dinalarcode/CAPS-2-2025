@@ -126,40 +126,26 @@ class _HomePageContentState extends State<HomePageContent> {
   }
 
   Future<void> _loadMeals() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final today = DateTime.now().toString().split(' ')[0]; // Format: YYYY-MM-DD
-      final userId = currentUserId ?? '';
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toString().split(' ')[0];
+    final userId = currentUserId ?? '';
+    
+    final cachedMealsJson = prefs.getString('cached_meals_${userId}_$today');
+    final cachedUpcomingJson = prefs.getString('cached_upcoming_${userId}_$today');
+    
+    if (cachedMealsJson != null && cachedUpcomingJson != null) {
+      debugPrint('✅ Loading meals from cache for $today');
       
-      // Check if we have cached data for today AND this user
-      final cachedMealsJson = prefs.getString('cached_meals_${userId}_$today');
-      final cachedUpcomingJson = prefs.getString('cached_upcoming_${userId}_$today');
+      final List<dynamic> cachedMealsList = json.decode(cachedMealsJson);
+      final List<dynamic> cachedUpcomingList = json.decode(cachedUpcomingJson);
       
-      if (cachedMealsJson != null && cachedUpcomingJson != null) {
-        debugPrint('✅ Loading meals from cache for $today');
-        
-        final List<dynamic> cachedMealsList = json.decode(cachedMealsJson);
-        final List<dynamic> cachedUpcomingList = json.decode(cachedUpcomingJson);
-        
-        // Debug: Check if calories field exists in cached data
-        if (cachedUpcomingList.isNotEmpty) {
-          final firstMeal = cachedUpcomingList[0] as Map<String, dynamic>;
-          if (!firstMeal.containsKey('calories')) {
-            debugPrint('⚠️ Old cache format detected (missing calories field), clearing cache...');
-            await prefs.remove('cached_meals_${userId}_$today');
-            await prefs.remove('cached_upcoming_${userId}_$today');
-            // Don't return, let it reload from Firestore
-          } else {
-            debugPrint('   Sample meal from cache: ${firstMeal['name']} - ${firstMeal['calories']} kcal');
-            if (mounted) {
-              setState(() {
-                meals = cachedMealsList.cast<Map<String, dynamic>>();
-                upcomingMeals = cachedUpcomingList.cast<Map<String, dynamic>>();
-                cachedDate = today;
-              });
-            }
-            return;
-          }
+      if (cachedUpcomingList.isNotEmpty) {
+        final firstMeal = cachedUpcomingList[0] as Map<String, dynamic>;
+        if (!firstMeal.containsKey('calories')) {
+          debugPrint('⚠️ Old cache format detected, clearing cache...');
+          await prefs.remove('cached_meals_${userId}_$today');
+          await prefs.remove('cached_upcoming_${userId}_$today');
         } else {
           if (mounted) {
             setState(() {
@@ -170,195 +156,184 @@ class _HomePageContentState extends State<HomePageContent> {
           }
           return;
         }
-      }
-      
-      debugPrint('📥 No cache found for $today, loading from Firestore...');
-      
-      final profile = userData?['profile'] as Map<String, dynamic>?;
-      final eatFrequency = profile?['eatFrequency'] ?? 3;
-
-      debugPrint('Loading meals with eatFrequency: $eatFrequency');
-
-      // Query ALL menus collection
-      final snapshot = await FirebaseFirestore.instance
-          .collection('menus')
-          .get();
-
-      debugPrint('Total menus fetched: ${snapshot.docs.length}');
-
-      // Get all meals and generate proper download URLs from Storage
-      final allMeals = await Future.wait(snapshot.docs.map((doc) async {
-        final data = doc.data();
-        
-        try {
-          // Generate proper download URL from Storage path
-          String imageUrl = '';
-          final imageField = data['image'];
-          
-          // Image field di Firestore adalah ARRAY - ambil elemen pertama
-          String? imagePath;
-          if (imageField is List && imageField.isNotEmpty) {
-            imagePath = imageField[0]?.toString();
-          } else if (imageField is String) {
-            imagePath = imageField;
-          }
-          
-          if (imagePath != null && imagePath.isNotEmpty) {
-            try {
-              // Image field berisi nama file (1001.png)
-              // Tambahkan prefix "menus/" untuk path Storage
-              String storagePath = imagePath.contains('/') 
-                  ? imagePath  // Sudah ada path lengkap
-                  : 'menus/$imagePath';  // Tambahkan prefix menus/
-              
-              // Get proper download URL from Firebase Storage
-              final ref = FirebaseStorage.instance.ref(storagePath);
-              imageUrl = await ref.getDownloadURL();
-            } catch (e) {
-              debugPrint('❌ Failed to get download URL for ${data['name']}: $e');
-            }
-          }
-
-          return {
-            'id': doc.id,
-            'name': data['name']?.toString() ?? '',
-            'type': data['type']?.toString() ?? '',
-            'tag1': (data['tags'] is List && (data['tags'] as List).isNotEmpty) 
-                ? (data['tags'] as List)[0].toString() 
-                : '',
-            'tag2': (data['tags'] is List && (data['tags'] as List).length > 1) 
-                ? (data['tags'] as List)[1].toString() 
-                : '',
-            'tag3': (data['tags'] is List && (data['tags'] as List).length > 2) 
-                ? (data['tags'] as List)[2].toString() 
-                : '',
-            'calories': data['calories'] as int? ?? 0,
-            'price': data['price'] as int? ?? 0,
-            'image': imageUrl,
-            'description': data['description']?.toString() ?? '',
-          };
-        } catch (e, stackTrace) {
-          debugPrint('❌ Error processing menu ${doc.id}: $e');
-          debugPrint('Stack trace: $stackTrace');
-          debugPrint('Data: $data');
-          rethrow;
-        }
-      }));
-
-      // Filter only meals with valid download URLs
-      final mealsWithImages = allMeals.where((meal) {
-        return meal['image'] != null && (meal['image'] as String).isNotEmpty;
-      }).toList();
-
-      debugPrint('Meals with valid download URLs: ${mealsWithImages.length}');
-
-      // Separate meals by type (only with images)
-      final sarapan = mealsWithImages.where((m) => m['type'] == 'Sarapan').toList();
-      final makanSiang = mealsWithImages.where((m) => m['type'] == 'Makan Siang').toList();
-      final makanMalam = mealsWithImages.where((m) => m['type'] == 'Makan Malam').toList();
-
-      debugPrint('Sarapan meals: ${sarapan.length}');
-      debugPrint('Makan Siang meals: ${makanSiang.length}');
-      debugPrint('Makan Malam meals: ${makanMalam.length}');
-
-      // Shuffle for random selection
-      sarapan.shuffle();
-      makanSiang.shuffle();
-      makanMalam.shuffle();
-
-      // Get random meals for Rekomendasi Menu based on eatFrequency
-      List<Map<String, dynamic>> selectedMeals = [];
-      List<Map<String, dynamic>> upcomingMealsList = [];
-      
-      debugPrint('EatFrequency: $eatFrequency');
-      
-      if (eatFrequency == 2) {
-        // 2x makan: Sarapan dan Makan Malam saja
-        if (sarapan.length >= 2) {
-          selectedMeals.add(sarapan[0]);
-          upcomingMealsList.add(sarapan[1]); // Menu berbeda
-        } else if (sarapan.isNotEmpty) {
-          selectedMeals.add(sarapan[0]);
-        }
-        
-        if (makanMalam.length >= 2) {
-          selectedMeals.add(makanMalam[0]);
-          upcomingMealsList.add(makanMalam[1]); // Menu berbeda
-        } else if (makanMalam.isNotEmpty) {
-          selectedMeals.add(makanMalam[0]);
-        }
       } else {
-        // 3x makan: Sarapan, Makan Siang, dan Makan Malam
-        if (sarapan.length >= 2) {
-          selectedMeals.add(sarapan[0]);
-          upcomingMealsList.add(sarapan[1]); // Menu berbeda
-        } else if (sarapan.isNotEmpty) {
-          selectedMeals.add(sarapan[0]);
+        if (mounted) {
+          setState(() {
+            meals = cachedMealsList.cast<Map<String, dynamic>>();
+            upcomingMeals = cachedUpcomingList.cast<Map<String, dynamic>>();
+            cachedDate = today;
+          });
         }
-        
-        if (makanSiang.length >= 2) {
-          selectedMeals.add(makanSiang[0]);
-          upcomingMealsList.add(makanSiang[1]); // Menu berbeda
-        } else if (makanSiang.isNotEmpty) {
-          selectedMeals.add(makanSiang[0]);
-        }
-        
-        if (makanMalam.length >= 2) {
-          selectedMeals.add(makanMalam[0]);
-          upcomingMealsList.add(makanMalam[1]); // Menu berbeda
-        } else if (makanMalam.isNotEmpty) {
-          selectedMeals.add(makanMalam[0]);
-        }
+        return;
       }
+    }
+    
+    debugPrint('📥 No cache found for $today, loading from Firestore...');
+    
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    final eatFrequency = profile?['eatFrequency'] ?? 3;
 
-      debugPrint('Selected meals count: ${selectedMeals.length}');
-      debugPrint('Upcoming meals count: ${upcomingMealsList.length}');
+    final snapshot = await FirebaseFirestore.instance
+        .collection('menus')
+        .get();
 
-      // Hitung jam makan berdasarkan sleep schedule
-      final sleepSchedule = profile?['sleepSchedule'] as Map<String, dynamic>?;
-      final wakeTime = sleepSchedule?['wakeTime'] as String? ?? '06:00';
-      final sleepTime = sleepSchedule?['sleepTime'] as String? ?? '22:00';
+    debugPrint('Total menus fetched: ${snapshot.docs.length}');
+
+    final allMeals = await Future.wait(snapshot.docs.map((doc) async {
+      final data = doc.data();
       
-      final upcomingWithTime = upcomingMealsList.map((meal) {
-        return {
-          'time': meal['type'],
-          'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
-          'name': meal['name'],
-          'calories': meal['calories'], // Tambahkan kalori
-          'isDone': false,
-        };
-      }).toList();
-      
-      // Save to cache for today with user ID
-      await prefs.setString('cached_meals_${userId}_$today', json.encode(selectedMeals));
-      await prefs.setString('cached_upcoming_${userId}_$today', json.encode(upcomingWithTime));
-      
-      // Clean up old cache (keep only today's cache for current user)
-      final keys = prefs.getKeys();
-      for (final key in keys) {
-        if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_'))) {
-          // Remove if different user or different date
-          if (!key.contains('_${userId}_') || !key.endsWith(today)) {
-            await prefs.remove(key);
-            debugPrint('🗑️ Removed old cache: $key');
+      try {
+        String imageUrl = '';
+        final imageField = data['image'];
+        
+        String? imagePath;
+        if (imageField is List && imageField.isNotEmpty) {
+          imagePath = imageField[0]?.toString();
+        } else if (imageField is String) {
+          imagePath = imageField;
+        }
+        
+        if (imagePath != null && imagePath.isNotEmpty) {
+          try {
+            String storagePath = imagePath.contains('/') 
+                ? imagePath
+                : 'menus/$imagePath';
+            
+            final ref = FirebaseStorage.instance.ref(storagePath);
+            imageUrl = await ref.getDownloadURL();
+            debugPrint('✅ Got image URL for ${data['name']}: ${imageUrl.substring(0, 50)}...');
+          } catch (e) {
+            debugPrint('❌ Failed to get download URL for ${data['name']}: $e');
           }
         }
+
+        return {
+          'id': doc.id,
+          'name': data['name']?.toString() ?? '',
+          'type': data['type']?.toString() ?? '',
+          'tag1': (data['tags'] is List && (data['tags'] as List).isNotEmpty) 
+              ? (data['tags'] as List)[0].toString() 
+              : '',
+          'tag2': (data['tags'] is List && (data['tags'] as List).length > 1) 
+              ? (data['tags'] as List)[1].toString() 
+              : '',
+          'tag3': (data['tags'] is List && (data['tags'] as List).length > 2) 
+              ? (data['tags'] as List)[2].toString() 
+              : '',
+          'calories': data['calories'] as int? ?? 0,
+          'price': data['price'] as int? ?? 0,
+          'image': imageUrl, // ✅ Simpan URL lengkap
+          'description': data['description']?.toString() ?? '',
+        };
+      } catch (e, stackTrace) {
+        debugPrint('❌ Error processing menu ${doc.id}: $e');
+        debugPrint('Stack trace: $stackTrace');
+        rethrow;
+      }
+    }));
+
+    final mealsWithImages = allMeals.where((meal) {
+      return meal['image'] != null && (meal['image'] as String).isNotEmpty;
+    }).toList();
+
+    debugPrint('Meals with valid download URLs: ${mealsWithImages.length}');
+
+    final sarapan = mealsWithImages.where((m) => m['type'] == 'Sarapan').toList();
+    final makanSiang = mealsWithImages.where((m) => m['type'] == 'Makan Siang').toList();
+    final makanMalam = mealsWithImages.where((m) => m['type'] == 'Makan Malam').toList();
+
+    sarapan.shuffle();
+    makanSiang.shuffle();
+    makanMalam.shuffle();
+
+    List<Map<String, dynamic>> selectedMeals = [];
+    List<Map<String, dynamic>> upcomingMealsList = [];
+    
+    if (eatFrequency == 2) {
+      if (sarapan.length >= 2) {
+        selectedMeals.add(sarapan[0]);
+        upcomingMealsList.add(sarapan[1]);
+      } else if (sarapan.isNotEmpty) {
+        selectedMeals.add(sarapan[0]);
       }
       
-      debugPrint('💾 Saved meals to cache for $today');
-      
-      // Check if widget is still mounted before calling setState
-      if (mounted) {
-        setState(() {
-          meals = selectedMeals;
-          upcomingMeals = upcomingWithTime;
-          cachedDate = today;
-        });
+      if (makanMalam.length >= 2) {
+        selectedMeals.add(makanMalam[0]);
+        upcomingMealsList.add(makanMalam[1]);
+      } else if (makanMalam.isNotEmpty) {
+        selectedMeals.add(makanMalam[0]);
       }
-    } catch (e) {
-      debugPrint('Error loading meals: $e');
+    } else {
+      if (sarapan.length >= 2) {
+        selectedMeals.add(sarapan[0]);
+        upcomingMealsList.add(sarapan[1]);
+      } else if (sarapan.isNotEmpty) {
+        selectedMeals.add(sarapan[0]);
+      }
+      
+      if (makanSiang.length >= 2) {
+        selectedMeals.add(makanSiang[0]);
+        upcomingMealsList.add(makanSiang[1]);
+      } else if (makanSiang.isNotEmpty) {
+        selectedMeals.add(makanSiang[0]);
+      }
+      
+      if (makanMalam.length >= 2) {
+        selectedMeals.add(makanMalam[0]);
+        upcomingMealsList.add(makanMalam[1]);
+      } else if (makanMalam.isNotEmpty) {
+        selectedMeals.add(makanMalam[0]);
+      }
     }
+
+    final sleepSchedule = profile?['sleepSchedule'] as Map<String, dynamic>?;
+    final wakeTime = sleepSchedule?['wakeTime'] as String? ?? '06:00';
+    final sleepTime = sleepSchedule?['sleepTime'] as String? ?? '22:00';
+    
+    // ✅ PENTING: Simpan URL gambar ke upcomingMeals
+    final upcomingWithTime = upcomingMealsList.map((meal) {
+      return {
+        'time': meal['type'],
+        'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
+        'name': meal['name'],
+        'calories': meal['calories'],
+        'image': meal['image'], // ✅ Tambahkan field image
+        'isDone': false,
+      };
+    }).toList();
+    
+    // Debug: Cek apakah image URL tersimpan
+    debugPrint('🔍 Upcoming meals to be cached:');
+    for (var meal in upcomingWithTime) {
+      debugPrint('  - ${meal['name']}: image = ${meal['image']}');
+    }
+    
+    await prefs.setString('cached_meals_${userId}_$today', json.encode(selectedMeals));
+    await prefs.setString('cached_upcoming_${userId}_$today', json.encode(upcomingWithTime));
+    
+    final keys = prefs.getKeys();
+    for (final key in keys) {
+      if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_'))) {
+        if (!key.contains('_${userId}_') || !key.endsWith(today)) {
+          await prefs.remove(key);
+          debugPrint('🗑️ Removed old cache: $key');
+        }
+      }
+    }
+    
+    debugPrint('💾 Saved meals to cache for $today');
+    
+    if (mounted) {
+      setState(() {
+        meals = selectedMeals;
+        upcomingMeals = upcomingWithTime;
+        cachedDate = today;
+      });
+    }
+  } catch (e) {
+    debugPrint('Error loading meals: $e');
   }
+}
 
   // Hitung jam makan berdasarkan waktu bangun dan tidur (rentang waktu)
   String _calculateMealTime(String mealType, String wakeTime, String sleepTime) {
