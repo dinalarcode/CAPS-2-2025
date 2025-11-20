@@ -8,7 +8,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:nutrilink/_onb_helpers.dart';
 import 'package:nutrilink/models/user_profile_draft.dart';
 import 'package:nutrilink/termsAndConditionsDetailPage.dart';
-import 'dart:math';
 
 // ====== Palet warna konsisten dengan ChallengePage ======
 const Color kGreen = Color(0xFF5F9C3F);

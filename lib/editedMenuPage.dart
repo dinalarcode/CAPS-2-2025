@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'utils/storage_helper.dart';
 // import 'package:intl/intl.dart'; // Digunakan untuk format harga 
 
 // --- Global Constants (Diadaptasi dari kode Anda) ---
@@ -65,10 +66,6 @@ class CurrentMealCard extends StatelessWidget {
   final String mealId;
   const CurrentMealCard({required this.mealId, super.key});
 
-  // URL dasar gambar Firebase Storage
-  final String baseImageUrl = 'https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/menus%2F';
-  final String imageSuffix = '?alt=media'; // Ganti YOUR_PROJECT_ID dengan ID proyek Anda
-
   @override
   Widget build(BuildContext context) {
     // 1. Mengambil data dari Firestore menggunakan FutureBuilder
@@ -93,10 +90,13 @@ class CurrentMealCard extends StatelessWidget {
         final protein = data['protein'] as int? ?? 0;
         final carbohydrate = data['carbohydrate'] as int? ?? 0;
         final fat = data['fat'] as int? ?? 0;
-        final imageFileName = data['image'] as String? ?? ''; 
+        final imageFileName = data['image'] as String? ?? '';
+        
+        debugPrint('🖼️ EditedMenu - Loading image: $imageFileName');
         final imageUrl = imageFileName.isNotEmpty 
-                          ? '$baseImageUrl$imageFileName$imageSuffix' 
+                          ? buildImageUrl(imageFileName)
                           : null;
+        debugPrint('   ✅ Built URL: $imageUrl');
 
         // Tampilan Kartu setelah data berhasil dimuat
         return Container(

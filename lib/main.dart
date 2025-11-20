@@ -31,6 +31,9 @@ import 'package:nutrilink/sleepSchedulePage.dart' as sleep_sched;
 import 'package:nutrilink/summaryPage.dart' as summary_page;
 import 'package:nutrilink/reportPage.dart' as report_page;
 import 'package:nutrilink/meal/recomendation.dart' as recomendation;
+import 'package:nutrilink/tambahMenuPage.dart' as tambah_menu;
+import 'package:nutrilink/editedMenuPage.dart' as edited_menu;
+import 'package:nutrilink/detailMenuPage.dart' as detail_menu;
 import 'package:nutrilink/firestore_test.dart';
 
 // import 'package:firebase_app_check/firebase_app_check.dart'; // Package not installed
@@ -132,8 +135,18 @@ class NutriLinkApp extends StatelessWidget {
         '/summary': (_) => const summary_page.SummaryPage(),
         '/recommendation': (_) => const recomendation.RecommendationScreen(),
         '/report': (_) => const report_page.ReportScreen(),
-
+        '/tambahMenu': (_) => const tambah_menu.TambahMenuPage(),
+        '/editedMenu': (_) => const edited_menu.EditedMenuPage(),
         '/firestore-test': (_) => const FirestoreTestPage(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/detailMenu') {
+          final meal = settings.arguments as Map;
+          return MaterialPageRoute(
+            builder: (_) => detail_menu.DetailMenuPage(meal: meal),
+          );
+        }
+        return null;
       },
     );
   }

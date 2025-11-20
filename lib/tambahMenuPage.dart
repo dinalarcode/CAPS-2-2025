@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'utils/storage_helper.dart';
 
 // --- Global Constants ---
 const Color kBackgroundColor = Colors.white;
@@ -26,8 +27,7 @@ class TambahMenuPage extends StatefulWidget {
 
 class _TambahMenuPageState extends State<TambahMenuPage> {
   // ✅ BASE URL DENGAN PROJECT ID ANDA SUDAH BENAR
-  final String baseImageUrl =
-      'https://firebasestorage.googleapis.com/v0/b/nutrilink-5f07f.appspot.com/o/menus%2F';
+  final String baseImageUrl ='https://firebasestorage.googleapis.com/v0/b/nutrilink-5f07f.appspot.com/o/menus%2F';
   final String imageSuffix = '?alt=media';
 
   final Stream<QuerySnapshot> _menuStream =
@@ -214,10 +214,9 @@ class CurrentMealItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // URL ENCODING: Menggabungkan base URL, nama file yang di-encode, dan suffix
+    // Gunakan buildImageUrl dari storage_helper
     final String imageFileName = meal['imageUrl'] as String? ?? '';
-    final String encodedFileName = Uri.encodeComponent(imageFileName);
-    final String imageUrl = '$baseImageUrl$encodedFileName$imageSuffix';
+    final String imageUrl = imageFileName.isNotEmpty ? buildImageUrl(imageFileName) : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5.0),
@@ -419,12 +418,9 @@ class SuggestionMealItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // URL ENCODING
+    // Gunakan buildImageUrl dari storage_helper
     final String imageFileName = meal['imageUrl'] as String? ?? '';
-    final String encodedFileName = Uri.encodeComponent(imageFileName);
-    final String imageUrl = imageFileName.isNotEmpty
-        ? '$baseImageUrl$encodedFileName$imageSuffix'
-        : '';
+    final String imageUrl = imageFileName.isNotEmpty ? buildImageUrl(imageFileName) : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),

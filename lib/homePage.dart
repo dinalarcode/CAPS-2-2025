@@ -308,6 +308,9 @@ class _HomePageContentState extends State<HomePageContent> {
       debugPrint('  - ${meal['name']}: image = ${meal['image']}');
     }
     
+    // ✅ BARU: Simpan jadwal ke Firestore schedule collection
+    await _saveScheduleToFirestore(selectedMeals, upcomingWithTime, today);
+    
     await prefs.setString('cached_meals_${userId}_$today', json.encode(selectedMeals));
     await prefs.setString('cached_upcoming_${userId}_$today', json.encode(upcomingWithTime));
     
@@ -401,6 +404,45 @@ class _HomePageContentState extends State<HomePageContent> {
       debugPrint('💾 Updated upcoming meals cache with isDone status');
     } catch (e) {
       debugPrint('Error saving upcoming meals cache: $e');
+    }
+  }
+  
+  // ✅ BARU: Fungsi untuk menyimpan jadwal ke Firestore
+  Future<void> _saveScheduleToFirestore(
+    List<Map<String, dynamic>> selectedMeals,
+    List<Map<String, dynamic>> upcomingMeals,
+    String date,
+  ) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Simpan semua meals dalam satu document dengan array
+      final scheduleData = {
+        'meals': upcomingMeals.map((meal) => {
+          'name': meal['name'] ?? '',
+          'calories': meal['calories'] ?? 0,
+          'image': meal['image'] ?? '',
+          'type': meal['time'] ?? '',
+          'scheduledTime': meal['clock'] ?? '',
+          'isDone': meal['isDone'] ?? false,
+        }).toList(),
+        'scheduledDate': date,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'scheduled',
+        'source': 'auto_generated',
+      };
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('schedule')
+          .doc(date)
+          .set(scheduleData, SetOptions(merge: true));
+      
+      debugPrint('✅ Saved ${upcomingMeals.length} meals to Firestore for date: $date');
+    } catch (e) {
+      debugPrint('❌ Error saving schedule to Firestore: $e');
     }
   }
   
