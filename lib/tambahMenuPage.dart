@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:intl/intl.dart';
-// import 'utils/meal_schedule_storage.dart';
-import 'utils/storage_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:developer' as developer;
+import 'utils/storage_helper.dart';
 
 // --- Global Constants ---
 const Color kBackgroundColor = Colors.white;
@@ -486,7 +485,7 @@ class SuggestionMealItem extends StatelessWidget {
             child: IconButton(
                 icon: const Icon(Icons.add, color: Colors.white),
                 onPressed: () async {
-                  print("=== ADD BUTTON PRESSED ===");
+                  developer.log("=== ADD BUTTON PRESSED ===");
 
                   final now = DateTime.now();
                   final todayKey = "${now.year}-${now.month}-${now.day}";
@@ -511,8 +510,8 @@ class SuggestionMealItem extends StatelessWidget {
                     "isDone": false,
                   };
 
-                  print("Saving menu:");
-                  print(menuToSave);
+                  developer.log("Saving menu:");
+                  developer.log(menuToSave.toString());
 
                   // load old data
                   final prefs = await SharedPreferences.getInstance();
@@ -536,13 +535,15 @@ class SuggestionMealItem extends StatelessWidget {
                   // save it
                   await prefs.setString(todayKey, jsonEncode(finalData));
 
-                  print("=== SAVED ===");
-                  print(jsonEncode(finalData));
+                  developer.log("=== SAVED ===");
+                  developer.log(jsonEncode(finalData));
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text("${meal['name']} ditambahkan ke jadwal")),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text("${meal['name']} ditambahkan ke jadwal")),
+                    );
+                  }
                 }),
           ),
         ],

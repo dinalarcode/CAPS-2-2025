@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 
 // PAGES
@@ -108,7 +109,7 @@ class NutriLinkApp extends StatelessWidget {
         ),
       ),
 
-      initialRoute: '/welcome',  // Add this line
+      home: const AuthGate(), // Changed: Use AuthGate instead of initialRoute
 
       // Semua named routes
       routes: {
@@ -146,6 +147,38 @@ class NutriLinkApp extends StatelessWidget {
           );
         }
         return null;
+      },
+    );
+  }
+}
+
+// AuthGate: Cek status login user
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Show loading while checking auth state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF75C778),
+              ),
+            ),
+          );
+        }
+
+        // If user is logged in, go to home
+        if (snapshot.hasData && snapshot.data != null) {
+          return const home.HomePage();
+        }
+
+        // If user is not logged in, go to welcome page
+        return const welcome.WelcomePage();
       },
     );
   }

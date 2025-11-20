@@ -14,8 +14,10 @@ const Color kLightGreyText = Color(0xFF6B6B6B);
 const Color kTextColor = Color(0xFF2C2C2C);
 
 class SchedulePage extends StatefulWidget {
+  const SchedulePage({super.key});
+
   @override
-  _SchedulePageState createState() => _SchedulePageState();
+  State<SchedulePage> createState() => _SchedulePageState();
 }
 
 class _SchedulePageState extends State<SchedulePage> {
@@ -384,7 +386,7 @@ class _SchedulePageState extends State<SchedulePage> {
           items: List.generate(12, (index) {
             return DropdownMenuItem(
               value: index + 1,
-              child: Text('${months[index]}'),
+              child: Text(months[index]),
             );
           }),
           onChanged: (value) {
@@ -572,8 +574,8 @@ class MealScheduleCard extends StatelessWidget {
           ],
         ),
         child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           // Image from Firebase
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
@@ -730,4 +732,140 @@ class MealScheduleCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget macroChip(IconData icon, String data) {
+    return Container(
+      margin: EdgeInsets.only(right: 12),
+      child: Row(children: [Icon(icon, size: 16), SizedBox(width: 4), Text(data)]),
+    );
+  }
 }
+
+// =======================================================
+// 🟣 SUGGESTED MEALS LIST
+// =======================================================
+class SuggestedMealsBox extends StatelessWidget {
+  final List<Map<String, dynamic>> suggestionMeals;
+
+  const SuggestedMealsBox({super.key, required this.suggestionMeals});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Menu Saran", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        SizedBox(height: 12),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+          itemCount: suggestionMeals.length,
+          itemBuilder: (context, i) => SuggestionMealItem(meal: suggestionMeals[i]),
+        ),
+      ],
+    );
+  }
+}
+
+// =======================================================
+// 🟡 SUGGESTION MEAL ITEM WIDGET
+// =======================================================
+class SuggestionMealItem extends StatelessWidget {
+  final Map<String, dynamic> meal;
+
+  const SuggestionMealItem({super.key, required this.meal});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(14),
+              bottomLeft: Radius.circular(14),
+            ),
+            child: Image.network(
+              buildImageUrl(meal['image'] ?? ''),
+              width: 90,
+              height: 90,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                width: 90,
+                height: 90,
+                color: Colors.grey[300],
+                child: Icon(Icons.restaurant, color: Colors.grey),
+              ),
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    meal['name']?.toString().isNotEmpty == true ? meal['name'] : 'Unknown Menu',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _buildMacro(Icons.monitor_weight_outlined, meal['protein']?.toString() ?? '-'),
+                      _buildMacro(Icons.bakery_dining_outlined, meal['carb']?.toString() ?? '-'),
+                      _buildMacro(Icons.egg_outlined, meal['fat']?.toString() ?? '-'),
+                    ],
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    '${meal['calories']?.toString() ?? '-'} kkal',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            margin: EdgeInsets.only(right: 10),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kGreen,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(context, meal);
+              },
+              child: Text("Pilih"),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMacro(IconData icon, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 14),
+        SizedBox(width: 3),
+        Text(value),
+        SizedBox(width: 8),
+      ],
+    );
+  }
+}
+

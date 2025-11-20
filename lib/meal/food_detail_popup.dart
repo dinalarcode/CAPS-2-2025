@@ -4,7 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:nutrilink/meal/cart_page.dart';
 
-void showFoodDetailPopup(BuildContext context, Map<String, dynamic> item) {
+// Color constant to match app theme
+const Color kGreen = Color(0xFF75C778);
+
+void showFoodDetailPopup(
+  BuildContext context,
+  Map<String, dynamic> item, {
+  DateTime? selectedDate,
+  String? mealType,
+}) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -12,14 +20,20 @@ void showFoodDetailPopup(BuildContext context, Map<String, dynamic> item) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
     ),
-    builder: (context) => _FoodDetailContent(item: item),
+    builder: (context) => _FoodDetailContent(
+      item: item,
+      selectedDate: selectedDate,
+      mealType: mealType,
+    ),
   );
 }
 
 class _FoodDetailContent extends StatefulWidget {
   final Map<String, dynamic> item;
+  final DateTime? selectedDate;
+  final String? mealType;
 
-  const _FoodDetailContent({required this.item});
+  const _FoodDetailContent({required this.item, this.selectedDate, this.mealType});
 
   @override
   State<_FoodDetailContent> createState() => _FoodDetailContentState();
@@ -315,7 +329,16 @@ class _FoodDetailContentState extends State<_FoodDetailContent> {
                         ],
                       ),
                       ElevatedButton(
-                        onPressed: () => _showCalendarPopup(context, _item),
+                        onPressed: () async {
+                          // Use the passed date and meal type, or fallback to calendar if not provided
+                          if (widget.selectedDate != null && widget.mealType != null) {
+                            // Auto-detected meal type from recommendation page
+                            await _addToCart(context, widget.selectedDate!, widget.mealType!, _item);
+                          } else {
+                            // Fallback: show calendar picker (for other entry points)
+                            _showCalendarPopup(context, _item);
+                          }
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           shape: const CircleBorder(),
@@ -498,15 +521,83 @@ Future<void> _addToCart(BuildContext context, DateTime date, String mealType, Ma
   } else {
     // Item added successfully
     if (context.mounted) {
-      final formattedDate = DateFormat('dd MMM yyyy', 'id_ID').format(date);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${cartItem.name} ditambahkan ke keranjang untuk $mealType, $formattedDate'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _showSuccessDialog(context, cartItem.name);
     }
   }
+}
+
+void _showSuccessDialog(BuildContext context, String itemName) {
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Animated checkmark
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.elasticOut,
+              builder: (context, value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: kGreen,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 50,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Berhasil Ditambahkan!',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              itemName,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  
+  // Auto close after 1.5 seconds
+  Future.delayed(const Duration(milliseconds: 1500), () {
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+  });
 }
 
 void _showReplaceConfirmation(BuildContext context, DateTime date, String mealType, CartItem newItem, String dateKey) {

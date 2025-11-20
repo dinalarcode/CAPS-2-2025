@@ -128,34 +128,27 @@ class _CartPageState extends State<CartPage> {
 
       // Meal sections for this date
       for (final mealType in ['Sarapan', 'Makan Siang', 'Makan Malam']) {
-        widgets.add(
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              mealType,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-        );
-
         final item = dateItems[mealType];
+        
+        // Only show meal type section if there's an item
         if (item != null) {
-          widgets.add(_buildCartItemCard(item, dateKey, mealType));
-        } else {
           widgets.add(
             Container(
-              height: 1,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              color: Colors.grey.shade300,
+              margin: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                mealType,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
             ),
           );
+          
+          widgets.add(_buildCartItemCard(item, dateKey, mealType));
+          widgets.add(const SizedBox(height: 12));
         }
-
-        widgets.add(const SizedBox(height: 12));
       }
 
       // Add spacing between dates

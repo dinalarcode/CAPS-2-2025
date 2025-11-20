@@ -1,4 +1,5 @@
 // lib/registerPage.dart
+import 'dart:math';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -867,3 +868,54 @@ class _GradientButtonState extends State<GradientButton> {
   }
 }
 
+
+Future<void> generateMenuForUser(String uid, Map<String, dynamic> profile) async {
+  final db = FirebaseFirestore.instance;
+
+  // Ambil data penting (untuk digunakan di versi mendatang)
+  // ignore: unused_local_variable
+  final int eatFreq = profile['eatFrequency'] ?? 3;
+  // ignore: unused_local_variable
+  final String? wake = profile['wakeTime'];
+  // ignore: unused_local_variable
+  final String? sleep = profile['sleepTime'];
+  // ignore: unused_local_variable
+  final String? goal = profile['healthGoal'];
+  // ignore: unused_local_variable
+  final List<dynamic>? allergies = profile['allergies'];
+  // ignore: unused_local_variable
+  final List<dynamic>? challenges = profile['challenges'];
+
+  // List dummy menu, nanti bisa kamu ganti ke API kamu
+  final meals = {
+    'breakfast': [
+      'Oatmeal + buah', 'Roti gandum + telur', 'Yogurt + granola'
+    ],
+    'lunch': [
+      'Nasi merah + ayam', 'Salad sayur + tuna', 'Kentang + dada ayam'
+    ],
+    'dinner': [
+      'Sup sayur', 'Ikan kukus + sayur', 'Tahu tempe + sayur'
+    ]
+  };
+
+  Random r = Random();
+
+  final batch = db.batch();
+  final scheduleRef = db.collection('users').doc(uid).collection('schedule');
+
+  for (int i = 1; i <= 7; i++) {
+    final data = {
+      'day': i,
+      'breakfast': meals['breakfast']?[r.nextInt(meals['breakfast']!.length)],
+      'lunch': meals['lunch']?[r.nextInt(meals['lunch']!.length)],
+      'dinner': meals['dinner']?[r.nextInt(meals['dinner']!.length)],
+      'generatedAt': FieldValue.serverTimestamp(),
+    };
+
+    batch.set(scheduleRef.doc('day_$i'), data);
+  }
+
+  await batch.commit();
+  debugPrint("✅ Jadwal makanan untuk $uid berhasil dibuat!");
+}
