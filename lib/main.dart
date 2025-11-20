@@ -1,14 +1,11 @@
 import 'dart:ui';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/date_symbol_data_local.dart';
-
 import 'firebase_options.dart';
 
 // PAGES
@@ -17,7 +14,6 @@ import 'package:nutrilink/homePage.dart' as home;
 import 'package:nutrilink/loginPage.dart' as login;
 import 'package:nutrilink/registerPage.dart' as register;
 import 'package:nutrilink/termsAndConditionsPage.dart' as terms;
-
 import 'package:nutrilink/nameInputPage.dart' as name_input;
 import 'package:nutrilink/targetSelectionPage.dart' as target_sel;
 import 'package:nutrilink/healthGoalPage.dart' as health_goal;
@@ -32,6 +28,7 @@ import 'package:nutrilink/allergyPage.dart' as allergy_page;
 import 'package:nutrilink/eatFrequencyPage.dart' as eat_freq;
 import 'package:nutrilink/sleepSchedulePage.dart' as sleep_sched;
 import 'package:nutrilink/summaryPage.dart' as summary_page;
+import 'package:nutrilink/reportPage.dart' as report_page;
 import 'package:nutrilink/meal/recomendation.dart' as recomendation;
 import 'package:nutrilink/firestore_test.dart';
 
@@ -70,10 +67,10 @@ Future<void> main() async {
   //   androidProvider: AndroidProvider.playIntegrity,
   // );
 
-  // Init locale untuk DateFormat('...', 'id')
-  await initializeDateFormatting('id', null);
-
-  runApp(const NutriLinkApp());
+  // 7) Run
+  runZonedGuarded(() => runApp(const NutriLinkApp()), (e, s) {
+    debugPrint('UNCAUGHT ZONE ERROR: $e\n$s');
+  });
 }
 
 class NutriLinkApp extends StatelessWidget {
@@ -108,31 +105,9 @@ class NutriLinkApp extends StatelessWidget {
         ),
       ),
 
-      // HOME dengan Auth State Persistence
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          // Loading state
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF5F9C3F),
-                ),
-              ),
-            );
-          }
-          
-          // Jika user sudah login, langsung ke home
-          if (snapshot.hasData && snapshot.data != null) {
-            return const home.HomePage();
-          }
-          
-          // Jika belum login, ke welcome page
-          return const welcome.WelcomePage();
-        },
-      ),
+      initialRoute: '/welcome',  // Add this line
 
+      // Semua named routes
       routes: {
         '/welcome': (_) => const welcome.WelcomePage(),
         '/terms': (_) => const terms.TermsAndConditionsPage(),
@@ -155,6 +130,7 @@ class NutriLinkApp extends StatelessWidget {
         '/sleep-schedule': (_) => const sleep_sched.SleepSchedulePage(),
         '/summary': (_) => const summary_page.SummaryPage(),
         '/recommendation': (_) => const recomendation.RecommendationScreen(),
+        '/report': (_) => const report_page.ReportScreen(),
 
         '/firestore-test': (_) => const FirestoreTestPage(),
       },
