@@ -6,6 +6,7 @@ import 'package:nutrilink/meal/filter_popup.dart';
 import 'package:nutrilink/meal/food_detail_popup.dart';
 import 'package:nutrilink/meal/meal_rec.dart';
 import 'package:nutrilink/meal/cart_page.dart';
+import 'package:nutrilink/services/order_service.dart';
 import 'package:intl/intl.dart';
 
 // Local color constants to match homepage styling (do not import homepage.dart to avoid circular dependency)
@@ -31,6 +32,8 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
   Set<String> _userAllergies = {};
   // Selected date for meal prep (default to tomorrow)
   late DateTime _selectedDate;
+  // Track which meals are already ordered for selected date
+  Map<String, bool> _orderedMeals = {};
 
   @override
   void initState() {
@@ -107,8 +110,12 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
       // Keep a copy of the full result so we can apply tag filters locally
       _fullRecommendationResult = result;
 
+      // Check which meals are already ordered for this date
+      final orderedMeals = await OrderService.checkOrderedMeals(_selectedDate);
+
       setState(() {
         _isLoading = false;
+        _orderedMeals = orderedMeals;
       });
 
       // Apply any active tag filters to immediately filter displayed lists
@@ -351,6 +358,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 items: _recommendationResult!.sarapan,
                 userAllergies: _userAllergies,
                 selectedDate: _selectedDate,
+                isOrdered: _orderedMeals['Sarapan'] ?? false,
               ),
             const SizedBox(height: 24),
             // 5. Daftar Rekomendasi Makanan - Makan Siang
@@ -360,6 +368,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 items: _recommendationResult!.makanSiang,
                 userAllergies: _userAllergies,
                 selectedDate: _selectedDate,
+                isOrdered: _orderedMeals['Makan Siang'] ?? false,
               ),
             const SizedBox(height: 24),
             // 6. Daftar Rekomendasi Makanan - Makan Malam
@@ -369,6 +378,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 items: _recommendationResult!.makanMalam,
                 userAllergies: _userAllergies,
                 selectedDate: _selectedDate,
+                isOrdered: _orderedMeals['Makan Malam'] ?? false,
               ),
             const SizedBox(height: 100),
           ],
@@ -544,8 +554,15 @@ class _FoodRecommendationList extends StatefulWidget {
   final List<Map<String, dynamic>> items;
   final Set<String> userAllergies;
   final DateTime selectedDate;
+  final bool isOrdered;
 
-  const _FoodRecommendationList({required this.title, required this.items, required this.userAllergies, required this.selectedDate});
+  const _FoodRecommendationList({
+    required this.title,
+    required this.items,
+    required this.userAllergies,
+    required this.selectedDate,
+    required this.isOrdered,
+  });
 
   @override
   State<_FoodRecommendationList> createState() => _FoodRecommendationListState();
@@ -677,29 +694,89 @@ class _FoodRecommendationListState extends State<_FoodRecommendationList> {
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
           ),
         ),
-        SizedBox(
-          height: 300,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
-            itemCount: displayItems.length + (hasMore ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (hasMore && index == displayItems.length) {
-                return _ExpandButton(
-                  onTap: () => setState(() => _currentPage++),
-                  remainingCount: variedItems.length - displayItems.length,
-                );
-              }
-              final item = displayItems[index];
-              return _FoodCard(
-                item: item,
-                userAllergies: widget.userAllergies,
-                selectedDate: widget.selectedDate,
-                mealType: widget.title,
-              );
-            },
+        // Show notification if meal is already ordered
+        if (widget.isOrdered)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [kGreen.withValues(alpha: 0.15), kGreen.withValues(alpha: 0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: kGreen, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: kGreen,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.check_circle,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sudah Dipesan',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: kGreen,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Anda sudah memesan ${widget.title.toLowerCase()} untuk tanggal ${DateFormat('dd MMM yyyy', 'id_ID').format(widget.selectedDate)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+        // Only show food cards if NOT ordered
+        if (!widget.isOrdered)
+          SizedBox(
+            height: 300,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 10.0),
+              itemCount: displayItems.length + (hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (hasMore && index == displayItems.length) {
+                  return _ExpandButton(
+                    onTap: () => setState(() => _currentPage++),
+                    remainingCount: variedItems.length - displayItems.length,
+                  );
+                }
+                final item = displayItems[index];
+                return _FoodCard(
+                  item: item,
+                  userAllergies: widget.userAllergies,
+                  selectedDate: widget.selectedDate,
+                  mealType: widget.title,
+                );
+              },
+            ),
+          ),
       ],
     );
   }
@@ -950,10 +1027,10 @@ class _FoodCard extends StatelessWidget {
         child: CachedNetworkImage(
           imageUrl: imageUrl,
           fit: BoxFit.cover,
-          memCacheWidth: 400,
-          memCacheHeight: 400,
-          maxWidthDiskCache: 600,
-          maxHeightDiskCache: 600,
+          memCacheWidth: 200,
+          memCacheHeight: 200,
+          maxWidthDiskCache: 300,
+          maxHeightDiskCache: 300,
           placeholder: (context, url) => Container(
             color: Colors.grey[200],
             child: const Center(
