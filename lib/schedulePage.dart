@@ -3,11 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutrilink/utils/storage_helper.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:nutrilink/services/schedule_service.dart';
 
 const Color kGreen = Color(0xFF75C778);
 const Color kLightGreyText = Color(0xFF6B6B6B);
@@ -64,173 +61,57 @@ class _SchedulePageState extends State<SchedulePage> {
     }
   }
 
-  // Load meals dari SharedPreferences (sama dengan HomePage)
+  // Load meals dari Firestore menggunakan ScheduleService
   Future<void> loadMealsFromCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-      final today = DateFormat('yyyy-MM-dd').format(selectedDate);
+      debugPrint('🔍 Loading meals for: ${DateFormat('yyyy-MM-dd').format(selectedDate)}');
       
-      debugPrint('🔍 Trying to load meals for: $today (uid: $uid)');
+      final meals = await ScheduleService.getScheduleByDate(selectedDate);
       
-      final cached = prefs.getString('cached_upcoming_${uid}_$today');
-      if (cached != null) {
-        final List<dynamic> decoded = json.decode(cached);
-        setState(() {
-          scheduledMeals = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-        });
-        debugPrint('✅ Loaded ${scheduledMeals.length} meals from cache for $today');
-        
-        // Debug: Check if images are loaded
-        for (var meal in scheduledMeals) {
-          final imagePreview = meal['image'] != null && meal['image'] != '' 
-              ? '${(meal['image'] as String).substring(0, (meal['image'] as String).length > 60 ? 60 : (meal['image'] as String).length)}...'
-              : 'NO IMAGE';
-          debugPrint('   - ${meal['name']}: image = $imagePreview');
-        }
-        
-        // Jika loaded tapi kosong, coba Firestore
-        if (scheduledMeals.isEmpty) {
-          debugPrint('⚠️ Cache loaded but empty, trying Firestore');
-          await loadFromFirestore();
-        }
+      setState(() {
+        scheduledMeals = meals;
+      });
+      
+      if (meals.isEmpty) {
+        debugPrint('⚠️ No meals found for this date');
       } else {
-        debugPrint('⚠️ No cached meals found for $today');
-        // Coba load dari Firestore sebagai fallback
-        await loadFromFirestore();
+        debugPrint('✅ Loaded ${meals.length} meals from Firestore');
       }
     } catch (e) {
-      debugPrint('❌ Error loading meals from cache: $e');
-      await loadFromFirestore();
+      debugPrint('❌ Error loading meals: $e');
+      setState(() {
+        scheduledMeals = [];
+      });
     }
   }
 
-  // Load dari Firestore sebagai fallback
-  Future<void> loadFromFirestore() async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) {
-        debugPrint('⚠️ User not logged in, loading dummy data');
-        loadDummyMeals();
-        return;
-      }
-
-      String formattedDate = DateFormat('yyyy-MM-dd').format(selectedDate);
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('schedule')
-          .doc(formattedDate)
-          .get();
-
-      if (doc.exists) {
-        final data = doc.data();
-        if (data?['meals'] != null) {
-          setState(() {
-            scheduledMeals = List<Map<String, dynamic>>.from(data!['meals']);
-          });
-          debugPrint('✅ Loaded ${scheduledMeals.length} meals from Firestore for $formattedDate');
-        } else {
-          debugPrint('⚠️ No meals in Firestore for $formattedDate, loading dummy data');
-          loadDummyMeals();
-        }
-      } else {
-        debugPrint('⚠️ No document in Firestore for $formattedDate, loading dummy data');
-        loadDummyMeals();
-      }
-    } catch (e) {
-      debugPrint('❌ Error loading from Firestore: $e');
-      loadDummyMeals();
-    }
-  }
-
-  void loadDummyMeals() {
-    // Dummy data berdasarkan UI HomePage - dengan placeholder image
-    setState(() {
-      scheduledMeals = [
-        {
-          'name': 'Dimsum Keju Lumer With Chow Mein + Hot & Sour Soup',
-          'time': 'Sarapan', // Pakai 'time' bukan 'type' untuk konsistensi dengan HomePage
-          'clock': '06:30 - 07:00',
-          'calories': 403,
-          'protein': '25g',
-          'carbs': '45g',
-          'fat': '12g',
-          'image': 'https://placehold.co/400x300/90EE90/000000/png?text=Dimsum+Keju', // Placeholder image
-          'isDone': false,
-        },
-        {
-          'name': 'Creamy Red Curry Chicken Meatballs With Thai Basil Fried Rice + Cashew Tofu',
-          'time': 'Makan Malam',
-          'clock': '19:00 - 20:00',
-          'calories': 488,
-          'protein': '30g',
-          'carbs': '52g',
-          'fat': '18g',
-          'image': 'https://placehold.co/400x300/FFB6C1/000000/png?text=Red+Curry', // Placeholder image
-          'isDone': false,
-        },
-      ];
-    });
-    debugPrint('📝 Loaded dummy meals with placeholder images');
-  }
-
-  // Function untuk sync dengan HomePage
-  Future<void> syncWithHomePage() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    String formattedDate = DateFormat('yyyy-MM-dd').format(selectedDate);
-
-    // Ambil data dari Firestore
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('schedule')
-        .doc(formattedDate)
-        .get();
-
-    if (doc.exists) {
-      final data = doc.data();
-      if (data?['meals'] != null) {
-        setState(() {
-          scheduledMeals = List<Map<String, dynamic>>.from(data!['meals']);
-        });
-      }
-    }
-  }
-
-  // Function untuk save checklist ke Firestore dan SharedPreferences
+  // Function untuk save checklist menggunakan ScheduleService
   Future<void> saveChecklistToFirestore(int index, bool value) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    String formattedDate = DateFormat('yyyy-MM-dd').format(selectedDate);
-    
-    // Update local state
-    setState(() {
-      scheduledMeals[index]['isDone'] = value;
-    });
-
-    // Save to SharedPreferences (sync dengan HomePage)
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('cached_upcoming_${uid}_$formattedDate', json.encode(scheduledMeals));
-      debugPrint('💾 Updated schedule checklist in cache');
-    } catch (e) {
-      debugPrint('Error saving to cache: $e');
-    }
+      // Update local state immediately for responsive UI
+      setState(() {
+        scheduledMeals[index]['isDone'] = value;
+      });
 
-    // Save to Firestore
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('schedule')
-        .doc(formattedDate)
-        .set({
-      'meals': scheduledMeals,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      // Save to Firestore
+      final success = await ScheduleService.markMealAsDone(selectedDate, index, value);
+      
+      if (success) {
+        debugPrint('✅ Checklist updated successfully');
+      } else {
+        debugPrint('⚠️ Failed to update checklist');
+        // Revert local state if failed
+        setState(() {
+          scheduledMeals[index]['isDone'] = !value;
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Error saving checklist: $e');
+      // Revert local state on error
+      setState(() {
+        scheduledMeals[index]['isDone'] = !value;
+      });
+    }
   }
 
   @override
