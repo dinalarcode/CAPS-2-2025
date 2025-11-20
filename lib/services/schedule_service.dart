@@ -52,21 +52,61 @@ class ScheduleService {
       }
 
       // Save to schedule collection for each date
-      final batch = _db.batch();
-      mealsByDate.forEach((date, meals) {
+      // ✅ IMPORTANT: Merge with existing meals, don't overwrite!
+      for (var entry in mealsByDate.entries) {
+        final date = entry.key;
+        final newMeals = entry.value;
+        
         final scheduleRef = _db
             .collection('users')
             .doc(uid)
             .collection('schedule')
             .doc(date);
 
-        batch.set(scheduleRef, {
-          'meals': meals,
+        // Get existing meals first
+        final existingDoc = await scheduleRef.get();
+        Map<String, Map<String, dynamic>> mealsByType = {};
+        
+        // Load existing meals and organize by meal type
+        if (existingDoc.exists && existingDoc.data()?['meals'] != null) {
+          final existingMeals = List<Map<String, dynamic>>.from(
+            (existingDoc.data()!['meals'] as List<dynamic>).map((m) => Map<String, dynamic>.from(m))
+          );
+          
+          for (var meal in existingMeals) {
+            final mealType = meal['time'] as String? ?? '';
+            if (mealType.isNotEmpty) {
+              mealsByType[mealType] = meal;
+            }
+          }
+        }
+        
+        // Add/Replace new meals by type (won't overwrite different meal types)
+        for (var newMeal in newMeals) {
+          final mealType = newMeal['time'] as String? ?? '';
+          if (mealType.isNotEmpty) {
+            mealsByType[mealType] = newMeal; // Replace if same type, add if new type
+            debugPrint('  📝 Updated $mealType for $date: ${newMeal['name']}');
+          }
+        }
+        
+        // Convert back to list and sort by meal type order
+        final mealOrder = {'Sarapan': 1, 'Makan Siang': 2, 'Makan Malam': 3};
+        final allMeals = mealsByType.values.toList();
+        allMeals.sort((a, b) {
+          final aOrder = mealOrder[a['time']] ?? 99;
+          final bOrder = mealOrder[b['time']] ?? 99;
+          return aOrder.compareTo(bOrder);
+        });
+        
+        debugPrint('  ✅ Final meals for $date: ${allMeals.map((m) => m['time']).join(', ')}');
+        
+        // Save merged and sorted meals
+        await scheduleRef.set({
+          'meals': allMeals,
           'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      });
-
-      await batch.commit();
+        });
+      }
       debugPrint('✅ Schedule populated for ${mealsByDate.length} dates from order $orderId');
       return true;
     } catch (e) {
@@ -79,9 +119,14 @@ class ScheduleService {
   static Future<List<Map<String, dynamic>>> getScheduleByDate(DateTime date) async {
     try {
       final uid = _auth.currentUser?.uid;
-      if (uid == null) return [];
+      if (uid == null) {
+        debugPrint('❌ No user logged in');
+        return [];
+      }
 
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      debugPrint('🔍 [ScheduleService] Fetching meals for date: $dateStr, uid: $uid');
+      
       final doc = await _db
           .collection('users')
           .doc(uid)
@@ -90,10 +135,19 @@ class ScheduleService {
           .get();
 
       if (!doc.exists || doc.data()?['meals'] == null) {
+        debugPrint('⚠️ [ScheduleService] No schedule document found for $dateStr');
         return [];
       }
 
       final meals = doc.data()!['meals'] as List<dynamic>;
+      debugPrint('✅ [ScheduleService] Found ${meals.length} meals for $dateStr');
+      
+      // Debug: print meal names and times
+      for (var i = 0; i < meals.length; i++) {
+        final meal = meals[i];
+        debugPrint('   ${i+1}. ${meal['time']}: ${meal['name']}');
+      }
+      
       return meals.map((m) => Map<String, dynamic>.from(m)).toList();
     } catch (e) {
       debugPrint('❌ Error getting schedule: $e');
@@ -239,6 +293,28 @@ class ScheduleService {
     } catch (e) {
       debugPrint('❌ Error getting scheduled dates: $e');
       return [];
+    }
+  }
+
+  /// Clear all meals for a specific date
+  static Future<bool> clearScheduleForDate(DateTime date) async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return false;
+
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      await _db
+          .collection('users')
+          .doc(uid)
+          .collection('schedule')
+          .doc(dateStr)
+          .delete();
+
+      debugPrint('✅ Cleared all meals for $dateStr');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error clearing schedule: $e');
+      return false;
     }
   }
 }

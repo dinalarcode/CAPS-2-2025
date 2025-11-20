@@ -2,20 +2,96 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection - allow read/write for authenticated users to their own document
+    
+    // ==========================================
+    // 👤 USERS COLLECTION
+    // ==========================================
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && request.auth.uid == userId;
+      
+      // 🛒 ORDERS SUBCOLLECTION
+      match /orders/{orderId} {
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 📅 SCHEDULE SUBCOLLECTION
+      match /schedule/{date} {
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 💾 RECOMMENDATION CACHE SUBCOLLECTION
+      match /recommendationCache/{document} {
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
-    // Menus collection - allow read for all authenticated users
+    // ==========================================
+    // 🍽️ MENUS COLLECTION
+    // ==========================================
     match /menus/{menuId} {
       allow read: if request.auth != null;
       allow write: if false; // Only admins via Firebase Console
     }
     
-    // Default: deny all other access
+    // ==========================================
+    // 🤖 AI CHAT HISTORY
+    // ==========================================
+    match /ai_chat_history/{userId} {
+      allow read, write: if false; // Don't allow direct access to parent document
+      
+      match /chats/{date} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // ==========================================
+    // 📊 DAILY FOOD LOGS
+    // ==========================================
+    match /daily_food_logs/{userId} {
+      allow read, write: if false; // Don't allow direct access to parent document
+      
+      match /logs/{date} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // ==========================================
+    // 📈 MONTHLY FOOD STATISTICS
+    // ==========================================
+    match /monthly_food_statistics/{userId} {
+      allow read, write: if false; // Don't allow direct access to parent document
+      
+      match /stats/{month} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // ==========================================
+    // 📅 SCHEDULE COLLECTION (TOP-LEVEL - DEPRECATED)
+    // ==========================================
+    // Note: Schedule now moved to users/{userId}/schedule/{date} subcollection
+    // Keeping this for backward compatibility if needed
+    match /schedule/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ==========================================
+    // 🚫 DEFAULT: DENY ALL OTHER ACCESS
+    // ==========================================
     match /{document=**} {
       allow read, write: if false;
     }

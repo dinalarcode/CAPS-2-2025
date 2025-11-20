@@ -1,4 +1,4 @@
-// lib/homePage.dart
+﻿// lib/homePage.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,12 +10,16 @@ import 'package:nutrilink/navbar.dart';
 import 'package:nutrilink/profilePage.dart';
 import 'package:nutrilink/reportPage.dart';
 import 'package:nutrilink/meal/recomendation.dart';
+import 'package:nutrilink/meal/meal_rec.dart';
+import 'package:nutrilink/services/schedule_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nutrilink/widgets/calorie_chatbot.dart';
+import 'package:intl/intl.dart';
 import 'dart:convert';
 
 // ====== Palet warna konsisten dengan aplikasi ======
-// const Color kGreen = Color(0xFF5F9C3F);
-const Color kGreen = Color.fromRGBO(117, 199, 120, 1);
+// Warna hijau segar seperti filter popup
+const Color kGreen = Colors.green;
 const Color kGreenLight = Color(0xFF7BB662);
 const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
@@ -115,6 +119,8 @@ class _HomePageContentState extends State<HomePageContent> {
   bool isLoading = true;
   List<Map<String, dynamic>> meals = [];
   List<Map<String, dynamic>> upcomingMeals = [];
+  List<Map<String, dynamic>> aiFoodLogs = []; // BARU: Log makanan dari AI
+  int todayAICalories = 0; // BARU: Total kalori dari AI hari ini
   String? cachedDate;
   String? currentUserId;
 
@@ -123,8 +129,135 @@ class _HomePageContentState extends State<HomePageContent> {
     super.initState();
     _loadUserData();
     _getCurrentLocation();
+    _loadScheduledMealsForToday(); // Load dari SchedulePage
+    _loadTopRecommendedMeals(); // Load top recommended meals
+    _loadAIFoodLogs(); // Load AI food logs
   }
 
+  // Load meals yang sudah dijadwalkan untuk hari ini dari SchedulePage
+  Future<void> _loadScheduledMealsForToday() async {
+    try {
+      final today = DateTime.now();
+      final scheduledMeals = await ScheduleService.getScheduleByDate(today);
+      
+      if (mounted) {
+        setState(() {
+          upcomingMeals = scheduledMeals;
+        });
+      }
+      
+      debugPrint('✅ Loaded ${scheduledMeals.length} scheduled meals for today');
+    } catch (e) {
+      debugPrint('❌ Error loading scheduled meals: $e');
+      setState(() {
+        upcomingMeals = [];
+      });
+    }
+  }
+  
+  // Load top 3 recommended meals (1 per meal type)
+  Future<void> _loadTopRecommendedMeals() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      
+      // Get user profile for recommendations
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      
+      if (!userDoc.exists) return;
+      
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final profile = userData['profile'] as Map<String, dynamic>? ?? {};
+      
+      final allergies = List<String>.from(profile['allergies'] as List? ?? []);
+      final heightCm = (profile['heightCm'] as num?)?.toDouble() ?? 170;
+      final weightKg = (profile['weightKg'] as num?)?.toDouble() ?? 70;
+      final sex = profile['sex'] as String? ?? 'Laki-laki';
+      final birthDate = (profile['birthDate'] as Timestamp?)?.toDate();
+      final activityLevel = profile['activityLevel'] as String? ?? 'lightly_active';
+      final target = profile['target'] as String? ?? 'Mempertahankan berat badan';
+      
+      // Calculate TDEE
+      final age = birthDate != null
+          ? DateTime.now().difference(birthDate).inDays ~/ 365
+          : 25;
+      
+      double bmr;
+      if (sex == 'Laki-laki' || sex == 'Male') {
+        bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
+      } else {
+        bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) - 161;
+      }
+      
+      const activityMultipliers = {
+        'sedentary': 1.2,
+        'lightly_active': 1.375,
+        'moderately_active': 1.55,
+        'very_active': 1.725,
+        'extremely_active': 1.9,
+      };
+      
+      final multiplier = activityMultipliers[activityLevel] ?? 1.375;
+      final tdee = bmr * multiplier;
+      
+      // Get recommendations
+      final recommendations = await MealRecommendationEngine.getRecommendations(
+        userId: user.uid,
+        tdee: tdee,
+        allergies: allergies,
+        target: target,
+      );
+      
+      // Get top 1 from each meal type
+      final topMeals = <Map<String, dynamic>>[];
+      
+      // Sort by personalScore and take top 1 from each
+      final breakfast = List<Map<String, dynamic>>.from(recommendations['sarapan'] ?? [])
+        ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+      if (breakfast.isNotEmpty) {
+        debugPrint('🥞 Top Breakfast: ${breakfast.first['name']} (score: ${breakfast.first['personalScore']})');
+        topMeals.add(breakfast.first);
+      }
+      
+      final lunch = List<Map<String, dynamic>>.from(recommendations['makanSiang'] ?? [])
+        ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+      if (lunch.isNotEmpty) {
+        debugPrint('🍱 Top Lunch: ${lunch.first['name']} (score: ${lunch.first['personalScore']})');
+        topMeals.add(lunch.first);
+      }
+      
+      final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
+        ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+      if (dinner.isNotEmpty) {
+        debugPrint('🍽️ Top Dinner: ${dinner.first['name']} (score: ${dinner.first['personalScore']})');
+        topMeals.add(dinner.first);
+      }
+      
+      // Debug: Check structure of topMeals
+      debugPrint('📊 Top Meals Structure:');
+      for (var meal in topMeals) {
+        debugPrint('  - ${meal['name']}: imageUrl=${meal['imageUrl']}, type=${meal['type']}, calories=${meal['calories']}');
+      }
+      
+      if (mounted) {
+        setState(() {
+          meals = topMeals;
+        });
+      }
+      
+      debugPrint('✅ Loaded ${topMeals.length} top recommended meals');
+    } catch (e) {
+      debugPrint('❌ Error loading recommended meals: $e');
+      setState(() {
+        meals = [];
+      });
+    }
+  }
+  
+  // DEPRECATED: Old _loadMeals function removed
   Future<void> _loadMeals() async {
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -407,6 +540,83 @@ class _HomePageContentState extends State<HomePageContent> {
     }
   }
   
+  // Delete AI Food Log dari Firestore
+  Future<void> _deleteAIFoodLog(int index) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final docRef = FirebaseFirestore.instance
+          .collection('daily_food_logs')
+          .doc(uid)
+          .collection('logs')
+          .doc(today);
+      
+      final doc = await docRef.get();
+      if (!doc.exists) return;
+      
+      final data = doc.data()!;
+      final meals = List<Map<String, dynamic>>.from(data['meals'] ?? []);
+      
+      if (index < 0 || index >= meals.length) return;
+      
+      // Remove item
+      meals.removeAt(index);
+      
+      // Recalculate total calories
+      int newTotal = 0;
+      for (var meal in meals) {
+        newTotal += (meal['calories'] as int?) ?? 0;
+      }
+      
+      // Update Firestore with new meals array and recalculated total
+      await docRef.update({
+        'meals': meals,
+        'totalCalories': newTotal,
+      });
+      
+      // Reload to update UI
+      await _loadAIFoodLogs();
+      
+      debugPrint('✅ Deleted AI food log at index $index, new total: $newTotal kkal');
+    } catch (e) {
+      debugPrint('❌ Error deleting AI food log: $e');
+    }
+  }
+  
+  // ✅ BARU: Load AI Food Logs dari Firestore
+  Future<void> _loadAIFoodLogs() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      
+      final logDoc = await FirebaseFirestore.instance
+          .collection('daily_food_logs')
+          .doc(uid)
+          .collection('logs')
+          .doc(today)
+          .get();
+      
+      if (logDoc.exists && mounted) {
+        final data = logDoc.data()!;
+        final meals = (data['meals'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+        final totalCal = (data['totalCalories'] as num?)?.toInt() ?? 0;
+        
+        setState(() {
+          aiFoodLogs = meals;
+          todayAICalories = totalCal;
+        });
+        
+        debugPrint('✅ Loaded ${meals.length} AI food logs, total: $totalCal kkal');
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading AI food logs: $e');
+    }
+  }
+  
   // ✅ BARU: Fungsi untuk menyimpan jadwal ke Firestore
   Future<void> _saveScheduleToFirestore(
     List<Map<String, dynamic>> selectedMeals,
@@ -448,19 +658,24 @@ class _HomePageContentState extends State<HomePageContent> {
   
   int _calculateConsumedCalories() {
     int totalCalories = 0;
-    debugPrint('🔍 Calculating consumed calories from ${upcomingMeals.length} meals');
-    
+    debugPrint(' Calculating consumed calories from ${upcomingMeals.length} meals + AI logs');
+
+    // 1. Kalori dari menu healthy go (yang di-centang)
     for (var meal in upcomingMeals) {
       final isDone = meal['isDone'] == true;
       final calories = (meal['calories'] as int?) ?? 0;
-      debugPrint('  - ${meal['name']}: isDone=$isDone, calories=$calories');
-      
+      debugPrint('  - Menu: ${meal['name']}: isDone=$isDone, calories=$calories');
+
       if (isDone) {
         totalCalories += calories;
       }
     }
-    
-    debugPrint('📊 Total consumed calories: $totalCalories');
+
+    // 2. Kalori dari AI food logs (makanan tambahan di luar menu)
+    totalCalories += todayAICalories;
+    debugPrint('  - AI Food Logs: $todayAICalories kkal');
+
+    debugPrint(' Total consumed calories: $totalCalories (Menu: ${totalCalories - todayAICalories}, AI: $todayAICalories)');
     return totalCalories;
   }
 
@@ -885,30 +1100,56 @@ class _HomePageContentState extends State<HomePageContent> {
             ),
             const SizedBox(height: 30),
 
-            // Meal Cards (Horizontal Scroll)
-            MealCardsSection(
-              meals: meals,
-              onNavigateToMeal: widget.onNavigateToMeal,
-            ),
-            const SizedBox(height: 15),
-
-            // Upcoming Meals Header & List
+            // Jadwal Makan Hari Ini (dari SchedulePage)
             UpcomingMealsList(
               upcomingMeals: upcomingMeals,
               onNavigateToSchedule: widget.onNavigateToSchedule,
               onToggleMealDone: _toggleMealDone,
             ),
             const SizedBox(height: 30),
+            
+            // AI Food Logs Section (Makanan Tambahan Hari Ini)
+            AIFoodLogsSection(
+              foodLogs: aiFoodLogs,
+              totalCalories: todayAICalories,
+              onDelete: _deleteAIFoodLog,
+            ),
+            const SizedBox(height: 30),
+
+            // Rekomendasi Menu (Top Recommended - di bawah)
+            MealCardsSection(
+              meals: meals,
+              onNavigateToMeal: widget.onNavigateToMeal,
+            ),
+            const SizedBox(height: 15),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CalorieChatbot(
+                onFoodLogSaved: _loadAIFoodLogs, // BARU: Reload logs setelah save
+              ),
+            ),
+          );
+        },
+        backgroundColor: kGreen,
+        icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+        label: const Text(
+          'AI Kalori',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        elevation: 4,
       ),
     );
   }
 }
-
-// ===============================================
-// 📈 KOMPONEN: BMI SECTION
-// ===============================================
 class BmiSection extends StatelessWidget {
   final double bmi;
   final String category;
@@ -1476,10 +1717,15 @@ class _MealCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final mealType = meal['type'] ?? '';
     final mealName = meal['name'] ?? '';
-    final tag1 = meal['tag1'] ?? '';
+    // Support both 'tag1' and 'tags' array
+    String tag1 = meal['tag1'] ?? '';
+    if (tag1.isEmpty && meal['tags'] is List && (meal['tags'] as List).isNotEmpty) {
+      tag1 = (meal['tags'] as List).first.toString();
+    }
     final calories = meal['calories'] ?? 0;
     final price = meal['price'] ?? 0;
-    final imageUrl = meal['image'] ?? '';
+    // Support both 'image' and 'imageUrl' fields
+    final imageUrl = meal['image'] ?? meal['imageUrl'] ?? '';
 
     return Container(
       width: 150,
@@ -1848,6 +2094,282 @@ class MealListItem extends StatelessWidget {
             thickness: 1,
           ),
       ],
+    );
+  }
+}
+
+// ===============================================
+// 🍔 KOMPONEN: AI FOOD LOGS SECTION (Log Makanan dari AI)
+// ===============================================
+class AIFoodLogsSection extends StatelessWidget {
+  final List<Map<String, dynamic>> foodLogs;
+  final int totalCalories;
+  final Function(int) onDelete;
+
+  const AIFoodLogsSection({
+    super.key,
+    required this.foodLogs,
+    required this.totalCalories,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header dengan total kalori
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Makanan Tambahan Hari Ini',
+                style: TextStyle(
+                  fontFamily: 'Funnel Display',
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: kGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$totalCalories kkal',
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: kGreen,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+
+          // List makanan atau empty state
+          if (foodLogs.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.grey[300]!,
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.restaurant_menu,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Belum ada makanan tambahan hari ini',
+                    style: TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Gunakan AI Kalori untuk mencatat makanan di luar menu Healthy Go',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: foodLogs.length,
+                separatorBuilder: (context, index) => Divider(
+                  color: Colors.grey[200],
+                  height: 1,
+                  thickness: 1,
+                ),
+                itemBuilder: (context, index) {
+                  final log = foodLogs[index];
+                  return AIFoodLogItem(
+                    log: log,
+                    onDelete: () => onDelete(index),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ===============================================
+// 🍽️ KOMPONEN: AI FOOD LOG ITEM
+// ===============================================
+class AIFoodLogItem extends StatelessWidget {
+  final Map<String, dynamic> log;
+  final VoidCallback onDelete;
+
+  const AIFoodLogItem({super.key, required this.log, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final description = log['description'] ?? 'Makanan';
+    final calories = log['calories'] ?? 0;
+    final time = log['time'] ?? '';
+    final items = (log['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  description,
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: kGreen,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$calories kkal',
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                onPressed: () {
+                  // Show confirmation dialog
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Hapus Log Makanan?'),
+                      content: const Text('Log makanan ini akan dihapus dari database.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Batal'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onDelete();
+                          },
+                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                          child: const Text('Hapus'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          if (time.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(
+                  time,
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (items.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...items.map((item) {
+              final name = item['name'] ?? '';
+              final itemCal = item['calories'] ?? 0;
+              return Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$name ($itemCal kkal)',
+                        style: TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -275,6 +275,7 @@ class _SchedulePageState extends State<SchedulePage> {
               selectedMonth = value!;
               selectedDate = DateTime(selectedYear, selectedMonth, selectedDate.day);
             });
+            loadMealsFromCache(); // Reload meals for new month
           },
         ),
       ),
@@ -318,8 +319,8 @@ class _SchedulePageState extends State<SchedulePage> {
                   onTap: () {
                     setState(() {
                       selectedDate = date;
-                      loadMealsFromCache(); // Reload meals from cache for selected date
                     });
+                    loadMealsFromCache(); // Reload meals from Firestore for selected date
                   },
                   child: Container(
                     margin: EdgeInsets.symmetric(horizontal: 4),
