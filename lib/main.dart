@@ -34,6 +34,7 @@ import 'package:nutrilink/meal/recomendation.dart' as recomendation;
 import 'package:nutrilink/tambahMenuPage.dart' as tambah_menu;
 import 'package:nutrilink/detailMenuPage.dart' as detail_menu;
 import 'package:nutrilink/firestore_test.dart';
+import 'package:nutrilink/services/gemini_service.dart';
 
 // import 'package:firebase_app_check/firebase_app_check.dart'; // Package not installed
 
@@ -50,6 +51,9 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize Gemini AI Service
+  GeminiService.initialize();
 
   // Global error handler
   FlutterError.onError = (details) {
