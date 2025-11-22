@@ -132,6 +132,9 @@ class _HomePageContentState extends State<HomePageContent> {
   List<Map<String, dynamic>> upcomingMeals = [];
   List<Map<String, dynamic>> aiFoodLogs = []; // BARU: Log makanan dari AI
   int todayAICalories = 0; // BARU: Total kalori dari AI hari ini
+  int todayAIProtein = 0; // BARU: Total protein dari AI (gram)
+  int todayAICarbs = 0; // BARU: Total carbs dari AI (gram)
+  int todayAIFats = 0; // BARU: Total fats dari AI (gram)
   String? cachedDate;
   String? currentUserId;
 
@@ -638,22 +641,32 @@ class _HomePageContentState extends State<HomePageContent> {
       // Remove item
       meals.removeAt(index);
       
-      // Recalculate total calories
+      // Recalculate totals for all macros
       int newTotal = 0;
+      int newProtein = 0;
+      int newCarbs = 0;
+      int newFats = 0;
+      
       for (var meal in meals) {
         newTotal += (meal['calories'] as int?) ?? 0;
+        newProtein += (meal['protein'] as int?) ?? 0;
+        newCarbs += (meal['carbs'] as int?) ?? 0;
+        newFats += (meal['fats'] as int?) ?? 0;
       }
       
-      // Update Firestore with new meals array and recalculated total
+      // Update Firestore with new meals array and recalculated totals
       await docRef.update({
         'meals': meals,
         'totalCalories': newTotal,
+        'totalProtein': newProtein,
+        'totalCarbs': newCarbs,
+        'totalFats': newFats,
       });
       
       // Reload to update UI
       await _loadAIFoodLogs();
       
-      debugPrint('✅ Deleted AI food log at index $index, new total: $newTotal kkal');
+      debugPrint('✅ Deleted AI food log at index $index - Cal: $newTotal kkal, P: ${newProtein}g, C: ${newCarbs}g, F: ${newFats}g');
     } catch (e) {
       debugPrint('❌ Error deleting AI food log: $e');
     }
@@ -678,13 +691,19 @@ class _HomePageContentState extends State<HomePageContent> {
         final data = logDoc.data()!;
         final meals = (data['meals'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
         final totalCal = (data['totalCalories'] as num?)?.toInt() ?? 0;
+        final totalProtein = (data['totalProtein'] as num?)?.toInt() ?? 0;
+        final totalCarbs = (data['totalCarbs'] as num?)?.toInt() ?? 0;
+        final totalFats = (data['totalFats'] as num?)?.toInt() ?? 0;
         
         setState(() {
           aiFoodLogs = meals;
           todayAICalories = totalCal;
+          todayAIProtein = totalProtein;
+          todayAICarbs = totalCarbs;
+          todayAIFats = totalFats;
         });
         
-        debugPrint('✅ Loaded ${meals.length} AI food logs, total: $totalCal kkal');
+        debugPrint('✅ Loaded ${meals.length} AI food logs - Cal: $totalCal kkal, P: ${totalProtein}g, C: ${totalCarbs}g, F: ${totalFats}g');
       }
     } catch (e) {
       debugPrint('❌ Error loading AI food logs: $e');
@@ -1189,6 +1208,9 @@ class _HomePageContentState extends State<HomePageContent> {
             AIFoodLogsSection(
               foodLogs: aiFoodLogs,
               totalCalories: todayAICalories,
+              totalProtein: todayAIProtein,
+              totalCarbs: todayAICarbs,
+              totalFats: todayAIFats,
               onDelete: _deleteAIFoodLog,
             ),
             const SizedBox(height: 30),
@@ -2247,12 +2269,18 @@ class MealListItem extends StatelessWidget {
 class AIFoodLogsSection extends StatelessWidget {
   final List<Map<String, dynamic>> foodLogs;
   final int totalCalories;
+  final int totalProtein;
+  final int totalCarbs;
+  final int totalFats;
   final Function(int) onDelete;
 
   const AIFoodLogsSection({
     super.key,
     required this.foodLogs,
     required this.totalCalories,
+    required this.totalProtein,
+    required this.totalCarbs,
+    required this.totalFats,
     required this.onDelete,
   });
 
@@ -2295,7 +2323,7 @@ class AIFoodLogsSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 15),
-
+          
           // List makanan atau empty state
           if (foodLogs.isEmpty)
             Container(
@@ -2388,6 +2416,9 @@ class AIFoodLogItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final description = log['description'] ?? 'Makanan';
     final calories = log['calories'] ?? 0;
+    final protein = log['protein'] ?? 0;
+    final carbs = log['carbs'] ?? 0;
+    final fats = log['fats'] ?? 0;
     final time = log['time'] ?? '';
     final items = (log['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
 
@@ -2461,6 +2492,19 @@ class AIFoodLogItem extends StatelessWidget {
               ),
             ],
           ),
+          
+          // Nutrition facts - Simple text format
+          const SizedBox(height: 8),
+          Text(
+            'Protein ${protein}g · Karbo ${carbs}g · Lemak ${fats}g',
+            style: TextStyle(
+              fontFamily: 'Funnel Display',
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          
           if (time.isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(
@@ -2480,38 +2524,257 @@ class AIFoodLogItem extends StatelessWidget {
           ],
           if (items.isNotEmpty) ...[
             const SizedBox(height: 8),
-            ...items.map((item) {
-              final name = item['name'] ?? '';
-              final itemCal = item['calories'] ?? 0;
-              return Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[400],
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '$name ($itemCal kkal)',
-                        style: TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontSize: 12,
-                          color: Colors.grey[700],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: items.map((item) {
+                      final name = item['name'] ?? '';
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 4,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[400],
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  fontFamily: 'Funnel Display',
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ],
+                      );
+                    }).toList(),
+                  ),
                 ),
-              );
-            }),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => _showNutritionDetailDialog(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Detail nutrisi',
+                    style: TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontSize: 11,
+                      color: kGreen,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ],
+      ),
+    );
+  }
+  
+  void _showNutritionDetailDialog(BuildContext context) {
+    final description = log['description'] ?? 'Makanan';
+    final calories = log['calories'] ?? 0;
+    final items = (log['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      description,
+                      style: const TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: kGreen,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$calories kkal',
+                      style: const TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 16),
+              const Divider(height: 1, thickness: 1),
+              const SizedBox(height: 16),
+              
+              // Items list
+              if (items.isEmpty)
+                const Text(
+                  'Tidak ada detail item',
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 13,
+                    color: Colors.grey,
+                  ),
+                )
+              else
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: items.map((item) {
+                        final name = item['name'] ?? '';
+                        final portion = item['portion'] ?? '';
+                        final itemCal = item['calories'] ?? 0;
+                        final itemProtein = item['protein'] ?? 0;
+                        final itemCarbs = item['carbs'] ?? 0;
+                        final itemFats = item['fats'] ?? 0;
+                        
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.grey[200]!,
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Item name with portion
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontFamily: 'Funnel Display',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                  if (portion.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '($portion)',
+                                      style: TextStyle(
+                                        fontFamily: 'Funnel Display',
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              
+                              // Calories
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: kGreen.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '$itemCal kkal',
+                                  style: const TextStyle(
+                                    fontFamily: 'Funnel Display',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: kGreen,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              
+                              // Macros
+                              Text(
+                                'Protein ${itemProtein}g · Karbo ${itemCarbs}g · Lemak ${itemFats}g',
+                                style: TextStyle(
+                                  fontFamily: 'Funnel Display',
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              
+              const SizedBox(height: 16),
+              
+              // Close button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Tutup',
+                    style: TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
