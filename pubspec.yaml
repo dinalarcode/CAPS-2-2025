@@ -21,6 +21,8 @@ dependencies:
   fl_chart: ^1.1.1
   geolocator: ^14.0.2        # Add Geolocator
   geocoding: ^4.0.0
+  shared_preferences: ^2.5.3
+  firebase_storage: ^12.4.10
 
   # UI helper
   flutter_cupertino_datetime_picker: ^3.0.0
