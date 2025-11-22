@@ -204,7 +204,7 @@ RULES:
       final totalCarbs = carbsMatch != null ? double.parse(carbsMatch.group(1)!) : 0.0;
       
       final fatsMatch = RegExp(r'"totalFats"\s*:\s*(\d+\.?\d*)').firstMatch(cleanResponse);
-      final totalFats = fatsMatch != null ? double.parse(fatsMatch.group(1)!) : 0.0;
+      final totalFat = fatsMatch != null ? double.parse(fatsMatch.group(1)!) : 0.0;
       
       // Extract items (simplified)
       final items = <Map<String, dynamic>>[];
@@ -227,7 +227,7 @@ RULES:
           final carbs = double.tryParse(
             RegExp(r'"carbs"\s*:\s*(\d+\.?\d*)').firstMatch(itemStr)?.group(1) ?? '0'
           ) ?? 0.0;
-          final fats = double.tryParse(
+          final fat = double.tryParse(
             RegExp(r'"fats"\s*:\s*(\d+\.?\d*)').firstMatch(itemStr)?.group(1) ?? '0'
           ) ?? 0.0;
           
@@ -238,7 +238,7 @@ RULES:
               'calories': calories,
               'protein': protein,
               'carbs': carbs,
-              'fats': fats,
+              'fat': fat,
             });
           }
         }
@@ -253,7 +253,7 @@ RULES:
           'calories': totalCalories,
           'protein': totalProtein.round(),
           'carbs': totalCarbs.round(),
-          'fats': totalFats.round(),
+          'fat': totalFat.round(),
         });
       }
       
@@ -270,7 +270,7 @@ RULES:
             'calories': extractedCal,
             'protein': (extractedCal * 0.15 / 4).round(), // Estimate: 15% protein
             'carbs': (extractedCal * 0.55 / 4).round(),   // Estimate: 55% carbs  
-            'fats': (extractedCal * 0.30 / 9).round(),    // Estimate: 30% fats
+            'fat': (extractedCal * 0.30 / 9).round(),    // Estimate: 30% fats
           });
           debugPrint('✅ Extracted $extractedCal kkal from narrative');
         }
@@ -287,7 +287,7 @@ RULES:
         'totalCalories': totalCalories,
         'totalProtein': totalProtein.round(),
         'totalCarbs': totalCarbs.round(),
-        'totalFats': totalFats.round(),
+        'totalFat': totalFat.round(),
         'items': items,
         'summary': summary.isNotEmpty ? summary : response,
         'originalInput': originalInput,
@@ -330,12 +330,12 @@ RULES:
       // Calculate total macronutrients
       double totalProtein = 0;
       double totalCarbs = 0;
-      double totalFats = 0;
+      double totalFat = 0;
       
       for (final item in items) {
         totalProtein += (item['protein'] as num?)?.toDouble() ?? 0;
         totalCarbs += (item['carbs'] as num?)?.toDouble() ?? 0;
-        totalFats += (item['fats'] as num?)?.toDouble() ?? 0;
+        totalFat += (item['fat'] as num?)?.toDouble() ?? 0;
       }
       
       // Reference to daily log document
@@ -356,7 +356,7 @@ RULES:
         'calories': calories,
         'protein': totalProtein.round(),
         'carbs': totalCarbs.round(),
-        'fats': totalFats.round(),
+        'fat': totalFat.round(),
         'items': items,
         'mealType': mealType,
         'time': timeStr,
@@ -371,7 +371,7 @@ RULES:
           'totalCalories': FieldValue.increment(calories),
           'totalProtein': FieldValue.increment(totalProtein.round()),
           'totalCarbs': FieldValue.increment(totalCarbs.round()),
-          'totalFats': FieldValue.increment(totalFats.round()),
+          'totalFat': FieldValue.increment(totalFat.round()),
           'updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
@@ -382,13 +382,13 @@ RULES:
           'totalCalories': calories,
           'totalProtein': totalProtein.round(),
           'totalCarbs': totalCarbs.round(),
-          'totalFats': totalFats.round(),
+          'totalFat': totalFat.round(),
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
       
-      debugPrint('✅ Food log saved: $calories kcal | P: ${totalProtein.round()}g | C: ${totalCarbs.round()}g | F: ${totalFats.round()}g');
+      debugPrint('✅ Food log saved: $calories kcal | P: ${totalProtein.round()}g | C: ${totalCarbs.round()}g | F: ${totalFat.round()}g');
       return true;
     } catch (e) {
       debugPrint('❌ Error saving food log: $e');

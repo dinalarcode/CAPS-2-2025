@@ -428,6 +428,9 @@ class _HomePageContentState extends State<HomePageContent> {
               ? (data['tags'] as List)[2].toString() 
               : '',
           'calories': data['calories'] as int? ?? 0,
+          'protein': data['protein'] as int? ?? 0,
+          'carbohydrate': data['carbohydrate'] as int? ?? 0, // ✅ Tambahkan field carbohydrate
+          'fat': data['fat'] as int? ?? 0, // ✅ Tambahkan field fat
           'price': data['price'] as int? ?? 0,
           'image': imageUrl, // ✅ Simpan URL lengkap
           'description': data['description']?.toString() ?? '',
@@ -497,14 +500,17 @@ class _HomePageContentState extends State<HomePageContent> {
     final wakeTime = sleepSchedule?['wakeTime'] as String? ?? '06:00';
     final sleepTime = sleepSchedule?['sleepTime'] as String? ?? '22:00';
     
-    // ✅ PENTING: Simpan URL gambar ke upcomingMeals
+    // ✅ PENTING: Simpan semua data nutrition ke upcomingMeals
     final upcomingWithTime = upcomingMealsList.map((meal) {
       return {
         'time': meal['type'],
         'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
         'name': meal['name'],
-        'calories': meal['calories'],
-        'image': meal['image'], // ✅ Tambahkan field image
+        'calories': meal['calories'] ?? meal['kalori'] ?? 0,
+        'protein': meal['protein'] ?? meal['protein_g'] ?? 0,
+        'carbs': meal['carbs'] ?? meal['carbohydrate'] ?? meal['carbo'] ?? meal['karbohidrat'] ?? 0,
+        'fat': meal['fat'] ?? meal['fats'] ?? meal['lemak'] ?? 0,
+        'image': meal['image'], // ✅ Sudah ada field image
         'isDone': false,
       };
     }).toList();
@@ -705,10 +711,10 @@ class _HomePageContentState extends State<HomePageContent> {
       final scheduleData = {
         'meals': upcomingMeals.map((meal) => {
           'name': meal['name'] ?? '',
-          'calories': meal['calories'] ?? 0,
-          'protein': meal['protein'] ?? 0,
-          'carbs': meal['carbs'] ?? 0,
-          'fat': meal['fat'] ?? 0,
+          'calories': meal['calories'] ?? meal['kalori'] ?? 0,
+          'protein': meal['protein'] ?? meal['protein_g'] ?? 0,
+          'carbs': meal['carbs'] ?? meal['carbohydrate'] ?? meal['carbo'] ?? meal['karbohidrat'] ?? 0,
+          'fat': meal['fat'] ?? meal['fats'] ?? meal['lemak'] ?? 0,
           'image': meal['image'] ?? '',
           'time': meal['time'] ?? '', // Meal type: Sarapan, Makan Siang, Makan Malam
           'clock': meal['clock'] ?? '', // Scheduled time: 07:00 - 08:00

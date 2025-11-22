@@ -114,10 +114,10 @@ class DetailMenuPage extends StatelessWidget {
   // ░░░ NUTRITION SECTION ░░░
   //
   Widget _buildNutritionCard(Map meal) {
-    final calories = meal["calories"] ?? meal["kalori"] ?? "-";
-    final carbs = meal["carbs"] ?? meal["karbohidrat"] ?? "-";
-    final protein = meal["protein"] ?? meal["protein_g"] ?? "-";
-    final fat = meal["fat"] ?? meal["lemak"] ?? "-";
+    final calories = meal["calories"] ?? meal["kalori"] ?? 0;
+    final carbs = meal["carbohydrate"] ?? meal["carbs"] ?? meal["karbohidrat"] ?? meal["carbo"] ?? 0;
+    final protein = meal["protein"] ?? meal["protein_g"] ?? 0;
+    final fat = meal["fat"] ?? meal["fats"] ?? meal["lemak"] ?? 0;
 
     return Container(
       padding: const EdgeInsets.all(18),

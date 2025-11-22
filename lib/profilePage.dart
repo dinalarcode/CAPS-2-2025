@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nutrilink/homePage.dart'; // Digunakan untuk konstanta warna
 import 'package:nutrilink/welcomePage.dart'; // Asumsikan file ini ada untuk halaman tujuan
+import 'package:nutrilink/services/migrate_schedule_data.dart'; // Migration service
 
 // ===============================================
 // 🎯 KELAS UTAMA: PROFILEPAGE
@@ -62,7 +63,63 @@ class ProfilePage extends StatelessWidget {
                 'Coming Soon',
                 style: TextStyle(fontSize: 16, color: kLightGreyText),
               ),
-              const SizedBox(height: 50),
+              const SizedBox(height: 30),
+
+              // Tombol Migrate Schedule Data
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    // Show loading dialog
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+
+                    // Run migration
+                    final success = await MigrateScheduleData.migrateAllScheduleData();
+
+                    if (context.mounted) {
+                      Navigator.of(context).pop(); // Close loading
+
+                      // Show result
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            success
+                                ? '✅ Data berhasil diperbarui! Silakan cek jadwal makan Anda.'
+                                : '❌ Gagal memperbarui data. Silakan coba lagi.',
+                          ),
+                          backgroundColor: success ? Colors.green : Colors.red,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.sync, color: Colors.white),
+                  label: const Text(
+                    'Perbaiki Data Nutrisi',
+                    style: TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 5,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
 
               // Tombol Sign Out
               SizedBox(
