@@ -42,10 +42,10 @@ class ScheduleService {
           'name': item['name'],
           'time': item['mealType'],
           'clock': item['clock'],
-          'calories': item['calories'],
-          'protein': item['protein'],
-          'carbs': item['carbs'],
-          'fat': item['fat'],
+          'calories': item['calories'] ?? item['kalori'] ?? 0,
+          'protein': item['protein'] ?? item['protein_g'] ?? 0,
+          'carbs': item['carbs'] ?? item['carbohydrate'] ?? item['carbo'] ?? 0,
+          'fat': item['fat'] ?? item['fats'] ?? 0,
           'image': item['image'],
           'isDone': false,
         });
@@ -142,13 +142,41 @@ class ScheduleService {
       final meals = doc.data()!['meals'] as List<dynamic>;
       debugPrint('✅ [ScheduleService] Found ${meals.length} meals for $dateStr');
       
-      // Debug: print meal names and times
-      for (var i = 0; i < meals.length; i++) {
-        final meal = meals[i];
-        debugPrint('   ${i+1}. ${meal['time']}: ${meal['name']}');
+      // Normalize data: ensure consistent field names for backward compatibility
+      final normalizedMeals = meals.map((m) {
+        final meal = Map<String, dynamic>.from(m);
+        
+        // Normalize 'fat' field (support 'fats' from old data)
+        if (!meal.containsKey('fat') && meal.containsKey('fats')) {
+          meal['fat'] = meal['fats'];
+        }
+        
+        // Normalize 'carbs' field (support 'carbohydrate', 'carbo', 'karbohidrat' from database)
+        if (!meal.containsKey('carbs')) {
+          meal['carbs'] = meal['carbohydrate'] ?? meal['carbo'] ?? meal['karbohidrat'] ?? 0;
+        }
+        
+        // Ensure protein exists (support 'protein_g' from old data)
+        if (!meal.containsKey('protein')) {
+          meal['protein'] = meal['protein_g'] ?? 0;
+        }
+        
+        // Ensure all nutrition fields have values (default to 0)
+        meal['protein'] = meal['protein'] ?? 0;
+        meal['carbs'] = meal['carbs'] ?? 0;
+        meal['fat'] = meal['fat'] ?? 0;
+        meal['calories'] = meal['calories'] ?? meal['kalori'] ?? 0;
+        
+        return meal;
+      }).toList();
+      
+      // Debug: print meal names and nutritional data
+      for (var i = 0; i < normalizedMeals.length; i++) {
+        final meal = normalizedMeals[i];
+        debugPrint('   ${i+1}. ${meal['time']}: ${meal['name']} - P:${meal['protein']}g C:${meal['carbs']}g F:${meal['fat']}g');
       }
       
-      return meals.map((m) => Map<String, dynamic>.from(m)).toList();
+      return normalizedMeals;
     } catch (e) {
       debugPrint('❌ Error getting schedule: $e');
       return [];
@@ -219,7 +247,14 @@ class ScheduleService {
         );
       }
 
-      meals.add(mealData);
+      // Normalize mealData before adding
+      final normalizedMeal = Map<String, dynamic>.from(mealData);
+      normalizedMeal['calories'] = mealData['calories'] ?? mealData['kalori'] ?? 0;
+      normalizedMeal['protein'] = mealData['protein'] ?? mealData['protein_g'] ?? 0;
+      normalizedMeal['carbs'] = mealData['carbs'] ?? mealData['carbohydrate'] ?? mealData['carbo'] ?? mealData['karbohidrat'] ?? 0;
+      normalizedMeal['fat'] = mealData['fat'] ?? mealData['fats'] ?? mealData['lemak'] ?? 0;
+
+      meals.add(normalizedMeal);
 
       await scheduleRef.set({
         'meals': meals,

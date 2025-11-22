@@ -322,24 +322,24 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
       final portion = item['portion'] ?? '';
       final calories = item['calories'] ?? 0;
       final protein = item['protein'] ?? 0;
-      final carbs = item['carbs'] ?? 0;
-      final fats = item['fats'] ?? 0;
+      final carbs = item['carbs'] ?? item['carbohydrate'] ?? item['carbo'] ?? 0;
+      final fat = item['fat'] ?? item['fats'] ?? 0; // Support both 'fat' and 'fats' for backward compatibility
       buffer.writeln();
       buffer.writeln('${i + 1}. $name${portion.isNotEmpty ? " ($portion)" : ""}');
       buffer.writeln('   Kalori: $calories kkal');
-      buffer.writeln('   Protein: ${protein}g | Karbo: ${carbs}g | Lemak: ${fats}g');
+      buffer.writeln('   Protein: ${protein}g | Karbo: ${carbs}g | Lemak: ${fat}g');
     }
 
     // Total semua item
     final totalProtein = result['totalProtein'] ?? 0;
     final totalCarbs = result['totalCarbs'] ?? 0;
-    final totalFats = result['totalFats'] ?? 0;
+    final totalFat = result['totalFat'] ?? result['totalFats'] ?? 0; // Support both field names
 
     buffer.writeln();
     buffer.writeln('━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('TOTAL:');
     buffer.writeln('Kalori: $totalCalories kkal');
-    buffer.writeln('Protein: ${totalProtein}g | Karbo: ${totalCarbs}g | Lemak: ${totalFats}g');
+    buffer.writeln('Protein: ${totalProtein}g | Karbo: ${totalCarbs}g | Lemak: ${totalFat}g');
 
     return buffer.toString();
   }
