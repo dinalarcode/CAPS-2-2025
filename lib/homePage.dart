@@ -15,6 +15,7 @@ import 'package:nutrilink/services/schedule_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nutrilink/widgets/calorie_chatbot.dart';
 import 'package:nutrilink/utils/storage_helper.dart';
+import 'package:nutrilink/meal/food_detail_popup.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 
@@ -43,7 +44,14 @@ const Color kBlue = Color(0xFF42A5F5);
 // 🎯 KELAS UTAMA: HOMEPAGE (MENANGANI NAVIGASI)
 // ===============================================
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final int? initialTabIndex;
+  final String? initialFilter;
+  
+  const HomePage({super.key, this.initialTabIndex, this.initialFilter});
+
+  // Static key untuk akses state dari luar (menggunakan getter untuk menghindari library_private_types_in_public_api)
+  static final GlobalKey<_HomePageContentState> _homeContentKey = GlobalKey<_HomePageContentState>();
+  static GlobalKey get homeContentKey => _homeContentKey;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -51,7 +59,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   // Index awal disetel ke Home (Index 2) sesuai desain bottom bar
-  int _currentIndex = 2;
+  late int _currentIndex;
 
   // Daftar halaman yang akan ditampilkan sesuai urutan navbar
   late final List<Widget> _pages;
@@ -59,14 +67,16 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialTabIndex ?? 2; // Default to home
     _buildPages();
   }
 
   void _buildPages() {
     _pages = [
       SchedulePage(),
-      const RecommendationScreen(),
+      RecommendationScreen(initialFilter: widget.initialFilter),
       HomePageContent(
+        key: HomePage.homeContentKey,
         onNavigateToProfile: () => setState(() => _currentIndex = 4),
         onNavigateToReport: () => setState(() => _currentIndex = 3),
         onNavigateToMeal: () => setState(() => _currentIndex = 1),
@@ -122,6 +132,9 @@ class _HomePageContentState extends State<HomePageContent> {
   List<Map<String, dynamic>> upcomingMeals = [];
   List<Map<String, dynamic>> aiFoodLogs = []; // BARU: Log makanan dari AI
   int todayAICalories = 0; // BARU: Total kalori dari AI hari ini
+  int todayAIProtein = 0; // BARU: Total protein dari AI (gram)
+  int todayAICarbs = 0; // BARU: Total carbs dari AI (gram)
+  int todayAIFats = 0; // BARU: Total fats dari AI (gram)
   String? cachedDate;
   String? currentUserId;
 
@@ -133,6 +146,13 @@ class _HomePageContentState extends State<HomePageContent> {
     _loadScheduledMealsForToday(); // Load dari SchedulePage
     _loadTopRecommendedMeals(); // Load top recommended meals
     _loadAIFoodLogs(); // Load AI food logs
+  }
+
+  // Public method untuk refresh recommendations dari luar (setelah checkout)
+  void refreshRecommendations() {
+    debugPrint('🔄 Refreshing recommendations after checkout...');
+    _loadTopRecommendedMeals();
+    _loadScheduledMealsForToday(); // Refresh jadwal juga
   }
 
   // Load meals yang sudah dijadwalkan untuk hari ini dari SchedulePage
@@ -192,7 +212,6 @@ class _HomePageContentState extends State<HomePageContent> {
       final birthDate = (profile['birthDate'] as Timestamp?)?.toDate();
       final activityLevel = profile['activityLevel'] as String? ?? 'lightly_active';
       final target = profile['target'] as String? ?? 'Mempertahankan berat badan';
-      final eatFrequency = profile['eatFrequency'] as int? ?? 3;
       
       // Calculate TDEE
       final age = birthDate != null
@@ -225,21 +244,65 @@ class _HomePageContentState extends State<HomePageContent> {
         target: target,
       );
       
-      // Get top 1 from each meal type based on eatFrequency
-      final topMeals = <Map<String, dynamic>>[];
+      // Get purchased/scheduled meals from Firestore schedule for tomorrow
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      final tomorrowKey = DateFormat('yyyy-MM-dd').format(tomorrow);
       
-      debugPrint('📊 Eat Frequency: $eatFrequency meals per day');
+      // Check Firestore schedule collection
+      final scheduleDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('schedule')
+          .doc(tomorrowKey)
+          .get();
       
-      // Sarapan always included
-      final breakfast = List<Map<String, dynamic>>.from(recommendations['sarapan'] ?? [])
-        ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
-      if (breakfast.isNotEmpty) {
-        debugPrint('🥞 Top Breakfast: ${breakfast.first['name']} (score: ${breakfast.first['personalScore']})');
-        topMeals.add(breakfast.first);
+      Set<String> scheduledMealTypes = {};
+      if (scheduleDoc.exists && scheduleDoc.data()?['meals'] != null) {
+        final meals = List<Map<String, dynamic>>.from(
+          (scheduleDoc.data()!['meals'] as List<dynamic>).map((m) => Map<String, dynamic>.from(m))
+        );
+        
+        for (var meal in meals) {
+          final mealType = meal['time'] as String? ?? '';
+          if (mealType.isNotEmpty) {
+            scheduledMealTypes.add(mealType);
+          }
+        }
       }
       
-      if (eatFrequency == 2) {
-        // Only add dinner for 2 meals per day
+      debugPrint('📅 Scheduled meals for tomorrow ($tomorrowKey): ${scheduledMealTypes.toList()}');
+      
+      // Get top 1 from each meal type - filter out already scheduled meals
+      final topMeals = <Map<String, dynamic>>[];
+      
+      debugPrint('📊 Loading meal recommendations (excluding scheduled meals)');
+      
+      // Sarapan - only if not scheduled
+      if (!scheduledMealTypes.contains('Sarapan')) {
+        final breakfast = List<Map<String, dynamic>>.from(recommendations['sarapan'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (breakfast.isNotEmpty) {
+          debugPrint('🥞 Top Breakfast: ${breakfast.first['name']} (score: ${breakfast.first['personalScore']})');
+          topMeals.add(breakfast.first);
+        }
+      } else {
+        debugPrint('🥞 Breakfast already scheduled, skipping recommendation');
+      }
+      
+      // Makan Siang - only if not scheduled
+      if (!scheduledMealTypes.contains('Makan Siang')) {
+        final lunch = List<Map<String, dynamic>>.from(recommendations['makanSiang'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (lunch.isNotEmpty) {
+          debugPrint('🍱 Top Lunch: ${lunch.first['name']} (score: ${lunch.first['personalScore']})');
+          topMeals.add(lunch.first);
+        }
+      } else {
+        debugPrint('🍱 Lunch already scheduled, skipping recommendation');
+      }
+      
+      // Makan Malam - only if not scheduled
+      if (!scheduledMealTypes.contains('Makan Malam')) {
         final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
           ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
         if (dinner.isNotEmpty) {
@@ -247,20 +310,7 @@ class _HomePageContentState extends State<HomePageContent> {
           topMeals.add(dinner.first);
         }
       } else {
-        // Add lunch and dinner for 3 meals per day
-        final lunch = List<Map<String, dynamic>>.from(recommendations['makanSiang'] ?? [])
-          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
-        if (lunch.isNotEmpty) {
-          debugPrint('🍱 Top Lunch: ${lunch.first['name']} (score: ${lunch.first['personalScore']})');
-          topMeals.add(lunch.first);
-        }
-        
-        final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
-          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
-        if (dinner.isNotEmpty) {
-          debugPrint('🍽️ Top Dinner: ${dinner.first['name']} (score: ${dinner.first['personalScore']})');
-          topMeals.add(dinner.first);
-        }
+        debugPrint('🍽️ Dinner already scheduled, skipping recommendation');
       }
       
       // Debug: Check structure of topMeals
@@ -381,6 +431,9 @@ class _HomePageContentState extends State<HomePageContent> {
               ? (data['tags'] as List)[2].toString() 
               : '',
           'calories': data['calories'] as int? ?? 0,
+          'protein': data['protein'] as int? ?? 0,
+          'carbohydrate': data['carbohydrate'] as int? ?? 0, // ✅ Tambahkan field carbohydrate
+          'fat': data['fat'] as int? ?? 0, // ✅ Tambahkan field fat
           'price': data['price'] as int? ?? 0,
           'image': imageUrl, // ✅ Simpan URL lengkap
           'description': data['description']?.toString() ?? '',
@@ -450,14 +503,17 @@ class _HomePageContentState extends State<HomePageContent> {
     final wakeTime = sleepSchedule?['wakeTime'] as String? ?? '06:00';
     final sleepTime = sleepSchedule?['sleepTime'] as String? ?? '22:00';
     
-    // ✅ PENTING: Simpan URL gambar ke upcomingMeals
+    // ✅ PENTING: Simpan semua data nutrition ke upcomingMeals
     final upcomingWithTime = upcomingMealsList.map((meal) {
       return {
         'time': meal['type'],
         'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
         'name': meal['name'],
-        'calories': meal['calories'],
-        'image': meal['image'], // ✅ Tambahkan field image
+        'calories': meal['calories'] ?? meal['kalori'] ?? 0,
+        'protein': meal['protein'] ?? meal['protein_g'] ?? 0,
+        'carbs': meal['carbs'] ?? meal['carbohydrate'] ?? meal['carbo'] ?? meal['karbohidrat'] ?? 0,
+        'fat': meal['fat'] ?? meal['fats'] ?? meal['lemak'] ?? 0,
+        'image': meal['image'], // ✅ Sudah ada field image
         'isDone': false,
       };
     }).toList();
@@ -591,22 +647,32 @@ class _HomePageContentState extends State<HomePageContent> {
       // Remove item
       meals.removeAt(index);
       
-      // Recalculate total calories
+      // Recalculate totals for all macros
       int newTotal = 0;
+      int newProtein = 0;
+      int newCarbs = 0;
+      int newFats = 0;
+      
       for (var meal in meals) {
         newTotal += (meal['calories'] as int?) ?? 0;
+        newProtein += (meal['protein'] as int?) ?? 0;
+        newCarbs += (meal['carbs'] as int?) ?? 0;
+        newFats += (meal['fats'] as int?) ?? 0;
       }
       
-      // Update Firestore with new meals array and recalculated total
+      // Update Firestore with new meals array and recalculated totals
       await docRef.update({
         'meals': meals,
         'totalCalories': newTotal,
+        'totalProtein': newProtein,
+        'totalCarbs': newCarbs,
+        'totalFats': newFats,
       });
       
       // Reload to update UI
       await _loadAIFoodLogs();
       
-      debugPrint('✅ Deleted AI food log at index $index, new total: $newTotal kkal');
+      debugPrint('✅ Deleted AI food log at index $index - Cal: $newTotal kkal, P: ${newProtein}g, C: ${newCarbs}g, F: ${newFats}g');
     } catch (e) {
       debugPrint('❌ Error deleting AI food log: $e');
     }
@@ -631,13 +697,19 @@ class _HomePageContentState extends State<HomePageContent> {
         final data = logDoc.data()!;
         final meals = (data['meals'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
         final totalCal = (data['totalCalories'] as num?)?.toInt() ?? 0;
+        final totalProtein = (data['totalProtein'] as num?)?.toInt() ?? 0;
+        final totalCarbs = (data['totalCarbs'] as num?)?.toInt() ?? 0;
+        final totalFats = (data['totalFats'] as num?)?.toInt() ?? 0;
         
         setState(() {
           aiFoodLogs = meals;
           todayAICalories = totalCal;
+          todayAIProtein = totalProtein;
+          todayAICarbs = totalCarbs;
+          todayAIFats = totalFats;
         });
         
-        debugPrint('✅ Loaded ${meals.length} AI food logs, total: $totalCal kkal');
+        debugPrint('✅ Loaded ${meals.length} AI food logs - Cal: $totalCal kkal, P: ${totalProtein}g, C: ${totalCarbs}g, F: ${totalFats}g');
       }
     } catch (e) {
       debugPrint('❌ Error loading AI food logs: $e');
@@ -658,10 +730,10 @@ class _HomePageContentState extends State<HomePageContent> {
       final scheduleData = {
         'meals': upcomingMeals.map((meal) => {
           'name': meal['name'] ?? '',
-          'calories': meal['calories'] ?? 0,
-          'protein': meal['protein'] ?? 0,
-          'carbs': meal['carbs'] ?? 0,
-          'fat': meal['fat'] ?? 0,
+          'calories': meal['calories'] ?? meal['kalori'] ?? 0,
+          'protein': meal['protein'] ?? meal['protein_g'] ?? 0,
+          'carbs': meal['carbs'] ?? meal['carbohydrate'] ?? meal['carbo'] ?? meal['karbohidrat'] ?? 0,
+          'fat': meal['fat'] ?? meal['fats'] ?? meal['lemak'] ?? 0,
           'image': meal['image'] ?? '',
           'time': meal['time'] ?? '', // Meal type: Sarapan, Makan Siang, Makan Malam
           'clock': meal['clock'] ?? '', // Scheduled time: 07:00 - 08:00
@@ -1142,6 +1214,9 @@ class _HomePageContentState extends State<HomePageContent> {
             AIFoodLogsSection(
               foodLogs: aiFoodLogs,
               totalCalories: todayAICalories,
+              totalProtein: todayAIProtein,
+              totalCarbs: todayAICarbs,
+              totalFats: todayAIFats,
               onDelete: _deleteAIFoodLog,
             ),
             const SizedBox(height: 30),
@@ -1155,27 +1230,56 @@ class _HomePageContentState extends State<HomePageContent> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CalorieChatbot(
-                onFoodLogSaved: _loadAIFoodLogs, // BARU: Reload logs setelah save
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [kGreenLight, kGreen],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(28),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CalorieChatbot(
+                    onFoodLogSaved: _loadAIFoodLogs,
+                  ),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.chat_bubble_outline, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text(
+                    'NutriAI',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
-          );
-        },
-        backgroundColor: kGreen,
-        icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
-        label: const Text(
-          'AI Kalori',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
           ),
         ),
-        elevation: 4,
       ),
     );
   }
@@ -1690,7 +1794,7 @@ class MealCardsSection extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Rekomendasi Menu',
+                  'Rekomendasi Menu Besok',
                   style: TextStyle(
                     fontFamily: 'Funnel Display',
                     fontSize: 16,
@@ -1711,7 +1815,7 @@ class MealCardsSection extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
-              'Tidak ada rekomendasi menu yang tersedia saat ini (periksa data Firestore/Storage).',
+              'Tidak ada rekomendasi menu yang tersedia saat ini.',
               style: TextStyle(
                 fontFamily: 'Funnel Display',
                 color: kLightGreyText,
@@ -1777,105 +1881,116 @@ class _MealCard extends StatelessWidget {
 
           const SizedBox(height: 6),
 
-          // Card Wrapper
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.2),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // IMAGE + TAG
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                  child: Stack(
-                    children: [
-                      _buildMealImage(imageUrl),
+          // Card Wrapper with InkWell for tap
+          InkWell(
+            onTap: () {
+              showFoodDetailPopup(
+                context,
+                meal,
+                selectedDate: DateTime.now().add(const Duration(days: 1)), // Tomorrow
+                mealType: mealType,
+              );
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withValues(alpha: 0.2),
+                    spreadRadius: 1,
+                    blurRadius: 5,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // IMAGE + TAG
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                    child: Stack(
+                      children: [
+                        _buildMealImage(imageUrl),
 
-                      // TAG
-                      if (tag1.isNotEmpty)
-                        Positioned(
-                          top: 8,
-                          left: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [kGreenLight, kGreen],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                        // TAG
+                        if (tag1.isNotEmpty)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [kGreenLight, kGreen],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              tag1,
-                              style: const TextStyle(
-                                fontFamily: 'Funnel Display',
-                                fontSize: 10,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                              child: Text(
+                                tag1,
+                                style: const TextStyle(
+                                  fontFamily: 'Funnel Display',
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                // TEXT CONTENT
-                Padding(
-                  padding: const EdgeInsets.all(7.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        mealName,
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                          color: Colors.black87,
-                          height: 1.15,
+                  // TEXT CONTENT
+                  Padding(
+                    padding: const EdgeInsets.all(7.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          mealName,
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: Colors.black87,
+                            height: 1.15,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
 
-                      const SizedBox(height: 2),
+                        const SizedBox(height: 2),
 
-                      Text(
-                        '$calories kcal',
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontSize: 9,
-                          color: kLightGreyText,
+                        Text(
+                          '$calories kcal',
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 9,
+                            color: kLightGreyText,
+                          ),
                         ),
-                      ),
 
-                      const SizedBox(height: 1),
+                        const SizedBox(height: 1),
 
-                      Text(
-                        'Rp ${_formatRupiah(price)}',
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                          color: kGreen,
+                        Text(
+                          'Rp ${_formatRupiah(price)}',
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: kGreen,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -2160,12 +2275,18 @@ class MealListItem extends StatelessWidget {
 class AIFoodLogsSection extends StatelessWidget {
   final List<Map<String, dynamic>> foodLogs;
   final int totalCalories;
+  final int totalProtein;
+  final int totalCarbs;
+  final int totalFats;
   final Function(int) onDelete;
 
   const AIFoodLogsSection({
     super.key,
     required this.foodLogs,
     required this.totalCalories,
+    required this.totalProtein,
+    required this.totalCarbs,
+    required this.totalFats,
     required this.onDelete,
   });
 
@@ -2192,7 +2313,7 @@ class AIFoodLogsSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: kGreen.withValues(alpha: 0.1),
+                  color: kGreen,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -2201,14 +2322,14 @@ class AIFoodLogsSection extends StatelessWidget {
                     fontFamily: 'Funnel Display',
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: kGreen,
+                    color: Colors.white,
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 15),
-
+          
           // List makanan atau empty state
           if (foodLogs.isEmpty)
             Container(
@@ -2240,7 +2361,7 @@ class AIFoodLogsSection extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Gunakan AI Kalori untuk mencatat makanan di luar menu Healthy Go',
+                    'Gunakan NutriAI untuk mencatat makanan di luar menu HealthyGo',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'Funnel Display',
@@ -2301,6 +2422,9 @@ class AIFoodLogItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final description = log['description'] ?? 'Makanan';
     final calories = log['calories'] ?? 0;
+    final protein = log['protein'] ?? 0;
+    final carbs = log['carbs'] ?? 0;
+    final fats = log['fats'] ?? 0;
     final time = log['time'] ?? '';
     final items = (log['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
 
@@ -2329,7 +2453,7 @@ class AIFoodLogItem extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: kGreen,
+                  color: kGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -2338,7 +2462,7 @@ class AIFoodLogItem extends StatelessWidget {
                     fontFamily: 'Funnel Display',
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: kGreen,
                   ),
                 ),
               ),
@@ -2374,6 +2498,19 @@ class AIFoodLogItem extends StatelessWidget {
               ),
             ],
           ),
+          
+          // Nutrition facts - Simple text format
+          const SizedBox(height: 8),
+          Text(
+            'Protein ${protein}g · Karbo ${carbs}g · Lemak ${fats}g',
+            style: TextStyle(
+              fontFamily: 'Funnel Display',
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          
           if (time.isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(
@@ -2393,38 +2530,257 @@ class AIFoodLogItem extends StatelessWidget {
           ],
           if (items.isNotEmpty) ...[
             const SizedBox(height: 8),
-            ...items.map((item) {
-              final name = item['name'] ?? '';
-              final itemCal = item['calories'] ?? 0;
-              return Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[400],
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '$name ($itemCal kkal)',
-                        style: TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontSize: 12,
-                          color: Colors.grey[700],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: items.map((item) {
+                      final name = item['name'] ?? '';
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 4,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[400],
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  fontFamily: 'Funnel Display',
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ],
+                      );
+                    }).toList(),
+                  ),
                 ),
-              );
-            }),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => _showNutritionDetailDialog(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Detail nutrisi',
+                    style: TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontSize: 11,
+                      color: kGreen,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ],
+      ),
+    );
+  }
+  
+  void _showNutritionDetailDialog(BuildContext context) {
+    final description = log['description'] ?? 'Makanan';
+    final calories = log['calories'] ?? 0;
+    final items = (log['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      description,
+                      style: const TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: kGreen,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$calories kkal',
+                      style: const TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 16),
+              const Divider(height: 1, thickness: 1),
+              const SizedBox(height: 16),
+              
+              // Items list
+              if (items.isEmpty)
+                const Text(
+                  'Tidak ada detail item',
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 13,
+                    color: Colors.grey,
+                  ),
+                )
+              else
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: items.map((item) {
+                        final name = item['name'] ?? '';
+                        final portion = item['portion'] ?? '';
+                        final itemCal = item['calories'] ?? 0;
+                        final itemProtein = item['protein'] ?? 0;
+                        final itemCarbs = item['carbs'] ?? 0;
+                        final itemFats = item['fats'] ?? 0;
+                        
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.grey[200]!,
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Item name with portion
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontFamily: 'Funnel Display',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                  if (portion.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '($portion)',
+                                      style: TextStyle(
+                                        fontFamily: 'Funnel Display',
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              
+                              // Calories
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: kGreen.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '$itemCal kkal',
+                                  style: const TextStyle(
+                                    fontFamily: 'Funnel Display',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: kGreen,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              
+                              // Macros
+                              Text(
+                                'Protein ${itemProtein}g · Karbo ${itemCarbs}g · Lemak ${itemFats}g',
+                                style: TextStyle(
+                                  fontFamily: 'Funnel Display',
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              
+              const SizedBox(height: 16),
+              
+              // Close button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Tutup',
+                    style: TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -16,10 +16,24 @@ const Color kGreyText = Color(0xFF494949);
 
 // Inilah layar utama untuk fitur Rekomendasi Makanan
 class RecommendationScreen extends StatefulWidget {
-  const RecommendationScreen({super.key});
+  final String? initialFilter;
+  
+  const RecommendationScreen({super.key, this.initialFilter});
 
   @override
   State<RecommendationScreen> createState() => _RecommendationScreenState();
+}
+
+// Wrapper with initial filter support
+class RecommendationScreenWithFilter extends StatelessWidget {
+  final String initialFilter;
+  
+  const RecommendationScreenWithFilter({super.key, required this.initialFilter});
+  
+  @override
+  Widget build(BuildContext context) {
+    return RecommendationScreen(initialFilter: initialFilter);
+  }
 }
 
 class _RecommendationScreenState extends State<RecommendationScreen> {
@@ -34,12 +48,20 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
   late DateTime _selectedDate;
   // Track which meals are already ordered for selected date
   Map<String, bool> _orderedMeals = {};
+  // User's meal frequency preference (2 or 3 meals per day)
+  int _eatFrequency = 3;
+  // Count of meals currently in cart for selected date
+  int _cartMealsCount = 0;
 
   @override
   void initState() {
     super.initState();
     // Default to tomorrow for meal prep
     _selectedDate = DateTime.now().add(const Duration(days: 1));
+    // Apply initial filter if provided
+    if (widget.initialFilter != null && widget.initialFilter!.isNotEmpty) {
+      _selectedFilters = {widget.initialFilter!};
+    }
     _loadRecommendations();
   }
 
@@ -82,6 +104,7 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
       final birthDate = (profile['birthDate'] as Timestamp?)?.toDate();
       final activityLevel = profile['activityLevel'] as String? ?? 'lightly_active';
       final target = profile['target'] as String? ?? 'Mempertahankan berat badan';
+      final eatFrequency = profile['eatFrequency'] as int? ?? 3;
 
       // Hitung TDEE
       final tdee = _calculateTDEE(
@@ -113,10 +136,23 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
       // Check which meals are already ordered for this date
       final orderedMeals = await OrderService.checkOrderedMeals(_selectedDate);
 
+      // Get cart items count for selected date
+      final dateKey = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final cartItems = CartManager.getCartItems();
+      final cartMealsCount = cartItems[dateKey]?.length ?? 0;
+      
+      // Calculate total meals: ordered (in schedule) + cart
+      final orderedMealsCount = orderedMeals.values.where((ordered) => ordered).length;
+      final totalMeals = orderedMealsCount + cartMealsCount;
+
       setState(() {
         _isLoading = false;
         _orderedMeals = orderedMeals;
+        _eatFrequency = eatFrequency;
+        _cartMealsCount = totalMeals; // Use total (ordered + cart) for display
       });
+
+      debugPrint('🍽️ Eat frequency: $eatFrequency, Ordered meals: $orderedMealsCount, Cart meals: $cartMealsCount, Total: $totalMeals');
 
       // Apply any active tag filters to immediately filter displayed lists
       _applyTagFilters();
@@ -347,7 +383,16 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            // 2. Filter Tag yang Aktif
+            // 2. Meal Frequency Indicator
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: _MealFrequencyIndicator(
+                currentMeals: _cartMealsCount,
+                maxMeals: _eatFrequency,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // 3. Filter Tag yang Aktif
             _TagFilterSection(selectedFilters: _selectedFilters, onFilterPressed: () => _showFilter(context)),
             const SizedBox(height: 16),
 
@@ -387,11 +432,25 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
       floatingActionButton: Stack(
         children: [
           FloatingActionButton(
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const CartPage()),
-              ).then((_) => setState(() {})); // Refresh when returning from cart
+              );
+              // Refresh cart count when returning from cart
+              // Need to recalculate: ordered meals + cart meals
+              final dateKey = DateFormat('yyyy-MM-dd').format(_selectedDate);
+              final cartItems = CartManager.getCartItems();
+              final cartMealsCount = cartItems[dateKey]?.length ?? 0;
+              
+              // Get ordered meals for this date
+              final orderedMeals = await OrderService.checkOrderedMeals(_selectedDate);
+              final orderedMealsCount = orderedMeals.values.where((ordered) => ordered).length;
+              final totalMeals = orderedMealsCount + cartMealsCount;
+              
+              setState(() {
+                _cartMealsCount = totalMeals; // Update to total (ordered + cart)
+              });
             },
             backgroundColor: const Color(0xFFE57373),
             shape: const CircleBorder(),
@@ -1067,3 +1126,114 @@ class _FoodCard extends StatelessWidget {
   }
 }
 
+
+// Meal Frequency Indicator Widget
+class _MealFrequencyIndicator extends StatelessWidget {
+  final int currentMeals;
+  final int maxMeals;
+
+  const _MealFrequencyIndicator({
+    required this.currentMeals,
+    required this.maxMeals,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isAtLimit = currentMeals >= maxMeals;
+    final hasItems = currentMeals > 0;
+    
+    if (!hasItems) {
+      return const SizedBox.shrink(); // Hide when cart is empty
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isAtLimit 
+            ? [Colors.orange.shade50, Colors.orange.shade100]
+            : [kGreen.withValues(alpha: 0.1), kGreen.withValues(alpha: 0.15)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isAtLimit ? Colors.orange : kGreen,
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isAtLimit ? Colors.orange : kGreen,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isAtLimit ? Icons.warning_amber_rounded : Icons.restaurant_menu,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Frekuensi Makan Hari Ini',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isAtLimit ? Colors.orange.shade900 : kGreyText,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      '$currentMeals',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: isAtLimit ? Colors.orange.shade700 : kGreen,
+                      ),
+                    ),
+                    Text(
+                      ' / $maxMeals',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: isAtLimit ? Colors.orange.shade600 : Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'menu',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+                if (isAtLimit) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Anda sudah mencapai batas frekuensi makan',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.orange.shade700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

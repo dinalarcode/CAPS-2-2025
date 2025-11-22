@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nutrilink/services/order_service.dart';
 import 'package:nutrilink/services/schedule_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nutrilink/homePage.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -328,8 +331,48 @@ class _CartPageState extends State<CartPage> {
     // Close confirmation dialog
     Navigator.pop(context);
     
+    // Validate meal frequency before processing
+    final frequencyValidation = await CartManager.validateMealFrequency();
+    if (frequencyValidation != null) {
+      // Show frequency violation error
+      if (!mounted) return;
+      
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.warning, color: Colors.orange, size: 28),
+              const SizedBox(width: 12),
+              const Text('Peringatan Frekuensi Makan'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(frequencyValidation),
+              const SizedBox(height: 16),
+              const Text(
+                'Silakan hapus beberapa menu dari keranjang agar sesuai dengan frekuensi makan yang Anda pilih.',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    
     // Show loading indicator
     showDialog(
+      // ignore: use_build_context_synchronously
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(
@@ -441,6 +484,17 @@ class _CartPageState extends State<CartPage> {
         ),
       );
       
+      // Refresh HomePage recommendations after successful checkout
+      try {
+        final state = HomePage.homeContentKey.currentState;
+        if (state != null) {
+          (state as dynamic).refreshRecommendations();
+          debugPrint('✅ Triggered HomePage refresh after checkout');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not refresh HomePage: $e');
+      }
+      
       // Refresh the page and navigate back
       if (!mounted) return;
       setState(() {});
@@ -509,8 +563,95 @@ class CartItem {
 // Cart manager for state management
 class CartManager {
   static final Map<String, Map<String, CartItem>> _cartItems = {};
+  static final List<VoidCallback> _listeners = [];
+
+  static void addListener(VoidCallback listener) {
+    _listeners.add(listener);
+  }
+
+  static void removeListener(VoidCallback listener) {
+    _listeners.remove(listener);
+  }
+
+  static void _notifyListeners() {
+    for (final listener in _listeners) {
+      listener();
+    }
+  }
 
   static Map<String, Map<String, CartItem>> getCartItems() => _cartItems;
+
+  /// Get user's eat frequency from Firestore
+  static Future<int> getUserEatFrequency() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return 3; // Default to 3 if not authenticated
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (!userDoc.exists) return 3;
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final profile = userData['profile'] as Map<String, dynamic>? ?? {};
+      final eatFrequency = profile['eatFrequency'] as int? ?? 3;
+
+      return eatFrequency;
+    } catch (e) {
+      debugPrint('❌ Error getting eat frequency: $e');
+      return 3; // Default to 3 on error
+    }
+  }
+
+  /// Validate if adding a meal would violate frequency for a specific date
+  /// Checks BOTH ordered meals (from schedule) AND cart items
+  static Future<bool> canAddMealForDate(String dateKey) async {
+    final eatFrequency = await getUserEatFrequency();
+    final cartMealsForDate = _cartItems[dateKey]?.length ?? 0;
+    
+    // Also check meals already ordered (in schedule) for this date
+    final date = DateTime.parse(dateKey);
+    final orderedMeals = await OrderService.checkOrderedMeals(date);
+    final orderedMealsCount = orderedMeals.values.where((ordered) => ordered).length;
+    
+    final totalMeals = cartMealsForDate + orderedMealsCount;
+    
+    debugPrint('🔍 Can add meal check: Date=$dateKey, Cart=$cartMealsForDate, Ordered=$orderedMealsCount, Total=$totalMeals, Limit=$eatFrequency');
+    return totalMeals < eatFrequency;
+  }
+
+  /// Validate entire cart against meal frequency limits
+  /// Checks BOTH ordered meals (from schedule) AND cart items
+  /// Returns error message if validation fails, null if valid
+  static Future<String?> validateMealFrequency() async {
+    final eatFrequency = await getUserEatFrequency();
+    
+    // Check each date in cart
+    for (final entry in _cartItems.entries) {
+      final dateKey = entry.key;
+      final mealsForDate = entry.value;
+      final cartMealCount = mealsForDate.length;
+      
+      // Also check meals already ordered for this date
+      final date = DateTime.parse(dateKey);
+      final orderedMeals = await OrderService.checkOrderedMeals(date);
+      final orderedMealsCount = orderedMeals.values.where((ordered) => ordered).length;
+      
+      final totalMeals = cartMealCount + orderedMealsCount;
+      
+      if (totalMeals > eatFrequency) {
+        final formattedDate = DateFormat('dd MMM yyyy', 'id_ID').format(date);
+        final mealTypes = mealsForDate.keys.join(', ');
+        
+        return 'Anda sudah memiliki $orderedMealsCount menu yang dipesan dan $cartMealCount menu di keranjang ($mealTypes) untuk tanggal $formattedDate. Total: $totalMeals menu, tetapi frekuensi makan Anda adalah $eatFrequency kali per hari.';
+      }
+    }
+    
+    debugPrint('✅ Meal frequency validation passed');
+    return null; // Validation passed
+  }
 
   static Future<bool> addItem(String dateKey, String mealType, CartItem item) async {
     // Check if item already exists for this date and meal type
@@ -522,12 +663,14 @@ class CartManager {
     // Add item to cart
     _cartItems[dateKey] ??= {};
     _cartItems[dateKey]![mealType] = item;
+    _notifyListeners();
     return true;
   }
 
   static void replaceItem(String dateKey, String mealType, CartItem item) {
     _cartItems[dateKey] ??= {};
     _cartItems[dateKey]![mealType] = item;
+    _notifyListeners();
   }
 
   static void removeItem(String dateKey, String mealType) {
@@ -535,6 +678,7 @@ class CartManager {
     if (_cartItems[dateKey]?.isEmpty == true) {
       _cartItems.remove(dateKey);
     }
+    _notifyListeners();
   }
 
   static num getTotalPrice() {
@@ -557,5 +701,6 @@ class CartManager {
 
   static void clearCart() {
     _cartItems.clear();
+    _notifyListeners();
   }
 }
