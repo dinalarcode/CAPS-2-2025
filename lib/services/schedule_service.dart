@@ -37,15 +37,42 @@ class ScheduleService {
           mealsByDate[date] = [];
         }
         
+        // 🔍 DEBUG: Print raw item data from order
+        debugPrint('🔍 [ScheduleService] Raw order item data:');
+        debugPrint('   Name: ${item['name']}');
+        debugPrint('   carbs field: ${item['carbs']} (type: ${item['carbs'].runtimeType})');
+        debugPrint('   carbohydrate field: ${item['carbohydrate']} (type: ${item['carbohydrate']?.runtimeType})');
+        debugPrint('   protein field: ${item['protein']} (type: ${item['protein'].runtimeType})');
+        debugPrint('   fat field: ${item['fat']} (type: ${item['fat'].runtimeType})');
+        
+        // Helper to safely parse numeric values (handle empty strings)
+        num parseNum(dynamic value) {
+          if (value == null) return 0;
+          if (value is num) return value;
+          if (value is String) {
+            if (value.isEmpty) return 0;
+            return num.tryParse(value) ?? 0;
+          }
+          return 0;
+        }
+        
+        // Normalize carbs field when saving to schedule
+        final carbs = parseNum(item['carbs'] ?? item['carbohydrate'] ?? item['carbo'] ?? item['karbohidrat']);
+        final protein = parseNum(item['protein'] ?? item['protein_g']);
+        final fat = parseNum(item['fat'] ?? item['fats'] ?? item['lemak']);
+        final calories = parseNum(item['calories'] ?? item['kalori']);
+        
+        debugPrint('   ✅ Parsed: P:$protein g C:$carbs g F:$fat g Cal:$calories');
+        
         mealsByDate[date]!.add({
           'orderId': orderId,
           'name': item['name'],
           'time': item['mealType'],
           'clock': item['clock'],
-          'calories': item['calories'] ?? item['kalori'] ?? 0,
-          'protein': item['protein'] ?? item['protein_g'] ?? 0,
-          'carbs': item['carbs'] ?? item['carbohydrate'] ?? item['carbo'] ?? 0,
-          'fat': item['fat'] ?? item['fats'] ?? 0,
+          'calories': calories,
+          'protein': protein,
+          'carbs': carbs,  // ✅ Always save as 'carbs'
+          'fat': fat,
           'image': item['image'],
           'isDone': false,
         });
@@ -142,30 +169,26 @@ class ScheduleService {
       final meals = doc.data()!['meals'] as List<dynamic>;
       debugPrint('✅ [ScheduleService] Found ${meals.length} meals for $dateStr');
       
+      // Helper to safely parse numeric values (handle empty strings)
+      num parseNum(dynamic value) {
+        if (value == null) return 0;
+        if (value is num) return value;
+        if (value is String) {
+          if (value.isEmpty) return 0;
+          return num.tryParse(value) ?? 0;
+        }
+        return 0;
+      }
+      
       // Normalize data: ensure consistent field names for backward compatibility
       final normalizedMeals = meals.map((m) {
         final meal = Map<String, dynamic>.from(m);
         
-        // Normalize 'fat' field (support 'fats' from old data)
-        if (!meal.containsKey('fat') && meal.containsKey('fats')) {
-          meal['fat'] = meal['fats'];
-        }
-        
-        // Normalize 'carbs' field (support 'carbohydrate', 'carbo', 'karbohidrat' from database)
-        if (!meal.containsKey('carbs')) {
-          meal['carbs'] = meal['carbohydrate'] ?? meal['carbo'] ?? meal['karbohidrat'] ?? 0;
-        }
-        
-        // Ensure protein exists (support 'protein_g' from old data)
-        if (!meal.containsKey('protein')) {
-          meal['protein'] = meal['protein_g'] ?? 0;
-        }
-        
-        // Ensure all nutrition fields have values (default to 0)
-        meal['protein'] = meal['protein'] ?? 0;
-        meal['carbs'] = meal['carbs'] ?? 0;
-        meal['fat'] = meal['fat'] ?? 0;
-        meal['calories'] = meal['calories'] ?? meal['kalori'] ?? 0;
+        // Normalize and parse all nutrition fields
+        meal['protein'] = parseNum(meal['protein'] ?? meal['protein_g']);
+        meal['carbs'] = parseNum(meal['carbs'] ?? meal['carbohydrate'] ?? meal['carbo'] ?? meal['karbohidrat']);
+        meal['fat'] = parseNum(meal['fat'] ?? meal['fats'] ?? meal['lemak']);
+        meal['calories'] = parseNum(meal['calories'] ?? meal['kalori']);
         
         return meal;
       }).toList();

@@ -114,10 +114,26 @@ class DetailMenuPage extends StatelessWidget {
   // ░░░ NUTRITION SECTION ░░░
   //
   Widget _buildNutritionCard(Map meal) {
-    final calories = meal["calories"] ?? meal["kalori"] ?? 0;
-    final carbs = meal["carbohydrate"] ?? meal["carbs"] ?? meal["karbohidrat"] ?? meal["carbo"] ?? 0;
-    final protein = meal["protein"] ?? meal["protein_g"] ?? 0;
-    final fat = meal["fat"] ?? meal["fats"] ?? meal["lemak"] ?? 0;
+    // Helper function to safely parse numeric values
+    num parseNum(dynamic value) {
+      if (value == null) return 0;
+      if (value is num) return value;
+      if (value is String) {
+        if (value.isEmpty) return 0;
+        return num.tryParse(value) ?? 0;
+      }
+      return 0;
+    }
+    
+    final calories = parseNum(meal["calories"] ?? meal["kalori"]);
+    final carbs = parseNum(meal["carbs"] ?? meal["carbohydrate"] ?? meal["karbohidrat"] ?? meal["carbo"]);
+    final protein = parseNum(meal["protein"] ?? meal["protein_g"]);
+    final fat = parseNum(meal["fat"] ?? meal["fats"] ?? meal["lemak"]);
+
+    // Debug: print all available keys and values
+    debugPrint('🔍 [DetailMenu] Meal data keys: ${meal.keys.toList()}');
+    debugPrint('🔍 [DetailMenu] Calories: $calories, Protein: $protein, Carbs: $carbs, Fat: $fat');
+    debugPrint('🔍 [DetailMenu] Raw carbs field: ${meal["carbs"]}, carbohydrate: ${meal["carbohydrate"]}, carbo: ${meal["carbo"]}');
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -136,11 +152,11 @@ class DetailMenuPage extends StatelessWidget {
         children: [
           _buildNutriRow("Calories", "$calories kcal"),
           _divider(),
-          _buildNutriRow("Carbs", "$carbs g"),
-          _divider(),
           _buildNutriRow("Protein", "$protein g"),
           _divider(),
-          _buildNutriRow("Fat", "$fat g"),
+          _buildNutriRow("Karbo", "$carbs g"),
+          _divider(),
+          _buildNutriRow("Lemak", "$fat g"),
         ],
       ),
     );
