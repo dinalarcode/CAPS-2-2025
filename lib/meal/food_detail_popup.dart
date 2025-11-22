@@ -519,14 +519,26 @@ Future<void> _addToCart(BuildContext context, DateTime date, String mealType, Ma
       _showReplaceConfirmation(context, date, mealType, cartItem, dateKey);
     }
   } else {
-    // Item added successfully
+    // Item added successfully - check if this violates meal frequency
+    final eatFrequency = await CartManager.getUserEatFrequency();
+    final currentMealsForDate = CartManager.getCartItems()[dateKey]?.length ?? 0;
+    
     if (context.mounted) {
-      _showSuccessDialog(context, cartItem.name);
+      if (currentMealsForDate > eatFrequency) {
+        // Remove the just-added item since it violates frequency
+        CartManager.removeItem(dateKey, mealType);
+        
+        // Show frequency limit warning
+        _showFrequencyLimitDialog(context, date, eatFrequency, currentMealsForDate - 1);
+      } else {
+        // Show success dialog
+        _showSuccessDialog(context, cartItem.name, eatFrequency, currentMealsForDate);
+      }
     }
   }
 }
 
-void _showSuccessDialog(BuildContext context, String itemName) {
+void _showSuccessDialog(BuildContext context, String itemName, int eatFrequency, int currentMeals) {
   showDialog(
     context: context,
     barrierDismissible: true,
@@ -586,6 +598,38 @@ void _showSuccessDialog(BuildContext context, String itemName) {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 12),
+            // Meal frequency indicator
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: currentMeals >= eatFrequency ? Colors.orange.shade50 : kGreen.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: currentMeals >= eatFrequency ? Colors.orange : kGreen,
+                  width: 1.5,
+                ),
+              ),
+              child: Text(
+                '$currentMeals / $eatFrequency menu hari ini',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: currentMeals >= eatFrequency ? Colors.orange.shade700 : kGreen,
+                ),
+              ),
+            ),
+            if (currentMeals >= eatFrequency) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Anda sudah mencapai batas frekuensi makan untuk tanggal ini',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.orange.shade700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ],
         ),
       ),
@@ -598,6 +642,77 @@ void _showSuccessDialog(BuildContext context, String itemName) {
       Navigator.of(context, rootNavigator: true).pop();
     }
   });
+}
+
+void _showFrequencyLimitDialog(BuildContext context, DateTime date, int eatFrequency, int currentMeals) {
+  final formattedDate = DateFormat('dd MMM yyyy', 'id_ID').format(date);
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 28),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Batas Frekuensi Makan',
+              style: TextStyle(fontSize: 18),
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Anda sudah memilih $currentMeals menu untuk tanggal $formattedDate.',
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Frekuensi makan Anda: $eatFrequency kali per hari',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange.shade900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Silakan hapus salah satu menu dari keranjang jika ingin menambahkan menu ini.',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Mengerti'),
+        ),
+      ],
+    ),
+  );
 }
 
 void _showReplaceConfirmation(BuildContext context, DateTime date, String mealType, CartItem newItem, String dateKey) {
