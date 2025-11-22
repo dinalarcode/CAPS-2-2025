@@ -29,7 +29,7 @@ class _EatFrequencyPageState extends State<EatFrequencyPage> {
     {
       'value': 2,
       'label': '2x / hari',
-      'description': 'Sarapan dan Makan Malam',
+      'description': 'Bebas (pilih 2 dari 3 waktu makan)',
       'icon': Icons.restaurant,
     },
     {
