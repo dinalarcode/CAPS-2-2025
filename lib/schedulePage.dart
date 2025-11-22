@@ -172,13 +172,6 @@ class _SchedulePageState extends State<SchedulePage> {
                       ),
                     ),
                     SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(Icons.add_circle, color: kGreen, size: 28),
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/tambahMenu');
-                      },
-                      tooltip: 'Tambah Menu',
-                    ),
                   ],
                 ),
               ],
