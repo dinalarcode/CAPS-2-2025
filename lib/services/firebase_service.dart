@@ -84,11 +84,11 @@ class FirebaseService {
       if (doc.exists) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         
-        // Calculate percentages
-        double totalCalories = data['totalCalories'] as double;
-        double totalCarbs = data['totalCarbs'] as double;
-        double totalProtein = data['totalProtein'] as double;
-        double totalFat = data['totalFat'] as double;
+        // Calculate percentages - safely convert from int or double
+        double totalCalories = (data['totalCalories'] as num?)?.toDouble() ?? 0.0;
+        double totalCarbs = (data['totalCarbs'] as num?)?.toDouble() ?? 0.0;
+        double totalProtein = (data['totalProtein'] as num?)?.toDouble() ?? 0.0;
+        double totalFat = (data['totalFat'] as num?)?.toDouble() ?? 0.0;
         
         double carbPercent = totalCalories > 0 ? (totalCarbs * 4 / totalCalories) * 100 : 0;
         double proteinPercent = totalCalories > 0 ? (totalProtein * 4 / totalCalories) * 100 : 0;
@@ -101,10 +101,10 @@ class FirebaseService {
             foods.add(FoodItem(
               menuId: foodData['menuId'] ?? '',
               menuName: foodData['menuName'] ?? '',
-              calories: foodData['calories']?.toDouble() ?? 0.0,
-              carbs: foodData['carbs']?.toDouble() ?? 0.0,
-              protein: foodData['protein']?.toDouble() ?? 0.0,
-              fat: foodData['fat']?.toDouble() ?? 0.0,
+              calories: (foodData['calories'] as num?)?.toDouble() ?? 0.0,
+              carbs: (foodData['carbs'] as num?)?.toDouble() ?? 0.0,
+              protein: (foodData['protein'] as num?)?.toDouble() ?? 0.0,
+              fat: (foodData['fat'] as num?)?.toDouble() ?? 0.0,
               mealType: foodData['mealType'] ?? '',
             ));
           }
@@ -117,7 +117,7 @@ class FirebaseService {
           fatPercent: fatPercent.clamp(0, 100),
           othersPercent: othersPercent.clamp(0, 100),
           foods: foods,
-          dailyTarget: data['dailyTarget'] as double,
+          dailyTarget: (data['dailyTarget'] as num?)?.toDouble() ?? 2000.0,
         );
       }
       return null;
