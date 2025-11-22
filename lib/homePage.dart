@@ -14,6 +14,7 @@ import 'package:nutrilink/meal/meal_rec.dart';
 import 'package:nutrilink/services/schedule_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nutrilink/widgets/calorie_chatbot.dart';
+import 'package:nutrilink/utils/storage_helper.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 
@@ -138,7 +139,17 @@ class _HomePageContentState extends State<HomePageContent> {
   Future<void> _loadScheduledMealsForToday() async {
     try {
       final today = DateTime.now();
+      debugPrint('🔍 [HomePage] Loading scheduled meals for today: ${DateFormat('yyyy-MM-dd').format(today)}');
+      
       final scheduledMeals = await ScheduleService.getScheduleByDate(today);
+      
+      debugPrint('📦 [HomePage] Received ${scheduledMeals.length} scheduled meals from ScheduleService');
+      
+      // Debug: Print each meal's details including clock
+      for (var i = 0; i < scheduledMeals.length; i++) {
+        final meal = scheduledMeals[i];
+        debugPrint('   Meal ${i+1}: ${meal['time']} at ${meal['clock']} - ${meal['name']} (isDone: ${meal['isDone']})');
+      }
       
       if (mounted) {
         setState(() {
@@ -146,12 +157,14 @@ class _HomePageContentState extends State<HomePageContent> {
         });
       }
       
-      debugPrint('✅ Loaded ${scheduledMeals.length} scheduled meals for today');
+      debugPrint('✅ [HomePage] Loaded ${scheduledMeals.length} scheduled meals for today');
     } catch (e) {
-      debugPrint('❌ Error loading scheduled meals: $e');
-      setState(() {
-        upcomingMeals = [];
-      });
+      debugPrint('❌ [HomePage] Error loading scheduled meals: $e');
+      if (mounted) {
+        setState(() {
+          upcomingMeals = [];
+        });
+      }
     }
   }
   
@@ -179,6 +192,7 @@ class _HomePageContentState extends State<HomePageContent> {
       final birthDate = (profile['birthDate'] as Timestamp?)?.toDate();
       final activityLevel = profile['activityLevel'] as String? ?? 'lightly_active';
       final target = profile['target'] as String? ?? 'Mempertahankan berat badan';
+      final eatFrequency = profile['eatFrequency'] as int? ?? 3;
       
       // Calculate TDEE
       final age = birthDate != null
@@ -211,10 +225,12 @@ class _HomePageContentState extends State<HomePageContent> {
         target: target,
       );
       
-      // Get top 1 from each meal type
+      // Get top 1 from each meal type based on eatFrequency
       final topMeals = <Map<String, dynamic>>[];
       
-      // Sort by personalScore and take top 1 from each
+      debugPrint('📊 Eat Frequency: $eatFrequency meals per day');
+      
+      // Sarapan always included
       final breakfast = List<Map<String, dynamic>>.from(recommendations['sarapan'] ?? [])
         ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
       if (breakfast.isNotEmpty) {
@@ -222,18 +238,29 @@ class _HomePageContentState extends State<HomePageContent> {
         topMeals.add(breakfast.first);
       }
       
-      final lunch = List<Map<String, dynamic>>.from(recommendations['makanSiang'] ?? [])
-        ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
-      if (lunch.isNotEmpty) {
-        debugPrint('🍱 Top Lunch: ${lunch.first['name']} (score: ${lunch.first['personalScore']})');
-        topMeals.add(lunch.first);
-      }
-      
-      final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
-        ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
-      if (dinner.isNotEmpty) {
-        debugPrint('🍽️ Top Dinner: ${dinner.first['name']} (score: ${dinner.first['personalScore']})');
-        topMeals.add(dinner.first);
+      if (eatFrequency == 2) {
+        // Only add dinner for 2 meals per day
+        final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (dinner.isNotEmpty) {
+          debugPrint('🍽️ Top Dinner: ${dinner.first['name']} (score: ${dinner.first['personalScore']})');
+          topMeals.add(dinner.first);
+        }
+      } else {
+        // Add lunch and dinner for 3 meals per day
+        final lunch = List<Map<String, dynamic>>.from(recommendations['makanSiang'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (lunch.isNotEmpty) {
+          debugPrint('🍱 Top Lunch: ${lunch.first['name']} (score: ${lunch.first['personalScore']})');
+          topMeals.add(lunch.first);
+        }
+        
+        final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (dinner.isNotEmpty) {
+          debugPrint('🍽️ Top Dinner: ${dinner.first['name']} (score: ${dinner.first['personalScore']})');
+          topMeals.add(dinner.first);
+        }
       }
       
       // Debug: Check structure of topMeals
@@ -632,9 +659,12 @@ class _HomePageContentState extends State<HomePageContent> {
         'meals': upcomingMeals.map((meal) => {
           'name': meal['name'] ?? '',
           'calories': meal['calories'] ?? 0,
+          'protein': meal['protein'] ?? 0,
+          'carbs': meal['carbs'] ?? 0,
+          'fat': meal['fat'] ?? 0,
           'image': meal['image'] ?? '',
-          'type': meal['time'] ?? '',
-          'scheduledTime': meal['clock'] ?? '',
+          'time': meal['time'] ?? '', // Meal type: Sarapan, Makan Siang, Makan Malam
+          'clock': meal['clock'] ?? '', // Scheduled time: 07:00 - 08:00
           'isDone': meal['isDone'] ?? false,
         }).toList(),
         'scheduledDate': date,
@@ -1725,7 +1755,9 @@ class _MealCard extends StatelessWidget {
     final calories = meal['calories'] ?? 0;
     final price = meal['price'] ?? 0;
     // Support both 'image' and 'imageUrl' fields
-    final imageUrl = meal['image'] ?? meal['imageUrl'] ?? '';
+    final imagePath = meal['image'] ?? meal['imageUrl'] ?? '';
+    // Build proper Firebase Storage URL if not already a full URL
+    final imageUrl = imagePath.startsWith('http') ? imagePath : buildImageUrl(imagePath);
 
     return Container(
       width: 150,
@@ -1958,22 +1990,46 @@ class UpcomingMealsList extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 15),
-          Column(
-            children: upcomingMeals.asMap().entries.map((entry) {
-              final index = entry.key;
-              final meal = entry.value;
-              final isLast = index == upcomingMeals.length - 1;
-              
-              return MealListItem(
-                time: meal['time'] as String,
-                clock: meal['clock'] as String,
-                name: meal['name'] as String,
-                isDone: meal['isDone'] as bool,
-                isLast: isLast,
-                onToggle: () => onToggleMealDone(index),
-              );
-            }).toList(),
-          ),
+          upcomingMeals.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.schedule, color: kLightGreyText, size: 24),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Belum ada jadwal makan untuk hari ini. Silakan tambahkan di halaman Jadwal.',
+                          style: TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 13,
+                            color: kLightGreyText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: upcomingMeals.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final meal = entry.value;
+                    final isLast = index == upcomingMeals.length - 1;
+                    
+                    return MealListItem(
+                      time: meal['time']?.toString() ?? '',
+                      clock: meal['clock']?.toString() ?? '',
+                      name: meal['name']?.toString() ?? 'Unknown',
+                      isDone: meal['isDone'] as bool? ?? false,
+                      isLast: isLast,
+                      onToggle: () => onToggleMealDone(index),
+                    );
+                  }).toList(),
+                ),
         ],
       ),
     );
