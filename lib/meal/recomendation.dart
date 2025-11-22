@@ -16,10 +16,24 @@ const Color kGreyText = Color(0xFF494949);
 
 // Inilah layar utama untuk fitur Rekomendasi Makanan
 class RecommendationScreen extends StatefulWidget {
-  const RecommendationScreen({super.key});
+  final String? initialFilter;
+  
+  const RecommendationScreen({super.key, this.initialFilter});
 
   @override
   State<RecommendationScreen> createState() => _RecommendationScreenState();
+}
+
+// Wrapper with initial filter support
+class RecommendationScreenWithFilter extends StatelessWidget {
+  final String initialFilter;
+  
+  const RecommendationScreenWithFilter({super.key, required this.initialFilter});
+  
+  @override
+  Widget build(BuildContext context) {
+    return RecommendationScreen(initialFilter: initialFilter);
+  }
 }
 
 class _RecommendationScreenState extends State<RecommendationScreen> {
@@ -44,6 +58,10 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
     super.initState();
     // Default to tomorrow for meal prep
     _selectedDate = DateTime.now().add(const Duration(days: 1));
+    // Apply initial filter if provided
+    if (widget.initialFilter != null && widget.initialFilter!.isNotEmpty) {
+      _selectedFilters = {widget.initialFilter!};
+    }
     _loadRecommendations();
   }
 

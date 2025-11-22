@@ -4,6 +4,7 @@ import 'package:nutrilink/services/order_service.dart';
 import 'package:nutrilink/services/schedule_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nutrilink/homePage.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -483,6 +484,17 @@ class _CartPageState extends State<CartPage> {
         ),
       );
       
+      // Refresh HomePage recommendations after successful checkout
+      try {
+        final state = HomePage.homeContentKey.currentState;
+        if (state != null) {
+          (state as dynamic).refreshRecommendations();
+          debugPrint('✅ Triggered HomePage refresh after checkout');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not refresh HomePage: $e');
+      }
+      
       // Refresh the page and navigate back
       if (!mounted) return;
       setState(() {});
@@ -551,6 +563,21 @@ class CartItem {
 // Cart manager for state management
 class CartManager {
   static final Map<String, Map<String, CartItem>> _cartItems = {};
+  static final List<VoidCallback> _listeners = [];
+
+  static void addListener(VoidCallback listener) {
+    _listeners.add(listener);
+  }
+
+  static void removeListener(VoidCallback listener) {
+    _listeners.remove(listener);
+  }
+
+  static void _notifyListeners() {
+    for (final listener in _listeners) {
+      listener();
+    }
+  }
 
   static Map<String, Map<String, CartItem>> getCartItems() => _cartItems;
 
@@ -636,12 +663,14 @@ class CartManager {
     // Add item to cart
     _cartItems[dateKey] ??= {};
     _cartItems[dateKey]![mealType] = item;
+    _notifyListeners();
     return true;
   }
 
   static void replaceItem(String dateKey, String mealType, CartItem item) {
     _cartItems[dateKey] ??= {};
     _cartItems[dateKey]![mealType] = item;
+    _notifyListeners();
   }
 
   static void removeItem(String dateKey, String mealType) {
@@ -649,6 +678,7 @@ class CartManager {
     if (_cartItems[dateKey]?.isEmpty == true) {
       _cartItems.remove(dateKey);
     }
+    _notifyListeners();
   }
 
   static num getTotalPrice() {
@@ -671,5 +701,6 @@ class CartManager {
 
   static void clearCart() {
     _cartItems.clear();
+    _notifyListeners();
   }
 }

@@ -3,9 +3,11 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:nutrilink/meal/cart_page.dart';
+import 'package:nutrilink/homePage.dart';
 
-// Color constant to match app theme
-const Color kGreen = Color(0xFF75C778);
+// Color constants to match homepage
+const Color kGreen = Colors.green;
+const Color kGreenLight = Color(0xFF7BB662);
 
 void showFoodDetailPopup(
   BuildContext context,
@@ -189,187 +191,298 @@ class _FoodDetailContentState extends State<_FoodDetailContent> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Full-width image (no left/right padding), 1:1, top corners rounded only
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
-              child: AspectRatio(
-                aspectRatio: 1.0,
-                child: _resolvedImageUrl != null && _resolvedImageUrl!.isNotEmpty
-                    ? Image.network(
-                        _resolvedImageUrl!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        loadingBuilder: (context, child, progress) {
-                          if (progress == null) return child;
-                          return Container(
+      child: Column(
+        children: [
+          // Fixed image with back button overlay (not scrollable)
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+                child: AspectRatio(
+                  aspectRatio: 1.0,
+                  child: _resolvedImageUrl != null && _resolvedImageUrl!.isNotEmpty
+                      ? Image.network(
+                          _resolvedImageUrl!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return Container(
+                              color: Colors.grey[200],
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(kGreen),
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (c, e, st) => Container(
                             color: Colors.grey[200],
-                            child: const Center(child: CircularProgressIndicator()),
-                          );
-                        },
-                        errorBuilder: (c, e, st) => Container(
-                          color: Colors.grey[200],
-                          child: Center(child: Icon(Icons.broken_image, color: Colors.grey[400])),
+                            child: Center(child: Icon(Icons.broken_image, color: Colors.grey[400])),
+                          ),
+                        )
+                      : Image.network(
+                          'https://placehold.co/600x600?text=${Uri.encodeComponent(item['name']?.toString() ?? '')}',
+                          fit: BoxFit.cover,
+                          width: double.infinity,
                         ),
-                      )
-                    : Image.network(
-                        'https://placehold.co/600x600?text=${Uri.encodeComponent(item['name']?.toString() ?? '')}',
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                      ),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
+              // Back button overlay
+              Positioned(
+                top: 16,
+                left: 16,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          // Scrollable content below image
+          Expanded(
+            child: Stack(
+              children: [
+                SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    // Name and calories
+                    Text(
                       item['name']?.toString() ?? 'Nama tidak tersedia',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 20,
                       ),
-                      softWrap: true,
+                      textAlign: TextAlign.justify,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    calText.isNotEmpty ? calText : '—',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black54,
+                    const SizedBox(height: 12),
+                    
+                    // Tags with gradient green for all - tappable to filter
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: tags.map((tag) {
+                        return GestureDetector(
+                          onTap: () {
+                            // Navigate to recommendation page with this tag as filter
+                            Navigator.pop(context); // Close popup first
+                            // Navigate to HomePage with recommendation tab and pass filter
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => HomePage(
+                                  initialTabIndex: 1,
+                                  initialFilter: tag,
+                                ),
+                              ),
+                              (route) => false,
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [kGreenLight, kGreen],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              tag,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+
+                    // Kandungan Nutrisi heading with calories on the same row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Kandungan Nutrisi',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        Text(
+                          calText.isNotEmpty ? calText : '—',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                            color: kGreen,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _NutrientIconCard(
+                            icon: Icons.fitness_center,
+                            label: 'Protein',
+                            value: proteinDisplay,
+                          ),
+                          _NutrientIconCard(
+                            icon: Icons.rice_bowl,
+                            label: 'Karbo',
+                            value: carbsDisplay,
+                          ),
+                          _NutrientIconCard(
+                            icon: Icons.water_drop,
+                            label: 'Lemak',
+                            value: fatsDisplay,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Deskripsi
+                    Text(
+                      description,
+                      style: const TextStyle(color: Colors.black87, height: 1.4, fontSize: 14),
+                      textAlign: TextAlign.justify,
+                    ),
+                    // Bottom padding to prevent content hidden by fixed footer
+                    SizedBox(height: MediaQuery.of(context).padding.bottom + 120),
+                  ],
+                ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),
-                  // Tags (first tag green, others grey)
-                  Wrap(
-                    spacing: 6,
-                    children: List.generate(tags.length, (i) {
-                      final tag = tags[i];
-                      final Color color = i == 0 ? Colors.green : Colors.grey;
-                      return Chip(
-                        label: Text(
-                          tag,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        backgroundColor: color,
-                        side: BorderSide.none,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Kandungan Nutrisi
-                  const Text(
-                    'Kandungan Nutrisi',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _NutrisiCard(
-                        label: 'Protein',
-                        value: proteinDisplay,
-                        color: Colors.blueAccent,
-                      ),
-                      _NutrisiCard(
-                        label: 'Karbohidrat',
-                        value: carbsDisplay,
-                        color: const Color(0xFFFCBA03), // #FCBA03
-                      ),
-                      _NutrisiCard(
-                        label: 'Lemak',
-                        value: fatsDisplay,
-                        color: Colors.red,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Deskripsi
-                  Text(
-                    description,
-                    style: const TextStyle(color: Colors.black87, height: 1.4),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Harga + tombol keranjang
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
+            
+            // Fixed footer at bottom with price and cart button
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: EdgeInsets.fromLTRB(
+                  28,
+                  16,
+                  28,
+                  MediaQuery.of(context).padding.bottom + 16,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             priceText.isNotEmpty ? priceText : 'N/A',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 20,
-                              color: Color(0xFF75C778), // match recommendation card green
+                              color: kGreen,
                             ),
                           ),
                           const Text(
                             'Sudah termasuk ongkir',
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
                           ),
                         ],
                       ),
-                      ElevatedButton(
+                    ),
+                    const SizedBox(width: 20),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [kGreenLight, kGreen],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: kGreen.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.shopping_cart, color: Colors.white),
+                        iconSize: 24,
+                        padding: const EdgeInsets.all(14),
                         onPressed: () async {
-                          // Use the passed date and meal type, or fallback to calendar if not provided
                           if (widget.selectedDate != null && widget.mealType != null) {
-                            // Auto-detected meal type from recommendation page
                             await _addToCart(context, widget.selectedDate!, widget.mealType!, _item);
                           } else {
-                            // Fallback: show calendar picker (for other entry points)
                             _showCalendarPopup(context, _item);
                           }
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: const CircleBorder(),
-                          padding: const EdgeInsets.all(14),
-                        ),
-                        child: const Icon(Icons.shopping_cart, color: Colors.white),
                       ),
-                    ],
-                  ),
-                  SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
-                  if (_loading) const SizedBox(height: 8),
-                  if (_loading) const LinearProgressIndicator(),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
+            
+            if (_loading)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: LinearProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(kGreen),
+                  backgroundColor: kGreen.withValues(alpha: 0.2),
+                ),
+              ),
           ],
         ),
       ),
-    );
+    ],
+  ),
+);
   }
 }
 
-class _NutrisiCard extends StatelessWidget {
+class _NutrientIconCard extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
-  final Color color;
 
-  const _NutrisiCard({
+  const _NutrientIconCard({
+    required this.icon,
     required this.label,
     required this.value,
-    required this.color,
   });
 
   @override
@@ -377,26 +490,31 @@ class _NutrisiCard extends StatelessWidget {
     return Expanded(
       child: Container(
         margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(8),
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
         ),
         child: Column(
           children: [
+            Icon(icon, size: 24, color: kGreen),
+            const SizedBox(height: 4),
             Text(
               label,
               style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+                fontSize: 11,
+                color: Colors.black54,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               value,
               style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
             ),
           ],

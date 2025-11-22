@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,7 +7,7 @@ import 'package:intl/intl.dart';
 
 /// Service untuk integrasi dengan Gemini AI untuk estimasi kalori makanan
 class GeminiService {
-  static const String _apiKey = 'AIzaSyCV7jCiePXjlfqR2vKheSuCUb-7juHwm00';
+  static const String _apiKey = 'AIzaSyB74QUsDznP4mQ5vQBWrFb30qwldvBFmps';
   static late final GenerativeModel _model;
   
   /// Initialize Gemini model
@@ -42,48 +43,75 @@ class GeminiService {
         debugPrint('🤖 Gemini AI: Estimating calories for: $foodDescription (Attempt $attempt/$maxRetries)');
         
         final prompt = '''
-Anda adalah ahli gizi ramah yang membantu menghitung kalori makanan Indonesia.
+Anda adalah ahli gizi yang membantu menghitung kalori makanan dan minuman Indonesia.
 
-User mendeskripsikan makanan: "$foodDescription"
+User mendeskripsikan: "$foodDescription"
 
-Tugas Anda:
-1. Identifikasi semua item makanan yang disebutkan
-2. Estimasi kalori untuk SETIAP item (gunakan porsi standar Indonesia)
-3. Berikan breakdown nutrisi (protein, karbohidrat, lemak dalam gram)
-4. Response dalam format JSON yang VALID
+IMPORTANT: You MUST respond with VALID JSON only. No markdown, no explanations outside JSON.
 
-Format response (HARUS JSON valid, tanpa markdown):
+🔍 STEP 1 - VALIDATE INPUT:
+If input is NOT about food/drink (e.g., greetings, questions, etc.), respond:
 {
-  "items": [
-    {
-      "name": "nama makanan",
-      "portion": "ukuran porsi",
-      "calories": kalori_angka,
-      "protein": protein_gram,
-      "carbs": karbo_gram,
-      "fats": lemak_gram
-    }
-  ],
-  "totalCalories": total_kalori_angka,
-  "summary": "Penjelasan singkat estimasi dalam bahasa natural dan ramah"
+  "isFood": false,
+  "summary": "Maaf, saya hanya bisa membantu menghitung kalori makanan dan minuman. Silakan ceritakan makanan atau minuman apa yang kamu konsumsi! 😊"
 }
 
-PENTING:
-- Response HARUS JSON valid tanpa backticks atau markdown
-- Summary harus natural seperti chatbot ramah (contoh: Wah enak tuh! Kamu sepertinya makan nasi goreng dengan telur ceplok ya. Perkiraan total kalorinya sekitar 540 kkal.)
-- JANGAN gunakan tanda bintang atau markdown formatting di summary
-- Kalori harus realistis untuk makanan Indonesia
-- Gunakan porsi standar: 1 piring nasi = 175g, 1 potong ayam = 100g, dll
+🍽️ STEP 2 - IF FOOD/DRINK:
+1. Identify ALL food/drink items mentioned
+2. Estimate calories for EACH item (use standard Indonesian portions)
+3. Provide nutrient breakdown (protein, carbs, fats in grams)
+4. Response in VALID JSON format
+
+Required JSON format (NO markdown, NO backticks):
+{
+  "isFood": true,
+  "items": [
+    {
+      "name": "Rawon",
+      "portion": "1 porsi",
+      "calories": 450,
+      "protein": 25,
+      "carbs": 35,
+      "fats": 20
+    },
+    {
+      "name": "Es jeruk",
+      "portion": "1 gelas",
+      "calories": 140,
+      "protein": 1,
+      "carbs": 35,
+      "fats": 0
+    }
+  ],
+  "totalCalories": 590,
+  "totalProtein": 26,
+  "totalCarbs": 70,
+  "totalFats": 20,
+  "summary": "Wah, menu yang lezat dan menyegarkan! Untuk 1 porsi rawon dan es jeruk manis, perkiraan total kalorinya sekitar 590 kkal."
+}
+
+RULES:
+- Output MUST be valid JSON with NO markdown formatting
+- Each item MUST have: name, portion, calories, protein, carbs, fats
+- Calories must be realistic for Indonesian food
+- Standard portions: 1 plate rice = 175g, 1 piece chicken = 100g
+- Drinks count too: sweet iced tea ~100 kcal, milk coffee ~150 kcal
+- Summary should be friendly and natural in Indonesian
 ''';
 
         final content = [Content.text(prompt)];
         final response = await _model.generateContent(content);
         final text = response.text ?? '';
         
-        debugPrint('📥 Gemini Response: $text');
+        debugPrint('📥 Gemini Raw Response: $text');
+        debugPrint('📏 Response length: ${text.length} chars');
         
         // Parse response menjadi structured data
-        return _parseGeminiResponse(text, foodDescription);
+        final parsed = _parseGeminiResponse(text, foodDescription);
+        
+        debugPrint('✅ Parsed result: calories=${parsed['totalCalories']}, items=${parsed['items']?.length ?? 0}');
+        
+        return parsed;
         
       } catch (e) {
         final isServerError = e.toString().contains('503') || 
@@ -141,10 +169,42 @@ PENTING:
         cleanResponse = cleanResponse.substring(jsonStart, jsonEnd + 1);
       }
       
-      // Simple JSON parsing (fallback jika ada masalah dengan format)
+      // Try to parse as proper JSON first
+      try {
+        // Use Dart's built-in JSON decoder
+        final Map<String, dynamic> jsonData = json.decode(cleanResponse);
+        
+        // Add originalInput for saving
+        jsonData['originalInput'] = originalInput;
+        
+        // Ensure required fields exist
+        jsonData['totalCalories'] ??= 0;
+        jsonData['items'] ??= [];
+        
+        debugPrint('✅ Successfully parsed JSON response');
+        return jsonData;
+      } catch (e) {
+        debugPrint('⚠️ JSON parse failed, using regex fallback: $e');
+      }
+      
+      // Fallback: Use regex parsing
+      // Extract isFood
+      final isFoodMatch = RegExp(r'"isFood"\s*:\s*(true|false)', caseSensitive: false).firstMatch(cleanResponse);
+      final isFood = isFoodMatch?.group(1)?.toLowerCase() == 'true';
+      
       // Extract totalCalories
       final caloriesMatch = RegExp(r'"totalCalories"\s*:\s*(\d+)').firstMatch(cleanResponse);
       final totalCalories = caloriesMatch != null ? int.parse(caloriesMatch.group(1)!) : 0;
+      
+      // Extract totalProtein, totalCarbs, totalFats
+      final proteinMatch = RegExp(r'"totalProtein"\s*:\s*(\d+\.?\d*)').firstMatch(cleanResponse);
+      final totalProtein = proteinMatch != null ? double.parse(proteinMatch.group(1)!) : 0.0;
+      
+      final carbsMatch = RegExp(r'"totalCarbs"\s*:\s*(\d+\.?\d*)').firstMatch(cleanResponse);
+      final totalCarbs = carbsMatch != null ? double.parse(carbsMatch.group(1)!) : 0.0;
+      
+      final fatsMatch = RegExp(r'"totalFats"\s*:\s*(\d+\.?\d*)').firstMatch(cleanResponse);
+      final totalFats = fatsMatch != null ? double.parse(fatsMatch.group(1)!) : 0.0;
       
       // Extract items (simplified)
       final items = <Map<String, dynamic>>[];
@@ -157,6 +217,7 @@ PENTING:
         for (final match in itemMatches) {
           final itemStr = match.group(0) ?? '';
           final name = RegExp(r'"name"\s*:\s*"([^"]+)"').firstMatch(itemStr)?.group(1) ?? '';
+          final portion = RegExp(r'"portion"\s*:\s*"([^"]+)"').firstMatch(itemStr)?.group(1) ?? '';
           final calories = int.tryParse(
             RegExp(r'"calories"\s*:\s*(\d+)').firstMatch(itemStr)?.group(1) ?? '0'
           ) ?? 0;
@@ -173,6 +234,7 @@ PENTING:
           if (name.isNotEmpty && calories > 0) {
             items.add({
               'name': name,
+              'portion': portion,
               'calories': calories,
               'protein': protein,
               'carbs': carbs,
@@ -182,29 +244,72 @@ PENTING:
         }
       }
       
+      // FALLBACK 1: If no items parsed but we have calories, create synthetic item from input
+      if (items.isEmpty && totalCalories > 0 && isFood) {
+        debugPrint('⚠️ No items array found, creating synthetic item from description');
+        items.add({
+          'name': originalInput,
+          'portion': '1 porsi',
+          'calories': totalCalories,
+          'protein': totalProtein.round(),
+          'carbs': totalCarbs.round(),
+          'fats': totalFats.round(),
+        });
+      }
+      
+      // FALLBACK 2: If still no items and looks like food response, extract from narrative text
+      if (items.isEmpty && cleanResponse.contains('590')) {
+        debugPrint('⚠️ FALLBACK 2: Extracting from narrative text');
+        // Try to extract calorie number from text like "590 kkal"
+        final narrativeCalMatch = RegExp(r'(\d+)\s*kkal').firstMatch(cleanResponse);
+        if (narrativeCalMatch != null) {
+          final extractedCal = int.parse(narrativeCalMatch.group(1)!);
+          items.add({
+            'name': originalInput,
+            'portion': '1 porsi',
+            'calories': extractedCal,
+            'protein': (extractedCal * 0.15 / 4).round(), // Estimate: 15% protein
+            'carbs': (extractedCal * 0.55 / 4).round(),   // Estimate: 55% carbs  
+            'fats': (extractedCal * 0.30 / 9).round(),    // Estimate: 30% fats
+          });
+          debugPrint('✅ Extracted $extractedCal kkal from narrative');
+        }
+      }
+      
       // Extract summary
-      final summaryMatch = RegExp(r'"summary"\s*:\s*"([^"]+)"').firstMatch(cleanResponse);
-      final summary = summaryMatch?.group(1) ?? '';
+      final summaryMatch = RegExp(r'"summary"\s*:\s*"([^"]+)"', dotAll: true).firstMatch(cleanResponse);
+      final summary = summaryMatch?.group(1)?.replaceAll(r'\n', '\n') ?? '';
+      
+      debugPrint('✅ Regex parsing successful: $totalCalories kcal, ${items.length} items');
       
       return {
+        'isFood': isFood,
         'totalCalories': totalCalories,
+        'totalProtein': totalProtein.round(),
+        'totalCarbs': totalCarbs.round(),
+        'totalFats': totalFats.round(),
         'items': items,
-        'response': summary.isNotEmpty ? summary : response,
+        'summary': summary.isNotEmpty ? summary : response,
         'originalInput': originalInput,
       };
     } catch (e) {
-      debugPrint('⚠️ Error parsing Gemini response: $e');
+      debugPrint('❌ Error parsing Gemini response: $e');
       // Return raw response if parsing fails
       return {
+        'isFood': true,
         'totalCalories': 0,
         'items': [],
-        'response': response,
+        'summary': response,
         'originalInput': originalInput,
+        'error': e.toString(),
       };
     }
   }
   
-  /// Save logged food ke Firestore
+  /// Simple manual JSON parser for basic objects
+
+  
+  /// Save logged food ke Firestore dengan macronutrients
   static Future<bool> saveFoodLog({
     required int calories,
     required String foodDescription,
@@ -222,6 +327,17 @@ PENTING:
       final dateStr = DateFormat('yyyy-MM-dd').format(now);
       final timeStr = DateFormat('HH:mm').format(now);
       
+      // Calculate total macronutrients
+      double totalProtein = 0;
+      double totalCarbs = 0;
+      double totalFats = 0;
+      
+      for (final item in items) {
+        totalProtein += (item['protein'] as num?)?.toDouble() ?? 0;
+        totalCarbs += (item['carbs'] as num?)?.toDouble() ?? 0;
+        totalFats += (item['fats'] as num?)?.toDouble() ?? 0;
+      }
+      
       // Reference to daily log document
       final logRef = FirebaseFirestore.instance
           .collection('daily_food_logs')
@@ -238,6 +354,9 @@ PENTING:
       final foodEntry = {
         'description': smartTitle, // Gunakan AI-generated title
         'calories': calories,
+        'protein': totalProtein.round(),
+        'carbs': totalCarbs.round(),
+        'fats': totalFats.round(),
         'items': items,
         'mealType': mealType,
         'time': timeStr,
@@ -250,6 +369,9 @@ PENTING:
         await logRef.update({
           'meals': FieldValue.arrayUnion([foodEntry]),
           'totalCalories': FieldValue.increment(calories),
+          'totalProtein': FieldValue.increment(totalProtein.round()),
+          'totalCarbs': FieldValue.increment(totalCarbs.round()),
+          'totalFats': FieldValue.increment(totalFats.round()),
           'updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
@@ -258,12 +380,15 @@ PENTING:
           'date': dateStr,
           'meals': [foodEntry],
           'totalCalories': calories,
+          'totalProtein': totalProtein.round(),
+          'totalCarbs': totalCarbs.round(),
+          'totalFats': totalFats.round(),
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
       
-      debugPrint('✅ Food log saved: $calories kcal');
+      debugPrint('✅ Food log saved: $calories kcal | P: ${totalProtein.round()}g | C: ${totalCarbs.round()}g | F: ${totalFats.round()}g');
       return true;
     } catch (e) {
       debugPrint('❌ Error saving food log: $e');

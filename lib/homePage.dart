@@ -15,6 +15,7 @@ import 'package:nutrilink/services/schedule_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nutrilink/widgets/calorie_chatbot.dart';
 import 'package:nutrilink/utils/storage_helper.dart';
+import 'package:nutrilink/meal/food_detail_popup.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 
@@ -43,7 +44,14 @@ const Color kBlue = Color(0xFF42A5F5);
 // 🎯 KELAS UTAMA: HOMEPAGE (MENANGANI NAVIGASI)
 // ===============================================
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final int? initialTabIndex;
+  final String? initialFilter;
+  
+  const HomePage({super.key, this.initialTabIndex, this.initialFilter});
+
+  // Static key untuk akses state dari luar (menggunakan getter untuk menghindari library_private_types_in_public_api)
+  static final GlobalKey<_HomePageContentState> _homeContentKey = GlobalKey<_HomePageContentState>();
+  static GlobalKey get homeContentKey => _homeContentKey;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -51,7 +59,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   // Index awal disetel ke Home (Index 2) sesuai desain bottom bar
-  int _currentIndex = 2;
+  late int _currentIndex;
 
   // Daftar halaman yang akan ditampilkan sesuai urutan navbar
   late final List<Widget> _pages;
@@ -59,14 +67,16 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialTabIndex ?? 2; // Default to home
     _buildPages();
   }
 
   void _buildPages() {
     _pages = [
       SchedulePage(),
-      const RecommendationScreen(),
+      RecommendationScreen(initialFilter: widget.initialFilter),
       HomePageContent(
+        key: HomePage.homeContentKey,
         onNavigateToProfile: () => setState(() => _currentIndex = 4),
         onNavigateToReport: () => setState(() => _currentIndex = 3),
         onNavigateToMeal: () => setState(() => _currentIndex = 1),
@@ -135,6 +145,13 @@ class _HomePageContentState extends State<HomePageContent> {
     _loadAIFoodLogs(); // Load AI food logs
   }
 
+  // Public method untuk refresh recommendations dari luar (setelah checkout)
+  void refreshRecommendations() {
+    debugPrint('🔄 Refreshing recommendations after checkout...');
+    _loadTopRecommendedMeals();
+    _loadScheduledMealsForToday(); // Refresh jadwal juga
+  }
+
   // Load meals yang sudah dijadwalkan untuk hari ini dari SchedulePage
   Future<void> _loadScheduledMealsForToday() async {
     try {
@@ -192,7 +209,6 @@ class _HomePageContentState extends State<HomePageContent> {
       final birthDate = (profile['birthDate'] as Timestamp?)?.toDate();
       final activityLevel = profile['activityLevel'] as String? ?? 'lightly_active';
       final target = profile['target'] as String? ?? 'Mempertahankan berat badan';
-      final eatFrequency = profile['eatFrequency'] as int? ?? 3;
       
       // Calculate TDEE
       final age = birthDate != null
@@ -225,21 +241,65 @@ class _HomePageContentState extends State<HomePageContent> {
         target: target,
       );
       
-      // Get top 1 from each meal type based on eatFrequency
-      final topMeals = <Map<String, dynamic>>[];
+      // Get purchased/scheduled meals from Firestore schedule for tomorrow
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      final tomorrowKey = DateFormat('yyyy-MM-dd').format(tomorrow);
       
-      debugPrint('📊 Eat Frequency: $eatFrequency meals per day');
+      // Check Firestore schedule collection
+      final scheduleDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('schedule')
+          .doc(tomorrowKey)
+          .get();
       
-      // Sarapan always included
-      final breakfast = List<Map<String, dynamic>>.from(recommendations['sarapan'] ?? [])
-        ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
-      if (breakfast.isNotEmpty) {
-        debugPrint('🥞 Top Breakfast: ${breakfast.first['name']} (score: ${breakfast.first['personalScore']})');
-        topMeals.add(breakfast.first);
+      Set<String> scheduledMealTypes = {};
+      if (scheduleDoc.exists && scheduleDoc.data()?['meals'] != null) {
+        final meals = List<Map<String, dynamic>>.from(
+          (scheduleDoc.data()!['meals'] as List<dynamic>).map((m) => Map<String, dynamic>.from(m))
+        );
+        
+        for (var meal in meals) {
+          final mealType = meal['time'] as String? ?? '';
+          if (mealType.isNotEmpty) {
+            scheduledMealTypes.add(mealType);
+          }
+        }
       }
       
-      if (eatFrequency == 2) {
-        // Only add dinner for 2 meals per day
+      debugPrint('📅 Scheduled meals for tomorrow ($tomorrowKey): ${scheduledMealTypes.toList()}');
+      
+      // Get top 1 from each meal type - filter out already scheduled meals
+      final topMeals = <Map<String, dynamic>>[];
+      
+      debugPrint('📊 Loading meal recommendations (excluding scheduled meals)');
+      
+      // Sarapan - only if not scheduled
+      if (!scheduledMealTypes.contains('Sarapan')) {
+        final breakfast = List<Map<String, dynamic>>.from(recommendations['sarapan'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (breakfast.isNotEmpty) {
+          debugPrint('🥞 Top Breakfast: ${breakfast.first['name']} (score: ${breakfast.first['personalScore']})');
+          topMeals.add(breakfast.first);
+        }
+      } else {
+        debugPrint('🥞 Breakfast already scheduled, skipping recommendation');
+      }
+      
+      // Makan Siang - only if not scheduled
+      if (!scheduledMealTypes.contains('Makan Siang')) {
+        final lunch = List<Map<String, dynamic>>.from(recommendations['makanSiang'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (lunch.isNotEmpty) {
+          debugPrint('🍱 Top Lunch: ${lunch.first['name']} (score: ${lunch.first['personalScore']})');
+          topMeals.add(lunch.first);
+        }
+      } else {
+        debugPrint('🍱 Lunch already scheduled, skipping recommendation');
+      }
+      
+      // Makan Malam - only if not scheduled
+      if (!scheduledMealTypes.contains('Makan Malam')) {
         final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
           ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
         if (dinner.isNotEmpty) {
@@ -247,20 +307,7 @@ class _HomePageContentState extends State<HomePageContent> {
           topMeals.add(dinner.first);
         }
       } else {
-        // Add lunch and dinner for 3 meals per day
-        final lunch = List<Map<String, dynamic>>.from(recommendations['makanSiang'] ?? [])
-          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
-        if (lunch.isNotEmpty) {
-          debugPrint('🍱 Top Lunch: ${lunch.first['name']} (score: ${lunch.first['personalScore']})');
-          topMeals.add(lunch.first);
-        }
-        
-        final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
-          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
-        if (dinner.isNotEmpty) {
-          debugPrint('🍽️ Top Dinner: ${dinner.first['name']} (score: ${dinner.first['personalScore']})');
-          topMeals.add(dinner.first);
-        }
+        debugPrint('🍽️ Dinner already scheduled, skipping recommendation');
       }
       
       // Debug: Check structure of topMeals
@@ -1155,27 +1202,56 @@ class _HomePageContentState extends State<HomePageContent> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CalorieChatbot(
-                onFoodLogSaved: _loadAIFoodLogs, // BARU: Reload logs setelah save
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [kGreenLight, kGreen],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(28),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CalorieChatbot(
+                    onFoodLogSaved: _loadAIFoodLogs,
+                  ),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.chat_bubble_outline, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text(
+                    'NutriAI',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
-          );
-        },
-        backgroundColor: kGreen,
-        icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
-        label: const Text(
-          'AI Kalori',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
           ),
         ),
-        elevation: 4,
       ),
     );
   }
@@ -1690,7 +1766,7 @@ class MealCardsSection extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Rekomendasi Menu',
+                  'Rekomendasi Menu Besok',
                   style: TextStyle(
                     fontFamily: 'Funnel Display',
                     fontSize: 16,
@@ -1711,7 +1787,7 @@ class MealCardsSection extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
-              'Tidak ada rekomendasi menu yang tersedia saat ini (periksa data Firestore/Storage).',
+              'Tidak ada rekomendasi menu yang tersedia saat ini.',
               style: TextStyle(
                 fontFamily: 'Funnel Display',
                 color: kLightGreyText,
@@ -1777,105 +1853,116 @@ class _MealCard extends StatelessWidget {
 
           const SizedBox(height: 6),
 
-          // Card Wrapper
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.2),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // IMAGE + TAG
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                  child: Stack(
-                    children: [
-                      _buildMealImage(imageUrl),
+          // Card Wrapper with InkWell for tap
+          InkWell(
+            onTap: () {
+              showFoodDetailPopup(
+                context,
+                meal,
+                selectedDate: DateTime.now().add(const Duration(days: 1)), // Tomorrow
+                mealType: mealType,
+              );
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withValues(alpha: 0.2),
+                    spreadRadius: 1,
+                    blurRadius: 5,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // IMAGE + TAG
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                    child: Stack(
+                      children: [
+                        _buildMealImage(imageUrl),
 
-                      // TAG
-                      if (tag1.isNotEmpty)
-                        Positioned(
-                          top: 8,
-                          left: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [kGreenLight, kGreen],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                        // TAG
+                        if (tag1.isNotEmpty)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [kGreenLight, kGreen],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              tag1,
-                              style: const TextStyle(
-                                fontFamily: 'Funnel Display',
-                                fontSize: 10,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                              child: Text(
+                                tag1,
+                                style: const TextStyle(
+                                  fontFamily: 'Funnel Display',
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                // TEXT CONTENT
-                Padding(
-                  padding: const EdgeInsets.all(7.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        mealName,
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                          color: Colors.black87,
-                          height: 1.15,
+                  // TEXT CONTENT
+                  Padding(
+                    padding: const EdgeInsets.all(7.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          mealName,
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: Colors.black87,
+                            height: 1.15,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
 
-                      const SizedBox(height: 2),
+                        const SizedBox(height: 2),
 
-                      Text(
-                        '$calories kcal',
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontSize: 9,
-                          color: kLightGreyText,
+                        Text(
+                          '$calories kcal',
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 9,
+                            color: kLightGreyText,
+                          ),
                         ),
-                      ),
 
-                      const SizedBox(height: 1),
+                        const SizedBox(height: 1),
 
-                      Text(
-                        'Rp ${_formatRupiah(price)}',
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                          color: kGreen,
+                        Text(
+                          'Rp ${_formatRupiah(price)}',
+                          style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: kGreen,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -2192,7 +2279,7 @@ class AIFoodLogsSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: kGreen.withValues(alpha: 0.1),
+                  color: kGreen,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -2201,7 +2288,7 @@ class AIFoodLogsSection extends StatelessWidget {
                     fontFamily: 'Funnel Display',
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: kGreen,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -2240,7 +2327,7 @@ class AIFoodLogsSection extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Gunakan AI Kalori untuk mencatat makanan di luar menu Healthy Go',
+                    'Gunakan NutriAI untuk mencatat makanan di luar menu HealthyGo',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'Funnel Display',
@@ -2329,7 +2416,7 @@ class AIFoodLogItem extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: kGreen,
+                  color: kGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -2338,7 +2425,7 @@ class AIFoodLogItem extends StatelessWidget {
                     fontFamily: 'Funnel Display',
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: kGreen,
                   ),
                 ),
               ),

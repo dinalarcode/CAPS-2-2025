@@ -45,14 +45,12 @@ class CustomNavbar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: _navItems.map((item) {
-              return Expanded(
-                child: InkWell(
-                  onTap: () => onTap(item['index'] as int),
-                  child: _buildNavItem(
-                    icon: item['icon'] as IconData,
-                    label: item['label'] as String,
-                    index: item['index'] as int,
-                  ),
+              return InkWell(
+                onTap: () => onTap(item['index'] as int),
+                child: _buildNavItem(
+                  icon: item['icon'] as IconData,
+                  label: item['label'] as String,
+                  index: item['index'] as int,
                 ),
               );
             }).toList(),
