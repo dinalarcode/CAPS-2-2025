@@ -1,4 +1,4 @@
-// lib/homePage.dart
+﻿// lib/homePage.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,12 +10,17 @@ import 'package:nutrilink/navbar.dart';
 import 'package:nutrilink/profilePage.dart';
 import 'package:nutrilink/reportPage.dart';
 import 'package:nutrilink/meal/recomendation.dart';
+import 'package:nutrilink/meal/meal_rec.dart';
+import 'package:nutrilink/services/schedule_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nutrilink/widgets/calorie_chatbot.dart';
+import 'package:nutrilink/utils/storage_helper.dart';
+import 'package:intl/intl.dart';
 import 'dart:convert';
 
 // ====== Palet warna konsisten dengan aplikasi ======
-// const Color kGreen = Color(0xFF5F9C3F);
-const Color kGreen = Color.fromRGBO(117, 199, 120, 1);
+// Warna hijau segar seperti filter popup
+const Color kGreen = Colors.green;
 const Color kGreenLight = Color(0xFF7BB662);
 const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
@@ -59,7 +64,7 @@ class _HomePageState extends State<HomePage> {
 
   void _buildPages() {
     _pages = [
-      const SchedulePage(),
+      SchedulePage(),
       const RecommendationScreen(),
       HomePageContent(
         onNavigateToProfile: () => setState(() => _currentIndex = 4),
@@ -115,6 +120,8 @@ class _HomePageContentState extends State<HomePageContent> {
   bool isLoading = true;
   List<Map<String, dynamic>> meals = [];
   List<Map<String, dynamic>> upcomingMeals = [];
+  List<Map<String, dynamic>> aiFoodLogs = []; // BARU: Log makanan dari AI
+  int todayAICalories = 0; // BARU: Total kalori dari AI hari ini
   String? cachedDate;
   String? currentUserId;
 
@@ -123,43 +130,182 @@ class _HomePageContentState extends State<HomePageContent> {
     super.initState();
     _loadUserData();
     _getCurrentLocation();
+    _loadScheduledMealsForToday(); // Load dari SchedulePage
+    _loadTopRecommendedMeals(); // Load top recommended meals
+    _loadAIFoodLogs(); // Load AI food logs
   }
 
-  Future<void> _loadMeals() async {
+  // Load meals yang sudah dijadwalkan untuk hari ini dari SchedulePage
+  Future<void> _loadScheduledMealsForToday() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final today = DateTime.now().toString().split(' ')[0]; // Format: YYYY-MM-DD
-      final userId = currentUserId ?? '';
+      final today = DateTime.now();
+      debugPrint('🔍 [HomePage] Loading scheduled meals for today: ${DateFormat('yyyy-MM-dd').format(today)}');
       
-      // Check if we have cached data for today AND this user
-      final cachedMealsJson = prefs.getString('cached_meals_${userId}_$today');
-      final cachedUpcomingJson = prefs.getString('cached_upcoming_${userId}_$today');
+      final scheduledMeals = await ScheduleService.getScheduleByDate(today);
       
-      if (cachedMealsJson != null && cachedUpcomingJson != null) {
-        debugPrint('✅ Loading meals from cache for $today');
+      debugPrint('📦 [HomePage] Received ${scheduledMeals.length} scheduled meals from ScheduleService');
+      
+      // Debug: Print each meal's details including clock
+      for (var i = 0; i < scheduledMeals.length; i++) {
+        final meal = scheduledMeals[i];
+        debugPrint('   Meal ${i+1}: ${meal['time']} at ${meal['clock']} - ${meal['name']} (isDone: ${meal['isDone']})');
+      }
+      
+      if (mounted) {
+        setState(() {
+          upcomingMeals = scheduledMeals;
+        });
+      }
+      
+      debugPrint('✅ [HomePage] Loaded ${scheduledMeals.length} scheduled meals for today');
+    } catch (e) {
+      debugPrint('❌ [HomePage] Error loading scheduled meals: $e');
+      if (mounted) {
+        setState(() {
+          upcomingMeals = [];
+        });
+      }
+    }
+  }
+  
+  // Load top 3 recommended meals (1 per meal type)
+  Future<void> _loadTopRecommendedMeals() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      
+      // Get user profile for recommendations
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      
+      if (!userDoc.exists) return;
+      
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final profile = userData['profile'] as Map<String, dynamic>? ?? {};
+      
+      final allergies = List<String>.from(profile['allergies'] as List? ?? []);
+      final heightCm = (profile['heightCm'] as num?)?.toDouble() ?? 170;
+      final weightKg = (profile['weightKg'] as num?)?.toDouble() ?? 70;
+      final sex = profile['sex'] as String? ?? 'Laki-laki';
+      final birthDate = (profile['birthDate'] as Timestamp?)?.toDate();
+      final activityLevel = profile['activityLevel'] as String? ?? 'lightly_active';
+      final target = profile['target'] as String? ?? 'Mempertahankan berat badan';
+      final eatFrequency = profile['eatFrequency'] as int? ?? 3;
+      
+      // Calculate TDEE
+      final age = birthDate != null
+          ? DateTime.now().difference(birthDate).inDays ~/ 365
+          : 25;
+      
+      double bmr;
+      if (sex == 'Laki-laki' || sex == 'Male') {
+        bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
+      } else {
+        bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) - 161;
+      }
+      
+      const activityMultipliers = {
+        'sedentary': 1.2,
+        'lightly_active': 1.375,
+        'moderately_active': 1.55,
+        'very_active': 1.725,
+        'extremely_active': 1.9,
+      };
+      
+      final multiplier = activityMultipliers[activityLevel] ?? 1.375;
+      final tdee = bmr * multiplier;
+      
+      // Get recommendations
+      final recommendations = await MealRecommendationEngine.getRecommendations(
+        userId: user.uid,
+        tdee: tdee,
+        allergies: allergies,
+        target: target,
+      );
+      
+      // Get top 1 from each meal type based on eatFrequency
+      final topMeals = <Map<String, dynamic>>[];
+      
+      debugPrint('📊 Eat Frequency: $eatFrequency meals per day');
+      
+      // Sarapan always included
+      final breakfast = List<Map<String, dynamic>>.from(recommendations['sarapan'] ?? [])
+        ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+      if (breakfast.isNotEmpty) {
+        debugPrint('🥞 Top Breakfast: ${breakfast.first['name']} (score: ${breakfast.first['personalScore']})');
+        topMeals.add(breakfast.first);
+      }
+      
+      if (eatFrequency == 2) {
+        // Only add dinner for 2 meals per day
+        final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (dinner.isNotEmpty) {
+          debugPrint('🍽️ Top Dinner: ${dinner.first['name']} (score: ${dinner.first['personalScore']})');
+          topMeals.add(dinner.first);
+        }
+      } else {
+        // Add lunch and dinner for 3 meals per day
+        final lunch = List<Map<String, dynamic>>.from(recommendations['makanSiang'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (lunch.isNotEmpty) {
+          debugPrint('🍱 Top Lunch: ${lunch.first['name']} (score: ${lunch.first['personalScore']})');
+          topMeals.add(lunch.first);
+        }
         
-        final List<dynamic> cachedMealsList = json.decode(cachedMealsJson);
-        final List<dynamic> cachedUpcomingList = json.decode(cachedUpcomingJson);
-        
-        // Debug: Check if calories field exists in cached data
-        if (cachedUpcomingList.isNotEmpty) {
-          final firstMeal = cachedUpcomingList[0] as Map<String, dynamic>;
-          if (!firstMeal.containsKey('calories')) {
-            debugPrint('⚠️ Old cache format detected (missing calories field), clearing cache...');
-            await prefs.remove('cached_meals_${userId}_$today');
-            await prefs.remove('cached_upcoming_${userId}_$today');
-            // Don't return, let it reload from Firestore
-          } else {
-            debugPrint('   Sample meal from cache: ${firstMeal['name']} - ${firstMeal['calories']} kcal');
-            if (mounted) {
-              setState(() {
-                meals = cachedMealsList.cast<Map<String, dynamic>>();
-                upcomingMeals = cachedUpcomingList.cast<Map<String, dynamic>>();
-                cachedDate = today;
-              });
-            }
-            return;
-          }
+        final dinner = List<Map<String, dynamic>>.from(recommendations['makanMalam'] ?? [])
+          ..sort((a, b) => ((b['personalScore'] ?? 0) as num).compareTo((a['personalScore'] ?? 0) as num));
+        if (dinner.isNotEmpty) {
+          debugPrint('🍽️ Top Dinner: ${dinner.first['name']} (score: ${dinner.first['personalScore']})');
+          topMeals.add(dinner.first);
+        }
+      }
+      
+      // Debug: Check structure of topMeals
+      debugPrint('📊 Top Meals Structure:');
+      for (var meal in topMeals) {
+        debugPrint('  - ${meal['name']}: imageUrl=${meal['imageUrl']}, type=${meal['type']}, calories=${meal['calories']}');
+      }
+      
+      if (mounted) {
+        setState(() {
+          meals = topMeals;
+        });
+      }
+      
+      debugPrint('✅ Loaded ${topMeals.length} top recommended meals');
+    } catch (e) {
+      debugPrint('❌ Error loading recommended meals: $e');
+      setState(() {
+        meals = [];
+      });
+    }
+  }
+  
+  // DEPRECATED: Old _loadMeals function removed
+  Future<void> _loadMeals() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toString().split(' ')[0];
+    final userId = currentUserId ?? '';
+    
+    final cachedMealsJson = prefs.getString('cached_meals_${userId}_$today');
+    final cachedUpcomingJson = prefs.getString('cached_upcoming_${userId}_$today');
+    
+    if (cachedMealsJson != null && cachedUpcomingJson != null) {
+      debugPrint('✅ Loading meals from cache for $today');
+      
+      final List<dynamic> cachedMealsList = json.decode(cachedMealsJson);
+      final List<dynamic> cachedUpcomingList = json.decode(cachedUpcomingJson);
+      
+      if (cachedUpcomingList.isNotEmpty) {
+        final firstMeal = cachedUpcomingList[0] as Map<String, dynamic>;
+        if (!firstMeal.containsKey('calories')) {
+          debugPrint('⚠️ Old cache format detected, clearing cache...');
+          await prefs.remove('cached_meals_${userId}_$today');
+          await prefs.remove('cached_upcoming_${userId}_$today');
         } else {
           if (mounted) {
             setState(() {
@@ -170,195 +316,187 @@ class _HomePageContentState extends State<HomePageContent> {
           }
           return;
         }
-      }
-      
-      debugPrint('📥 No cache found for $today, loading from Firestore...');
-      
-      final profile = userData?['profile'] as Map<String, dynamic>?;
-      final eatFrequency = profile?['eatFrequency'] ?? 3;
-
-      debugPrint('Loading meals with eatFrequency: $eatFrequency');
-
-      // Query ALL menus collection
-      final snapshot = await FirebaseFirestore.instance
-          .collection('menus')
-          .get();
-
-      debugPrint('Total menus fetched: ${snapshot.docs.length}');
-
-      // Get all meals and generate proper download URLs from Storage
-      final allMeals = await Future.wait(snapshot.docs.map((doc) async {
-        final data = doc.data();
-        
-        try {
-          // Generate proper download URL from Storage path
-          String imageUrl = '';
-          final imageField = data['image'];
-          
-          // Image field di Firestore adalah ARRAY - ambil elemen pertama
-          String? imagePath;
-          if (imageField is List && imageField.isNotEmpty) {
-            imagePath = imageField[0]?.toString();
-          } else if (imageField is String) {
-            imagePath = imageField;
-          }
-          
-          if (imagePath != null && imagePath.isNotEmpty) {
-            try {
-              // Image field berisi nama file (1001.png)
-              // Tambahkan prefix "menus/" untuk path Storage
-              String storagePath = imagePath.contains('/') 
-                  ? imagePath  // Sudah ada path lengkap
-                  : 'menus/$imagePath';  // Tambahkan prefix menus/
-              
-              // Get proper download URL from Firebase Storage
-              final ref = FirebaseStorage.instance.ref(storagePath);
-              imageUrl = await ref.getDownloadURL();
-            } catch (e) {
-              debugPrint('❌ Failed to get download URL for ${data['name']}: $e');
-            }
-          }
-
-          return {
-            'id': doc.id,
-            'name': data['name']?.toString() ?? '',
-            'type': data['type']?.toString() ?? '',
-            'tag1': (data['tags'] is List && (data['tags'] as List).isNotEmpty) 
-                ? (data['tags'] as List)[0].toString() 
-                : '',
-            'tag2': (data['tags'] is List && (data['tags'] as List).length > 1) 
-                ? (data['tags'] as List)[1].toString() 
-                : '',
-            'tag3': (data['tags'] is List && (data['tags'] as List).length > 2) 
-                ? (data['tags'] as List)[2].toString() 
-                : '',
-            'calories': data['calories'] as int? ?? 0,
-            'price': data['price'] as int? ?? 0,
-            'image': imageUrl,
-            'description': data['description']?.toString() ?? '',
-          };
-        } catch (e, stackTrace) {
-          debugPrint('❌ Error processing menu ${doc.id}: $e');
-          debugPrint('Stack trace: $stackTrace');
-          debugPrint('Data: $data');
-          rethrow;
-        }
-      }));
-
-      // Filter only meals with valid download URLs
-      final mealsWithImages = allMeals.where((meal) {
-        return meal['image'] != null && (meal['image'] as String).isNotEmpty;
-      }).toList();
-
-      debugPrint('Meals with valid download URLs: ${mealsWithImages.length}');
-
-      // Separate meals by type (only with images)
-      final sarapan = mealsWithImages.where((m) => m['type'] == 'Sarapan').toList();
-      final makanSiang = mealsWithImages.where((m) => m['type'] == 'Makan Siang').toList();
-      final makanMalam = mealsWithImages.where((m) => m['type'] == 'Makan Malam').toList();
-
-      debugPrint('Sarapan meals: ${sarapan.length}');
-      debugPrint('Makan Siang meals: ${makanSiang.length}');
-      debugPrint('Makan Malam meals: ${makanMalam.length}');
-
-      // Shuffle for random selection
-      sarapan.shuffle();
-      makanSiang.shuffle();
-      makanMalam.shuffle();
-
-      // Get random meals for Rekomendasi Menu based on eatFrequency
-      List<Map<String, dynamic>> selectedMeals = [];
-      List<Map<String, dynamic>> upcomingMealsList = [];
-      
-      debugPrint('EatFrequency: $eatFrequency');
-      
-      if (eatFrequency == 2) {
-        // 2x makan: Sarapan dan Makan Malam saja
-        if (sarapan.length >= 2) {
-          selectedMeals.add(sarapan[0]);
-          upcomingMealsList.add(sarapan[1]); // Menu berbeda
-        } else if (sarapan.isNotEmpty) {
-          selectedMeals.add(sarapan[0]);
-        }
-        
-        if (makanMalam.length >= 2) {
-          selectedMeals.add(makanMalam[0]);
-          upcomingMealsList.add(makanMalam[1]); // Menu berbeda
-        } else if (makanMalam.isNotEmpty) {
-          selectedMeals.add(makanMalam[0]);
-        }
       } else {
-        // 3x makan: Sarapan, Makan Siang, dan Makan Malam
-        if (sarapan.length >= 2) {
-          selectedMeals.add(sarapan[0]);
-          upcomingMealsList.add(sarapan[1]); // Menu berbeda
-        } else if (sarapan.isNotEmpty) {
-          selectedMeals.add(sarapan[0]);
+        if (mounted) {
+          setState(() {
+            meals = cachedMealsList.cast<Map<String, dynamic>>();
+            upcomingMeals = cachedUpcomingList.cast<Map<String, dynamic>>();
+            cachedDate = today;
+          });
         }
-        
-        if (makanSiang.length >= 2) {
-          selectedMeals.add(makanSiang[0]);
-          upcomingMealsList.add(makanSiang[1]); // Menu berbeda
-        } else if (makanSiang.isNotEmpty) {
-          selectedMeals.add(makanSiang[0]);
-        }
-        
-        if (makanMalam.length >= 2) {
-          selectedMeals.add(makanMalam[0]);
-          upcomingMealsList.add(makanMalam[1]); // Menu berbeda
-        } else if (makanMalam.isNotEmpty) {
-          selectedMeals.add(makanMalam[0]);
-        }
+        return;
       }
+    }
+    
+    debugPrint('📥 No cache found for $today, loading from Firestore...');
+    
+    final profile = userData?['profile'] as Map<String, dynamic>?;
+    final eatFrequency = profile?['eatFrequency'] ?? 3;
 
-      debugPrint('Selected meals count: ${selectedMeals.length}');
-      debugPrint('Upcoming meals count: ${upcomingMealsList.length}');
+    final snapshot = await FirebaseFirestore.instance
+        .collection('menus')
+        .get();
 
-      // Hitung jam makan berdasarkan sleep schedule
-      final sleepSchedule = profile?['sleepSchedule'] as Map<String, dynamic>?;
-      final wakeTime = sleepSchedule?['wakeTime'] as String? ?? '06:00';
-      final sleepTime = sleepSchedule?['sleepTime'] as String? ?? '22:00';
+    debugPrint('Total menus fetched: ${snapshot.docs.length}');
+
+    final allMeals = await Future.wait(snapshot.docs.map((doc) async {
+      final data = doc.data();
       
-      final upcomingWithTime = upcomingMealsList.map((meal) {
-        return {
-          'time': meal['type'],
-          'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
-          'name': meal['name'],
-          'calories': meal['calories'], // Tambahkan kalori
-          'isDone': false,
-        };
-      }).toList();
-      
-      // Save to cache for today with user ID
-      await prefs.setString('cached_meals_${userId}_$today', json.encode(selectedMeals));
-      await prefs.setString('cached_upcoming_${userId}_$today', json.encode(upcomingWithTime));
-      
-      // Clean up old cache (keep only today's cache for current user)
-      final keys = prefs.getKeys();
-      for (final key in keys) {
-        if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_'))) {
-          // Remove if different user or different date
-          if (!key.contains('_${userId}_') || !key.endsWith(today)) {
-            await prefs.remove(key);
-            debugPrint('🗑️ Removed old cache: $key');
+      try {
+        String imageUrl = '';
+        final imageField = data['image'];
+        
+        String? imagePath;
+        if (imageField is List && imageField.isNotEmpty) {
+          imagePath = imageField[0]?.toString();
+        } else if (imageField is String) {
+          imagePath = imageField;
+        }
+        
+        if (imagePath != null && imagePath.isNotEmpty) {
+          try {
+            String storagePath = imagePath.contains('/') 
+                ? imagePath
+                : 'menus/$imagePath';
+            
+            final ref = FirebaseStorage.instance.ref(storagePath);
+            imageUrl = await ref.getDownloadURL();
+            debugPrint('✅ Got image URL for ${data['name']}: ${imageUrl.substring(0, 50)}...');
+          } catch (e) {
+            debugPrint('❌ Failed to get download URL for ${data['name']}: $e');
           }
         }
+
+        return {
+          'id': doc.id,
+          'name': data['name']?.toString() ?? '',
+          'type': data['type']?.toString() ?? '',
+          'tag1': (data['tags'] is List && (data['tags'] as List).isNotEmpty) 
+              ? (data['tags'] as List)[0].toString() 
+              : '',
+          'tag2': (data['tags'] is List && (data['tags'] as List).length > 1) 
+              ? (data['tags'] as List)[1].toString() 
+              : '',
+          'tag3': (data['tags'] is List && (data['tags'] as List).length > 2) 
+              ? (data['tags'] as List)[2].toString() 
+              : '',
+          'calories': data['calories'] as int? ?? 0,
+          'price': data['price'] as int? ?? 0,
+          'image': imageUrl, // ✅ Simpan URL lengkap
+          'description': data['description']?.toString() ?? '',
+        };
+      } catch (e, stackTrace) {
+        debugPrint('❌ Error processing menu ${doc.id}: $e');
+        debugPrint('Stack trace: $stackTrace');
+        rethrow;
+      }
+    }));
+
+    final mealsWithImages = allMeals.where((meal) {
+      return meal['image'] != null && (meal['image'] as String).isNotEmpty;
+    }).toList();
+
+    debugPrint('Meals with valid download URLs: ${mealsWithImages.length}');
+
+    final sarapan = mealsWithImages.where((m) => m['type'] == 'Sarapan').toList();
+    final makanSiang = mealsWithImages.where((m) => m['type'] == 'Makan Siang').toList();
+    final makanMalam = mealsWithImages.where((m) => m['type'] == 'Makan Malam').toList();
+
+    sarapan.shuffle();
+    makanSiang.shuffle();
+    makanMalam.shuffle();
+
+    List<Map<String, dynamic>> selectedMeals = [];
+    List<Map<String, dynamic>> upcomingMealsList = [];
+    
+    if (eatFrequency == 2) {
+      if (sarapan.length >= 2) {
+        selectedMeals.add(sarapan[0]);
+        upcomingMealsList.add(sarapan[1]);
+      } else if (sarapan.isNotEmpty) {
+        selectedMeals.add(sarapan[0]);
       }
       
-      debugPrint('💾 Saved meals to cache for $today');
-      
-      // Check if widget is still mounted before calling setState
-      if (mounted) {
-        setState(() {
-          meals = selectedMeals;
-          upcomingMeals = upcomingWithTime;
-          cachedDate = today;
-        });
+      if (makanMalam.length >= 2) {
+        selectedMeals.add(makanMalam[0]);
+        upcomingMealsList.add(makanMalam[1]);
+      } else if (makanMalam.isNotEmpty) {
+        selectedMeals.add(makanMalam[0]);
       }
-    } catch (e) {
-      debugPrint('Error loading meals: $e');
+    } else {
+      if (sarapan.length >= 2) {
+        selectedMeals.add(sarapan[0]);
+        upcomingMealsList.add(sarapan[1]);
+      } else if (sarapan.isNotEmpty) {
+        selectedMeals.add(sarapan[0]);
+      }
+      
+      if (makanSiang.length >= 2) {
+        selectedMeals.add(makanSiang[0]);
+        upcomingMealsList.add(makanSiang[1]);
+      } else if (makanSiang.isNotEmpty) {
+        selectedMeals.add(makanSiang[0]);
+      }
+      
+      if (makanMalam.length >= 2) {
+        selectedMeals.add(makanMalam[0]);
+        upcomingMealsList.add(makanMalam[1]);
+      } else if (makanMalam.isNotEmpty) {
+        selectedMeals.add(makanMalam[0]);
+      }
     }
+
+    final sleepSchedule = profile?['sleepSchedule'] as Map<String, dynamic>?;
+    final wakeTime = sleepSchedule?['wakeTime'] as String? ?? '06:00';
+    final sleepTime = sleepSchedule?['sleepTime'] as String? ?? '22:00';
+    
+    // ✅ PENTING: Simpan URL gambar ke upcomingMeals
+    final upcomingWithTime = upcomingMealsList.map((meal) {
+      return {
+        'time': meal['type'],
+        'clock': _calculateMealTime(meal['type'], wakeTime, sleepTime),
+        'name': meal['name'],
+        'calories': meal['calories'],
+        'image': meal['image'], // ✅ Tambahkan field image
+        'isDone': false,
+      };
+    }).toList();
+    
+    // Debug: Cek apakah image URL tersimpan
+    debugPrint('🔍 Upcoming meals to be cached:');
+    for (var meal in upcomingWithTime) {
+      debugPrint('  - ${meal['name']}: image = ${meal['image']}');
+    }
+    
+    // ✅ BARU: Simpan jadwal ke Firestore schedule collection
+    await _saveScheduleToFirestore(selectedMeals, upcomingWithTime, today);
+    
+    await prefs.setString('cached_meals_${userId}_$today', json.encode(selectedMeals));
+    await prefs.setString('cached_upcoming_${userId}_$today', json.encode(upcomingWithTime));
+    
+    final keys = prefs.getKeys();
+    for (final key in keys) {
+      if ((key.startsWith('cached_meals_') || key.startsWith('cached_upcoming_'))) {
+        if (!key.contains('_${userId}_') || !key.endsWith(today)) {
+          await prefs.remove(key);
+          debugPrint('🗑️ Removed old cache: $key');
+        }
+      }
+    }
+    
+    debugPrint('💾 Saved meals to cache for $today');
+    
+    if (mounted) {
+      setState(() {
+        meals = selectedMeals;
+        upcomingMeals = upcomingWithTime;
+        cachedDate = today;
+      });
+    }
+  } catch (e) {
+    debugPrint('Error loading meals: $e');
   }
+}
 
   // Hitung jam makan berdasarkan waktu bangun dan tidur (rentang waktu)
   String _calculateMealTime(String mealType, String wakeTime, String sleepTime) {
@@ -429,21 +567,145 @@ class _HomePageContentState extends State<HomePageContent> {
     }
   }
   
+  // Delete AI Food Log dari Firestore
+  Future<void> _deleteAIFoodLog(int index) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final docRef = FirebaseFirestore.instance
+          .collection('daily_food_logs')
+          .doc(uid)
+          .collection('logs')
+          .doc(today);
+      
+      final doc = await docRef.get();
+      if (!doc.exists) return;
+      
+      final data = doc.data()!;
+      final meals = List<Map<String, dynamic>>.from(data['meals'] ?? []);
+      
+      if (index < 0 || index >= meals.length) return;
+      
+      // Remove item
+      meals.removeAt(index);
+      
+      // Recalculate total calories
+      int newTotal = 0;
+      for (var meal in meals) {
+        newTotal += (meal['calories'] as int?) ?? 0;
+      }
+      
+      // Update Firestore with new meals array and recalculated total
+      await docRef.update({
+        'meals': meals,
+        'totalCalories': newTotal,
+      });
+      
+      // Reload to update UI
+      await _loadAIFoodLogs();
+      
+      debugPrint('✅ Deleted AI food log at index $index, new total: $newTotal kkal');
+    } catch (e) {
+      debugPrint('❌ Error deleting AI food log: $e');
+    }
+  }
+  
+  // ✅ BARU: Load AI Food Logs dari Firestore
+  Future<void> _loadAIFoodLogs() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      
+      final logDoc = await FirebaseFirestore.instance
+          .collection('daily_food_logs')
+          .doc(uid)
+          .collection('logs')
+          .doc(today)
+          .get();
+      
+      if (logDoc.exists && mounted) {
+        final data = logDoc.data()!;
+        final meals = (data['meals'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+        final totalCal = (data['totalCalories'] as num?)?.toInt() ?? 0;
+        
+        setState(() {
+          aiFoodLogs = meals;
+          todayAICalories = totalCal;
+        });
+        
+        debugPrint('✅ Loaded ${meals.length} AI food logs, total: $totalCal kkal');
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading AI food logs: $e');
+    }
+  }
+  
+  // ✅ BARU: Fungsi untuk menyimpan jadwal ke Firestore
+  Future<void> _saveScheduleToFirestore(
+    List<Map<String, dynamic>> selectedMeals,
+    List<Map<String, dynamic>> upcomingMeals,
+    String date,
+  ) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Simpan semua meals dalam satu document dengan array
+      final scheduleData = {
+        'meals': upcomingMeals.map((meal) => {
+          'name': meal['name'] ?? '',
+          'calories': meal['calories'] ?? 0,
+          'protein': meal['protein'] ?? 0,
+          'carbs': meal['carbs'] ?? 0,
+          'fat': meal['fat'] ?? 0,
+          'image': meal['image'] ?? '',
+          'time': meal['time'] ?? '', // Meal type: Sarapan, Makan Siang, Makan Malam
+          'clock': meal['clock'] ?? '', // Scheduled time: 07:00 - 08:00
+          'isDone': meal['isDone'] ?? false,
+        }).toList(),
+        'scheduledDate': date,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'scheduled',
+        'source': 'auto_generated',
+      };
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('schedule')
+          .doc(date)
+          .set(scheduleData, SetOptions(merge: true));
+      
+      debugPrint('✅ Saved ${upcomingMeals.length} meals to Firestore for date: $date');
+    } catch (e) {
+      debugPrint('❌ Error saving schedule to Firestore: $e');
+    }
+  }
+  
   int _calculateConsumedCalories() {
     int totalCalories = 0;
-    debugPrint('🔍 Calculating consumed calories from ${upcomingMeals.length} meals');
-    
+    debugPrint(' Calculating consumed calories from ${upcomingMeals.length} meals + AI logs');
+
+    // 1. Kalori dari menu healthy go (yang di-centang)
     for (var meal in upcomingMeals) {
       final isDone = meal['isDone'] == true;
       final calories = (meal['calories'] as int?) ?? 0;
-      debugPrint('  - ${meal['name']}: isDone=$isDone, calories=$calories');
-      
+      debugPrint('  - Menu: ${meal['name']}: isDone=$isDone, calories=$calories');
+
       if (isDone) {
         totalCalories += calories;
       }
     }
-    
-    debugPrint('📊 Total consumed calories: $totalCalories');
+
+    // 2. Kalori dari AI food logs (makanan tambahan di luar menu)
+    totalCalories += todayAICalories;
+    debugPrint('  - AI Food Logs: $todayAICalories kkal');
+
+    debugPrint(' Total consumed calories: $totalCalories (Menu: ${totalCalories - todayAICalories}, AI: $todayAICalories)');
     return totalCalories;
   }
 
@@ -868,30 +1130,56 @@ class _HomePageContentState extends State<HomePageContent> {
             ),
             const SizedBox(height: 30),
 
-            // Meal Cards (Horizontal Scroll)
-            MealCardsSection(
-              meals: meals,
-              onNavigateToMeal: widget.onNavigateToMeal,
-            ),
-            const SizedBox(height: 15),
-
-            // Upcoming Meals Header & List
+            // Jadwal Makan Hari Ini (dari SchedulePage)
             UpcomingMealsList(
               upcomingMeals: upcomingMeals,
               onNavigateToSchedule: widget.onNavigateToSchedule,
               onToggleMealDone: _toggleMealDone,
             ),
             const SizedBox(height: 30),
+            
+            // AI Food Logs Section (Makanan Tambahan Hari Ini)
+            AIFoodLogsSection(
+              foodLogs: aiFoodLogs,
+              totalCalories: todayAICalories,
+              onDelete: _deleteAIFoodLog,
+            ),
+            const SizedBox(height: 30),
+
+            // Rekomendasi Menu (Top Recommended - di bawah)
+            MealCardsSection(
+              meals: meals,
+              onNavigateToMeal: widget.onNavigateToMeal,
+            ),
+            const SizedBox(height: 15),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CalorieChatbot(
+                onFoodLogSaved: _loadAIFoodLogs, // BARU: Reload logs setelah save
+              ),
+            ),
+          );
+        },
+        backgroundColor: kGreen,
+        icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+        label: const Text(
+          'AI Kalori',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        elevation: 4,
       ),
     );
   }
 }
-
-// ===============================================
-// 📈 KOMPONEN: BMI SECTION
-// ===============================================
 class BmiSection extends StatelessWidget {
   final double bmi;
   final String category;
@@ -1459,10 +1747,17 @@ class _MealCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final mealType = meal['type'] ?? '';
     final mealName = meal['name'] ?? '';
-    final tag1 = meal['tag1'] ?? '';
+    // Support both 'tag1' and 'tags' array
+    String tag1 = meal['tag1'] ?? '';
+    if (tag1.isEmpty && meal['tags'] is List && (meal['tags'] as List).isNotEmpty) {
+      tag1 = (meal['tags'] as List).first.toString();
+    }
     final calories = meal['calories'] ?? 0;
     final price = meal['price'] ?? 0;
-    final imageUrl = meal['image'] ?? '';
+    // Support both 'image' and 'imageUrl' fields
+    final imagePath = meal['image'] ?? meal['imageUrl'] ?? '';
+    // Build proper Firebase Storage URL if not already a full URL
+    final imageUrl = imagePath.startsWith('http') ? imagePath : buildImageUrl(imagePath);
 
     return Container(
       width: 150,
@@ -1695,22 +1990,46 @@ class UpcomingMealsList extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 15),
-          Column(
-            children: upcomingMeals.asMap().entries.map((entry) {
-              final index = entry.key;
-              final meal = entry.value;
-              final isLast = index == upcomingMeals.length - 1;
-              
-              return MealListItem(
-                time: meal['time'] as String,
-                clock: meal['clock'] as String,
-                name: meal['name'] as String,
-                isDone: meal['isDone'] as bool,
-                isLast: isLast,
-                onToggle: () => onToggleMealDone(index),
-              );
-            }).toList(),
-          ),
+          upcomingMeals.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.schedule, color: kLightGreyText, size: 24),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Belum ada jadwal makan untuk hari ini. Silakan tambahkan di halaman Jadwal.',
+                          style: TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 13,
+                            color: kLightGreyText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: upcomingMeals.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final meal = entry.value;
+                    final isLast = index == upcomingMeals.length - 1;
+                    
+                    return MealListItem(
+                      time: meal['time']?.toString() ?? '',
+                      clock: meal['clock']?.toString() ?? '',
+                      name: meal['name']?.toString() ?? 'Unknown',
+                      isDone: meal['isDone'] as bool? ?? false,
+                      isLast: isLast,
+                      onToggle: () => onToggleMealDone(index),
+                    );
+                  }).toList(),
+                ),
         ],
       ),
     );
@@ -1831,6 +2150,282 @@ class MealListItem extends StatelessWidget {
             thickness: 1,
           ),
       ],
+    );
+  }
+}
+
+// ===============================================
+// 🍔 KOMPONEN: AI FOOD LOGS SECTION (Log Makanan dari AI)
+// ===============================================
+class AIFoodLogsSection extends StatelessWidget {
+  final List<Map<String, dynamic>> foodLogs;
+  final int totalCalories;
+  final Function(int) onDelete;
+
+  const AIFoodLogsSection({
+    super.key,
+    required this.foodLogs,
+    required this.totalCalories,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header dengan total kalori
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Makanan Tambahan Hari Ini',
+                style: TextStyle(
+                  fontFamily: 'Funnel Display',
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: kGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$totalCalories kkal',
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: kGreen,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+
+          // List makanan atau empty state
+          if (foodLogs.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.grey[300]!,
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.restaurant_menu,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Belum ada makanan tambahan hari ini',
+                    style: TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Gunakan AI Kalori untuk mencatat makanan di luar menu Healthy Go',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: foodLogs.length,
+                separatorBuilder: (context, index) => Divider(
+                  color: Colors.grey[200],
+                  height: 1,
+                  thickness: 1,
+                ),
+                itemBuilder: (context, index) {
+                  final log = foodLogs[index];
+                  return AIFoodLogItem(
+                    log: log,
+                    onDelete: () => onDelete(index),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ===============================================
+// 🍽️ KOMPONEN: AI FOOD LOG ITEM
+// ===============================================
+class AIFoodLogItem extends StatelessWidget {
+  final Map<String, dynamic> log;
+  final VoidCallback onDelete;
+
+  const AIFoodLogItem({super.key, required this.log, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final description = log['description'] ?? 'Makanan';
+    final calories = log['calories'] ?? 0;
+    final time = log['time'] ?? '';
+    final items = (log['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  description,
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: kGreen,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$calories kkal',
+                  style: const TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                onPressed: () {
+                  // Show confirmation dialog
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Hapus Log Makanan?'),
+                      content: const Text('Log makanan ini akan dihapus dari database.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Batal'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onDelete();
+                          },
+                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                          child: const Text('Hapus'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          if (time.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(
+                  time,
+                  style: TextStyle(
+                    fontFamily: 'Funnel Display',
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (items.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...items.map((item) {
+              final name = item['name'] ?? '';
+              final itemCal = item['calories'] ?? 0;
+              return Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$name ($itemCal kkal)',
+                        style: TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
     );
   }
 }

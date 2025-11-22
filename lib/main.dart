@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 
 // PAGES
@@ -30,7 +31,10 @@ import 'package:nutrilink/sleepSchedulePage.dart' as sleep_sched;
 import 'package:nutrilink/summaryPage.dart' as summary_page;
 import 'package:nutrilink/reportPage.dart' as report_page;
 import 'package:nutrilink/meal/recomendation.dart' as recomendation;
+import 'package:nutrilink/tambahMenuPage.dart' as tambah_menu;
+import 'package:nutrilink/detailMenuPage.dart' as detail_menu;
 import 'package:nutrilink/firestore_test.dart';
+import 'package:nutrilink/services/gemini_service.dart';
 
 // import 'package:firebase_app_check/firebase_app_check.dart'; // Package not installed
 
@@ -47,6 +51,9 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize Gemini AI Service
+  GeminiService.initialize();
 
   // Global error handler
   FlutterError.onError = (details) {
@@ -105,7 +112,7 @@ class NutriLinkApp extends StatelessWidget {
         ),
       ),
 
-      initialRoute: '/welcome',  // Add this line
+      home: const AuthGate(), // Changed: Use AuthGate instead of initialRoute
 
       // Semua named routes
       routes: {
@@ -131,8 +138,49 @@ class NutriLinkApp extends StatelessWidget {
         '/summary': (_) => const summary_page.SummaryPage(),
         '/recommendation': (_) => const recomendation.RecommendationScreen(),
         '/report': (_) => const report_page.ReportScreen(),
-
+        '/tambahMenu': (_) => const tambah_menu.TambahMenuPage(),
         '/firestore-test': (_) => const FirestoreTestPage(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/detailMenu') {
+          final meal = settings.arguments as Map;
+          return MaterialPageRoute(
+            builder: (_) => detail_menu.DetailMenuPage(meal: meal),
+          );
+        }
+        return null;
+      },
+    );
+  }
+}
+
+// AuthGate: Cek status login user
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Show loading while checking auth state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF75C778),
+              ),
+            ),
+          );
+        }
+
+        // If user is logged in, go to home
+        if (snapshot.hasData && snapshot.data != null) {
+          return const home.HomePage();
+        }
+
+        // If user is not logged in, go to welcome page
+        return const welcome.WelcomePage();
       },
     );
   }

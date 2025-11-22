@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 class FirebaseService {
@@ -64,7 +65,7 @@ class FirebaseService {
       
       return dailyCalories > 0 ? dailyCalories : 1500; // Minimum 1500 calories
     } catch (e) {
-      print('Error calculating daily calorie target: $e');
+      debugPrint('Error calculating daily calorie target: $e');
       return 2000.0; // Default value
     }
   }
@@ -83,11 +84,11 @@ class FirebaseService {
       if (doc.exists) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         
-        // Calculate percentages
-        double totalCalories = data['totalCalories'] as double;
-        double totalCarbs = data['totalCarbs'] as double;
-        double totalProtein = data['totalProtein'] as double;
-        double totalFat = data['totalFat'] as double;
+        // Calculate percentages - safely convert from int or double
+        double totalCalories = (data['totalCalories'] as num?)?.toDouble() ?? 0.0;
+        double totalCarbs = (data['totalCarbs'] as num?)?.toDouble() ?? 0.0;
+        double totalProtein = (data['totalProtein'] as num?)?.toDouble() ?? 0.0;
+        double totalFat = (data['totalFat'] as num?)?.toDouble() ?? 0.0;
         
         double carbPercent = totalCalories > 0 ? (totalCarbs * 4 / totalCalories) * 100 : 0;
         double proteinPercent = totalCalories > 0 ? (totalProtein * 4 / totalCalories) * 100 : 0;
@@ -100,10 +101,10 @@ class FirebaseService {
             foods.add(FoodItem(
               menuId: foodData['menuId'] ?? '',
               menuName: foodData['menuName'] ?? '',
-              calories: foodData['calories']?.toDouble() ?? 0.0,
-              carbs: foodData['carbs']?.toDouble() ?? 0.0,
-              protein: foodData['protein']?.toDouble() ?? 0.0,
-              fat: foodData['fat']?.toDouble() ?? 0.0,
+              calories: (foodData['calories'] as num?)?.toDouble() ?? 0.0,
+              carbs: (foodData['carbs'] as num?)?.toDouble() ?? 0.0,
+              protein: (foodData['protein'] as num?)?.toDouble() ?? 0.0,
+              fat: (foodData['fat'] as num?)?.toDouble() ?? 0.0,
               mealType: foodData['mealType'] ?? '',
             ));
           }
@@ -116,12 +117,12 @@ class FirebaseService {
           fatPercent: fatPercent.clamp(0, 100),
           othersPercent: othersPercent.clamp(0, 100),
           foods: foods,
-          dailyTarget: data['dailyTarget'] as double,
+          dailyTarget: (data['dailyTarget'] as num?)?.toDouble() ?? 2000.0,
         );
       }
       return null;
     } catch (e) {
-      print('Error getting daily food log: $e');
+      debugPrint('Error getting daily food log: $e');
       return null;
     }
   }
@@ -160,7 +161,7 @@ class FirebaseService {
       }
       return null;
     } catch (e) {
-      print('Error getting monthly food stats: $e');
+      debugPrint('Error getting monthly food stats: $e');
       return null;
     }
   }
@@ -173,8 +174,8 @@ class FirebaseService {
           .collection('daily_food_logs')
           .doc(userId)
           .collection('logs')
-          .where(FieldPath.documentId, isGreaterThanOrEqualTo: '${monthYear}-01')
-          .where(FieldPath.documentId, isLessThanOrEqualTo: '${monthYear}-31')
+          .where(FieldPath.documentId, isGreaterThanOrEqualTo: '$monthYear-01')
+          .where(FieldPath.documentId, isLessThanOrEqualTo: '$monthYear-31')
           .get();
 
       Map<int, double> result = {};
@@ -186,7 +187,7 @@ class FirebaseService {
       }
       return result;
     } catch (e) {
-      print('Error getting monthly calorie logs: $e');
+      debugPrint('Error getting monthly calorie logs: $e');
       return {};
     }
   }
@@ -195,10 +196,10 @@ class FirebaseService {
   static Future<void> updateDailyFoodLog(DateTime date, List<FoodItem> foods) async {
     try {
       String dateString = DateFormat('yyyy-MM-dd').format(date);
-      double totalCalories = foods.fold(0.0, (sum, food) => sum + food.calories);
-      double totalCarbs = foods.fold(0.0, (sum, food) => sum + food.carbs);
-      double totalProtein = foods.fold(0.0, (sum, food) => sum + food.protein);
-      double totalFat = foods.fold(0.0, (sum, food) => sum + food.fat);
+      double totalCalories = foods.fold(0.0, (total, food) => total + food.calories);
+      double totalCarbs = foods.fold(0.0, (total, food) => total + food.carbs);
+      double totalProtein = foods.fold(0.0, (total, food) => total + food.protein);
+      double totalFat = foods.fold(0.0, (total, food) => total + food.fat);
       
       // Get daily target
       double dailyTarget = await calculateDailyCalorieTarget(userId);
@@ -234,7 +235,7 @@ class FirebaseService {
       // Update monthly statistics
       await updateMonthlyFoodStatistics(date, foods);
     } catch (e) {
-      print('Error updating daily food log: $e');
+      debugPrint('Error updating daily food log: $e');
     }
   }
 
@@ -280,13 +281,13 @@ class FirebaseService {
       // Update nutrition totals
       Map<String, dynamic> nutritionTotals = statsData['nutritionTotals'] as Map<String, dynamic>;
       nutritionTotals['totalCalories'] = (nutritionTotals['totalCalories'] as double) + 
-        foods.fold(0.0, (sum, food) => sum + food.calories);
+        foods.fold(0.0, (total, food) => total + food.calories);
       nutritionTotals['totalCarbs'] = (nutritionTotals['totalCarbs'] as double) + 
-        foods.fold(0.0, (sum, food) => sum + food.carbs);
+        foods.fold(0.0, (total, food) => total + food.carbs);
       nutritionTotals['totalProtein'] = (nutritionTotals['totalProtein'] as double) + 
-        foods.fold(0.0, (sum, food) => sum + food.protein);
+        foods.fold(0.0, (total, food) => total + food.protein);
       nutritionTotals['totalFat'] = (nutritionTotals['totalFat'] as double) + 
-        foods.fold(0.0, (sum, food) => sum + food.fat);
+        foods.fold(0.0, (total, food) => total + food.fat);
       
       // Update total meals
       statsData['totalMeals'] = (statsData['totalMeals'] as int) + foods.length;
@@ -325,7 +326,7 @@ class FirebaseService {
       // Save updated stats
       await statsRef.set(statsData, SetOptions(merge: true));
     } catch (e) {
-      print('Error updating monthly food statistics: $e');
+      debugPrint('Error updating monthly food statistics: $e');
     }
   }
 }

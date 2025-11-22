@@ -23,6 +23,10 @@ dependencies:
   geocoding: ^4.0.0
   shared_preferences: ^2.5.3
   firebase_storage: ^12.4.10
+  cached_network_image: ^3.4.1
+  google_generative_ai: ^0.4.7  # Gemini AI API (latest available)
+  shared_preferences: ^2.5.3
+  firebase_storage: ^12.4.10
 
   # UI helper
   flutter_cupertino_datetime_picker: ^3.0.0
