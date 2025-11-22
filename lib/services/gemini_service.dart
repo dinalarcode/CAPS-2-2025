@@ -34,10 +34,14 @@ class GeminiService {
   ///   'response': 'Estimasi kalori untuk makanan Anda...'
   /// }
   static Future<Map<String, dynamic>> estimateCalories(String foodDescription) async {
-    try {
-      debugPrint('🤖 Gemini AI: Estimating calories for: $foodDescription');
-      
-      final prompt = '''
+    const maxRetries = 3;
+    const baseDelay = Duration(seconds: 2);
+    
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        debugPrint('🤖 Gemini AI: Estimating calories for: $foodDescription (Attempt $attempt/$maxRetries)');
+        
+        final prompt = '''
 Anda adalah ahli gizi ramah yang membantu menghitung kalori makanan Indonesia.
 
 User mendeskripsikan makanan: "$foodDescription"
@@ -72,24 +76,52 @@ PENTING:
 - Gunakan porsi standar: 1 piring nasi = 175g, 1 potong ayam = 100g, dll
 ''';
 
-      final content = [Content.text(prompt)];
-      final response = await _model.generateContent(content);
-      final text = response.text ?? '';
-      
-      debugPrint('📥 Gemini Response: $text');
-      
-      // Parse response menjadi structured data
-      return _parseGeminiResponse(text, foodDescription);
-    } catch (e) {
-      debugPrint('❌ Error estimating calories: $e');
-      // Fallback: return basic response
-      return {
-        'totalCalories': 0,
-        'items': [],
-        'response': 'Maaf, terjadi kesalahan saat menghitung kalori. Silakan coba lagi.',
-        'error': e.toString(),
-      };
+        final content = [Content.text(prompt)];
+        final response = await _model.generateContent(content);
+        final text = response.text ?? '';
+        
+        debugPrint('📥 Gemini Response: $text');
+        
+        // Parse response menjadi structured data
+        return _parseGeminiResponse(text, foodDescription);
+        
+      } catch (e) {
+        final isServerError = e.toString().contains('503') || 
+                            e.toString().contains('overloaded') ||
+                            e.toString().contains('UNAVAILABLE');
+        
+        if (isServerError && attempt < maxRetries) {
+          // Exponential backoff: 2s, 4s, 8s
+          final delay = baseDelay * (1 << (attempt - 1));
+          debugPrint('⏳ Server overloaded, retrying in ${delay.inSeconds}s... (Attempt $attempt/$maxRetries)');
+          await Future.delayed(delay);
+          continue; // Retry
+        }
+        
+        // Final attempt failed or non-retryable error
+        debugPrint('❌ Error estimating calories: $e');
+        
+        final errorMessage = isServerError
+            ? 'Server AI sedang sibuk. Silakan coba lagi dalam beberapa saat. 🙏'
+            : 'Maaf, terjadi kesalahan saat menghitung kalori. Silakan coba lagi.';
+        
+        return {
+          'totalCalories': 0,
+          'items': [],
+          'response': errorMessage,
+          'error': e.toString(),
+          'isRetryable': isServerError,
+        };
+      }
     }
+    
+    // Should never reach here, but just in case
+    return {
+      'totalCalories': 0,
+      'items': [],
+      'response': 'Gagal menghubungi server AI setelah $maxRetries percobaan. Silakan coba lagi nanti.',
+      'error': 'Max retries exceeded',
+    };
   }
   
   /// Parse Gemini response ke format structured
