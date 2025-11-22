@@ -336,7 +336,6 @@ class _CartPageState extends State<CartPage> {
     if (frequencyValidation != null) {
       // Show frequency violation error
       if (!mounted) return;
-      if (!context.mounted) return;
       
       showDialog(
         context: context,
@@ -373,6 +372,7 @@ class _CartPageState extends State<CartPage> {
     
     // Show loading indicator
     showDialog(
+      // ignore: use_build_context_synchronously
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(
