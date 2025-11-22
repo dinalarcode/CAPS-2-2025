@@ -76,6 +76,11 @@ class _SchedulePageState extends State<SchedulePage> {
         debugPrint('⚠️ No meals found for this date');
       } else {
         debugPrint('✅ Loaded ${meals.length} meals from Firestore');
+        // Debug: Print each meal's clock field
+        for (var i = 0; i < meals.length; i++) {
+          final meal = meals[i];
+          debugPrint('   Meal ${i+1}: ${meal['name']} - time: ${meal['time']}, clock: ${meal['clock']}');
+        }
       }
     } catch (e) {
       debugPrint('❌ Error loading meals: $e');
@@ -141,14 +146,6 @@ class _SchedulePageState extends State<SchedulePage> {
                 ),
                 Row(
                   children: [
-                    // Tombol Refresh
-                    IconButton(
-                      onPressed: () {
-                        loadMealsFromCache();
-                      },
-                      icon: Icon(Icons.refresh, color: kGreen, size: 24),
-                      tooltip: 'Refresh data',
-                    ),
                     // Tombol Today
                     TextButton.icon(
                       onPressed: () {
@@ -552,19 +549,23 @@ class MealScheduleCard extends StatelessWidget {
                         ),
                         SizedBox(height: 8),
                         // Scheduled time
-                        Row(
-                          children: [
-                            Icon(Icons.access_time, size: 14, color: kLightGreyText),
-                            SizedBox(width: 4),
-                            Text(
-                              meal['clock'] ?? '',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: kLightGreyText,
+                        if ((meal['clock'] ?? '').toString().isNotEmpty)
+                          Row(
+                            children: [
+                              Icon(Icons.access_time, size: 14, color: kLightGreyText),
+                              SizedBox(width: 4),
+                              Text(
+                                meal['clock'] ?? 'Waktu belum diatur',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: kLightGreyText,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        if ((meal['clock'] ?? '').toString().isNotEmpty)
+                          SizedBox(height: 8),
                         SizedBox(height: 8),
                         // Meal name
                         Text(
