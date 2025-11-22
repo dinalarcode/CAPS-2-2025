@@ -392,13 +392,40 @@ class _CartPageState extends State<CartPage> {
       cartItems.forEach((dateKey, meals) {
         orderData[dateKey] = {};
         meals.forEach((mealType, cartItem) {
+          // 🔍 DEBUG: Print fullData to see what's available
+          debugPrint('🔍 [Cart] fullData keys for ${cartItem.name}: ${cartItem.fullData.keys.toList()}');
+          debugPrint('🔍 [Cart] carbohydrate: ${cartItem.fullData['carbohydrate']}, carbs: ${cartItem.fullData['carbs']}');
+          
+          // Helper to safely get numeric value
+          num getNumValue(dynamic value) {
+            if (value == null) return 0;
+            if (value is num) return value;
+            if (value is String) {
+              if (value.isEmpty) return 0;
+              return num.tryParse(value) ?? 0;
+            }
+            return 0;
+          }
+          
+          // Get carbs from carbohydrate field (menu database uses 'carbohydrate')
+          final carbs = getNumValue(
+            cartItem.fullData['carbohydrate'] ?? 
+            cartItem.fullData['carbs'] ?? 
+            cartItem.fullData['carbo']
+          );
+          
+          final protein = getNumValue(cartItem.fullData['protein']);
+          final fat = getNumValue(cartItem.fullData['fat'] ?? cartItem.fullData['fats']);
+          
+          debugPrint('🔍 [Cart->Order] ${cartItem.name}: P:${protein}g C:${carbs}g F:${fat}g');
+          
           orderData[dateKey]![mealType] = {
             'name': cartItem.name,
             'price': cartItem.price,
             'calories': cartItem.calories,
-            'protein': cartItem.fullData['protein'] ?? '',
-            'carbs': cartItem.fullData['carbs'] ?? '',
-            'fat': cartItem.fullData['fat'] ?? '',
+            'protein': protein,
+            'carbs': carbs,  // ✅ Use normalized 'carbs' field
+            'fat': fat,
             'image': cartItem.imageUrl,
             'clock': cartItem.fullData['clock'] ?? '',
           };
