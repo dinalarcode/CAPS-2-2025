@@ -1,7 +1,7 @@
 name: nutrilink
 description: "Recommender System for Dynamic Meal Scheduling and Caloric Intake Management."
 publish_to: 'none'
-version: 0.1.0
+version: 1.3.0
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -19,19 +19,19 @@ dependencies:
   google_sign_in: ^6.3.0
   cloud_firestore: ^5.5.0
   fl_chart: ^1.1.1
-  geolocator: ^14.0.2        # Add Geolocator
+  geolocator: ^14.0.2
   geocoding: ^4.0.0
+  shared_preferences: ^2.5.3
   firebase_storage: ^12.4.10
   cached_network_image: ^3.4.1
-  google_generative_ai: ^0.4.7  # Gemini AI API (latest available)
-  shared_preferences: ^2.5.3
+  google_generative_ai: ^0.4.7
 
   # UI helper
   flutter_cupertino_datetime_picker: ^3.0.0
 
   # File picker / image picker (buat upload ke Storage)
-  image_picker: ^1.1.2        # <── TAMBAHAN: ambil foto/galeri di mobile
-  # file_picker: ^8.0.0       # (opsional kalau mau support web/other files)
+  image_picker: ^1.1.2
+  # file_picker: ^8.0.0
 
 dev_dependencies:
   flutter_test:
@@ -42,34 +42,34 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/Logo NutriLink.png"
+  image_path: "assets/images/logos/Logo NutriLink.png"
   min_sdk_android: 21
   web:
     generate: true
-    image_path: "assets/images/Logo NutriLink.png"
-    background_color: "#FFFFFF"   # ganti dari "#hexcode"
-    theme_color: "#5F9C3F"        # misal hijau NutriLink
+    image_path: "assets/images/logos/Logo NutriLink.png"
+    background_color: "#FFFFFF"
+    theme_color: "#5F9C3F"
   windows:
     generate: true
-    image_path: "assets/images/Logo NutriLink.png"
+    image_path: "assets/images/logos/Logo NutriLink.png"
     icon_size: 48
 
 flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/Data Privacy Illustration.png
-    - assets/images/Login Illustration.png
-    - assets/images/Logo Google.png
-    - assets/images/Logo HealthyGo.png
-    - assets/images/Logo NutriLink.png
-    - assets/images/Male Avatar.png
-    - assets/images/Female Avatar.png
-    - assets/images/Seafood.png
-    - assets/images/Fish.png
-    - assets/images/Shrimp.png
-    - assets/images/Beef.png
-    - assets/images/Chicken.png
+    - assets/images/illustrations/Data Privacy Illustration.png
+    - assets/images/illustrations/Login Illustration.png
+    - assets/images/logos/Logo Google.png
+    - assets/images/logos/Logo HealthyGo.png
+    - assets/images/logos/Logo NutriLink.png
+    - assets/images/avatars/Male Avatar.png
+    - assets/images/avatars/Female Avatar.png
+    - assets/images/allergies/Seafood.png
+    - assets/images/allergies/Fish.png
+    - assets/images/allergies/Shrimp.png
+    - assets/images/allergies/Beef.png
+    - assets/images/allergies/Chicken.png
 
   fonts:
     - family: Funnel Display
