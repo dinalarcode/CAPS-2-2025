@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:nutrilink/homePage.dart'; 
 import 'package:nutrilink/welcomePage.dart';
 import 'package:nutrilink/services/migrate_schedule_data.dart';
+import 'viewProfilePage.dart'; // Pastikan file ini ada!
+import 'editProfilePage.dart'; // Wajib ditambahkan!
+import 'nutritionNeedsPage.dart';
+
+const Color kGreen = Color(0xFF5F9C3F);
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -78,27 +82,21 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     // ============================================================
-    // 🛠️ LOGIKA FINAL: GENDER DETECTION & ASSET SELECTION
+    // 🛠️ LOGIKA TAMPILAN PROFIL
     // ============================================================
     
-    // 1. Ambil data profil
     final rawProfile = userData?['profile'];
     final profileMap = rawProfile is Map ? rawProfile : null;
 
-    // 2. Ambil Nama
     String fullName = profileMap?['name']?.toString() ?? userData?['name']?.toString() ?? 'Pengguna';
     String email = FirebaseAuth.instance.currentUser?.email ?? '';
 
-    // 3. Ambil Gender (Default Laki-laki)
+    // Deteksi Gender untuk Avatar
     String sex = (profileMap?['sex'] ?? userData?['sex'] ?? 'Laki-laki').toString().toLowerCase();
-
-    // 4. Tentukan Gambar Aset
     String assetImage = 'assets/images/Male Avatar.png'; 
     if (sex.contains('female') || sex.contains('perempuan') || sex.contains('wanita')) {
       assetImage = 'assets/images/Female Avatar.png';
     }
-
-    // ============================================================
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -153,19 +151,16 @@ class _ProfilePageState extends State<ProfilePage> {
                           child: CircleAvatar(
                             radius: 60,
                             backgroundColor: Colors.grey[200],
-                            // 🔥 LOGIKA UTAMA: Coba load gambar aset
                             backgroundImage: AssetImage(assetImage),
-                            // 🔥 FALLBACK: Jika gambar gagal load (misal pubspec error), tampilkan Icon
                             onBackgroundImageError: (exception, stackTrace) {
-                               debugPrint("⚠️ Gagal load aset: $assetImage. Cek pubspec.yaml");
+                               debugPrint("⚠️ Gagal load aset: $assetImage");
                             },
                             child: Image.asset(
                               assetImage,
-                              width: 120, // Sesuaikan ukuran agar pas di radius 60
+                              width: 120,
                               height: 120,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
-                                // Jika Asset gagal total, tampilkan ICON ORANG
                                 return const Icon(Icons.person, size: 60, color: Colors.grey);
                               },
                             ),
@@ -202,22 +197,72 @@ class _ProfilePageState extends State<ProfilePage> {
                     context,
                     icon: Icons.person_outline,
                     title: 'Lihat Profil',
-                    subtitle: 'Detail data diri Anda',
-                    onTap: () => _showComingSoon(context),
+                    subtitle: 'Detail data diri & BMI',
+                    // ✅ NAVIGASI KE ViewProfilePage
+                    onTap: () {
+                      if (userData != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ViewProfilePage(userData: userData!),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                           const SnackBar(content: Text("Data profil sedang dimuat..."))
+                        );
+                      }
+                    },
                   ),
+                  // 2. TOMBOL EDIT PROFIL (SUDAH AKTIF)
                   _buildMenuButton(
                     context,
                     icon: Icons.edit_outlined,
                     title: 'Edit Profil',
-                    subtitle: 'Ubah nama atau data fisik',
-                    onTap: () => _showComingSoon(context),
+                    subtitle: 'Ubah nama, berat, & tinggi',
+                    onTap: () async {
+                      if (userData != null) {
+                        // Navigasi ke Edit Page dan TUNGGU hasilnya
+                        final bool? result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EditProfilePage(userData: userData!),
+                          ),
+                        );
+
+                        // Jika result == true (berarti user menekan tombol SIMPAN)
+                        // Maka reload data profil agar tampilan ter-update
+                        if (result == true) {
+                          debugPrint("♻️ Data diedit, me-refresh profil...");
+                          _loadUserData(); 
+                        }
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                           const SnackBar(content: Text("Tunggu data profil termuat dulu."))
+                        );
+                      }
+                    },
                   ),
+                  // 3. TOMBOL KEBUTUHAN NUTRISI (SUDAH AKTIF)
                   _buildMenuButton(
                     context,
                     icon: Icons.health_and_safety_outlined,
                     title: 'Kebutuhan Nutrisi',
-                    subtitle: 'Lihat target kalori harian',
-                    onTap: () => _showComingSoon(context),
+                    subtitle: 'Lihat target kalori & makronutrisi',
+                    onTap: () {
+                      if (userData != null) {
+                         Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => NutritionNeedsPage(userData: userData!),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                           const SnackBar(content: Text("Data belum siap."))
+                        );
+                      }
+                    },
                   ),
                   _buildMenuButton(
                     context,
