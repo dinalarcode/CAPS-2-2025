@@ -19,9 +19,9 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
-    // Suppress deprecation warnings
+    // Suppress deprecation and obsolete warnings
     tasks.withType<JavaCompile> {
-        options.compilerArgs.add("-Xlint:none")
+        options.compilerArgs.addAll(listOf("-Xlint:-options", "-Xlint:-deprecation"))
     }
 
     defaultConfig {

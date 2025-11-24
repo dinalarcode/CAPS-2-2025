@@ -1,0 +1,16 @@
+/// EXAMPLE FILE - Copy this to api_keys.dart and add your real API keys
+/// 
+/// STEPS:
+/// 1. Copy this file to: lib/config/api_keys.dart
+/// 2. Get new Gemini API key from: https://aistudio.google.com/app/apikey
+/// 3. Replace 'YOUR_API_KEY_HERE' with your actual API key
+/// 4. NEVER commit api_keys.dart to git (already in .gitignore)
+
+class ApiKeys {
+  // Gemini AI API Key
+  // Get from: https://aistudio.google.com/app/apikey
+  static const String geminiApiKey = 'YOUR_API_KEY_HERE';
+  
+  // Add other API keys here if needed
+  // static const String otherApiKey = 'YOUR_OTHER_API_KEY_HERE';
+}

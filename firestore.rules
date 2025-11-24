@@ -34,6 +34,18 @@ service cloud.firestore {
         allow update: if request.auth != null && request.auth.uid == userId;
         allow delete: if request.auth != null && request.auth.uid == userId;
       }
+      
+      // 🤖 AI CHAT HISTORY SUBCOLLECTION
+      match /ai_chat_history/{date} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 📊 DAILY FOOD LOGS SUBCOLLECTION
+      match /daily_food_logs/{date} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // ==========================================
@@ -42,51 +54,6 @@ service cloud.firestore {
     match /menus/{menuId} {
       allow read: if request.auth != null;
       allow write: if false; // Only admins via Firebase Console
-    }
-    
-    // ==========================================
-    // 🤖 AI CHAT HISTORY
-    // ==========================================
-    match /ai_chat_history/{userId} {
-      allow read, write: if false; // Don't allow direct access to parent document
-      
-      match /chats/{date} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-        allow create: if request.auth != null && request.auth.uid == userId;
-      }
-    }
-    
-    // ==========================================
-    // 📊 DAILY FOOD LOGS
-    // ==========================================
-    match /daily_food_logs/{userId} {
-      allow read, write: if false; // Don't allow direct access to parent document
-      
-      match /logs/{date} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-        allow create: if request.auth != null && request.auth.uid == userId;
-      }
-    }
-    
-    // ==========================================
-    // 📈 MONTHLY FOOD STATISTICS
-    // ==========================================
-    match /monthly_food_statistics/{userId} {
-      allow read, write: if false; // Don't allow direct access to parent document
-      
-      match /stats/{month} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-        allow create: if request.auth != null && request.auth.uid == userId;
-      }
-    }
-    
-    // ==========================================
-    // 📅 SCHEDULE COLLECTION (TOP-LEVEL - DEPRECATED)
-    // ==========================================
-    // Note: Schedule now moved to users/{userId}/schedule/{date} subcollection
-    // Keeping this for backward compatibility if needed
-    match /schedule/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
     // ==========================================

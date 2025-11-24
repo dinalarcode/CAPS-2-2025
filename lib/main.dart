@@ -1,80 +1,96 @@
+// Dart
 import 'dart:ui';
 import 'dart:async';
 
+// Flutter
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+
+// Firebase
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
-// PAGES
-import 'package:nutrilink/welcomePage.dart' as welcome;
-import 'package:nutrilink/homePage.dart' as home;
-import 'package:nutrilink/loginPage.dart' as login;
-import 'package:nutrilink/registerPage.dart' as register;
-import 'package:nutrilink/termsAndConditionsPage.dart' as terms;
-import 'package:nutrilink/nameInputPage.dart' as name_input;
-import 'package:nutrilink/targetSelectionPage.dart' as target_sel;
-import 'package:nutrilink/healthGoalPage.dart' as health_goal;
-import 'package:nutrilink/challengePage.dart' as challenge;
-import 'package:nutrilink/heightInputPage.dart' as height_input;
-import 'package:nutrilink/weightInputPage.dart' as weight_input;
-import 'package:nutrilink/targetWeightInputPage.dart' as target_weight;
-import 'package:nutrilink/birthDatePage.dart' as birth_date;
-import 'package:nutrilink/sexPage.dart' as sex_page;
-import 'package:nutrilink/dailyActivityPage.dart' as daily_activity;
-import 'package:nutrilink/allergyPage.dart' as allergy_page;
-import 'package:nutrilink/eatFrequencyPage.dart' as eat_freq;
-import 'package:nutrilink/sleepSchedulePage.dart' as sleep_sched;
-import 'package:nutrilink/summaryPage.dart' as summary_page;
-import 'package:nutrilink/reportPage.dart' as report_page;
-import 'package:nutrilink/meal/recomendation.dart' as recomendation;
-import 'package:nutrilink/detailMenuPage.dart' as detail_menu;
-import 'package:nutrilink/firestore_test.dart';
-import 'package:nutrilink/services/gemini_service.dart';
+// Config
+import 'package:nutrilink/config/firebaseOptions.dart';
 
-// import 'package:firebase_app_check/firebase_app_check.dart'; // Package not installed
+// Services
+import 'package:nutrilink/services/geminiService.dart';
 
-// reCAPTCHA web
-const String kRecaptchaV3SiteKey = '6Lf2pQMsAAAAALiEdH2KdQ3ThKzZ2IlJQAw7HJxG';
+// Features - Meal
+import 'package:nutrilink/features/meal/mealPage.dart' as meal_page;
+import 'package:nutrilink/features/meal/cartPage.dart';
 
-const bool useDebugAppCheck =
-    bool.fromEnvironment('USE_DEBUG_APPCHECK', defaultValue: !kReleaseMode);
+// Features - Report
+import 'package:nutrilink/features/report/reportPage.dart' as report_page;
+
+// Pages - Auth
+import 'package:nutrilink/pages/auth/welcomePage.dart' as welcome;
+import 'package:nutrilink/pages/auth/loginPage.dart' as login;
+import 'package:nutrilink/pages/auth/registerPage.dart' as register;
+import 'package:nutrilink/pages/auth/termsAndConditionsPage.dart' as terms;
+
+// Pages - Main
+import 'package:nutrilink/pages/main/homePage.dart' as home;
+
+// Pages - Onboarding
+import 'package:nutrilink/pages/onboarding/nameInputPage.dart' as name_input;
+import 'package:nutrilink/pages/onboarding/sexPage.dart' as sex_page;
+import 'package:nutrilink/pages/onboarding/birthDatePage.dart' as birth_date;
+import 'package:nutrilink/pages/onboarding/heightInputPage.dart' as height_input;
+import 'package:nutrilink/pages/onboarding/weightInputPage.dart' as weight_input;
+import 'package:nutrilink/pages/onboarding/targetSelectionPage.dart' as target_sel;
+import 'package:nutrilink/pages/onboarding/targetWeightInputPage.dart' as target_weight;
+import 'package:nutrilink/pages/onboarding/healthGoalPage.dart' as health_goal;
+import 'package:nutrilink/pages/onboarding/dailyActivityPage.dart' as daily_activity;
+import 'package:nutrilink/pages/onboarding/sleepSchedulePage.dart' as sleep_sched;
+import 'package:nutrilink/pages/onboarding/eatFrequencyPage.dart' as eat_freq;
+import 'package:nutrilink/pages/onboarding/allergyPage.dart' as allergy_page;
+import 'package:nutrilink/pages/onboarding/challengePage.dart' as challenge;
+import 'package:nutrilink/pages/onboarding/summaryPage.dart' as summary_page;
+
+const bool useDebugAppCheck = bool.fromEnvironment('USE_DEBUG_APPCHECK', defaultValue: !kReleaseMode);
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase init
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  // Initialize Gemini AI Service
-  GeminiService.initialize();
+    try {
+      final storage = FirebaseStorage.instance;
+      storage.setMaxUploadRetryTime(const Duration(seconds: 10));
+      storage.setMaxDownloadRetryTime(const Duration(seconds: 10));
+      storage.setMaxOperationRetryTime(const Duration(seconds: 10));
+      debugPrint('✅ Firebase Storage configured with 10s timeout');
+    } catch (e) {
+      debugPrint('⚠️ Could not configure Firebase Storage: $e');
+    }
 
-  // Global error handler
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-  };
-  PlatformDispatcher.instance.onError = (error, stack) {
-    debugPrint('UNCAUGHT PLATFORM ERROR: $error\n$stack');
-    return true;
-  };
+    GeminiService.initialize();
+    
+    await CartManager.loadCart();
+    debugPrint('✅ Cart loaded');
 
-  // Sembunyikan system UI (fullscreen) di mobile
-  if (!kIsWeb) {
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  }
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+    };
+    
+    PlatformDispatcher.instance.onError = (error, stack) {
+      debugPrint('UNCAUGHT PLATFORM ERROR: $error\n$stack');
+      return true;
+    };
 
-  // Firebase App Check - Commented out (package not installed)
-  // await FirebaseAppCheck.instance.activate(
-  //   androidProvider: AndroidProvider.playIntegrity,
-  // );
+    if (!kIsWeb) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
 
-  // 7) Run
-  runZonedGuarded(() => runApp(const NutriLinkApp()), (e, s) {
+    runApp(const NutriLinkApp());
+  }, (e, s) {
     debugPrint('UNCAUGHT ZONE ERROR: $e\n$s');
   });
 }
@@ -88,15 +104,14 @@ class NutriLinkApp extends StatelessWidget {
       title: 'NutriLink x HealthyGo',
       debugShowCheckedModeBanner: false,
       
-      // Localization delegates untuk DatePicker Indonesia
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('id', 'ID'), // Indonesia
-        Locale('en', 'US'), // English
+        Locale('id', 'ID'),
+        Locale('en', 'US'),
       ],
       
       theme: ThemeData(
@@ -111,48 +126,35 @@ class NutriLinkApp extends StatelessWidget {
         ),
       ),
 
-      home: const AuthGate(), // Changed: Use AuthGate instead of initialRoute
+      home: const AuthGate(),
 
-      // Semua named routes
       routes: {
         '/welcome': (_) => const welcome.WelcomePage(),
-        '/terms': (_) => const terms.TermsAndConditionsPage(),
         '/login': (_) => const login.LoginPage(),
         '/register': (_) => const register.RegisterPage(),
+        '/terms': (_) => const terms.TermsAndConditionsPage(),
         '/home': (_) => const home.HomePage(),
-
+        '/recommendation': (_) => const meal_page.RecommendationScreen(),
+        '/report': (_) => const report_page.ReportScreen(),
         '/name-input': (_) => const name_input.NameInputPage(),
-        '/target-selection': (_) => const target_sel.TargetSelectionPage(),
-        '/health-goal': (_) => const health_goal.HealthGoalPage(),
-        '/challenge': (_) => const challenge.ChallengePage(),
+        '/sex': (_) => const sex_page.SexPage(),
+        '/birth-date': (_) => const birth_date.BirthDatePage(),
         '/height-input': (_) => const height_input.HeightInputPage(),
         '/weight-input': (_) => const weight_input.WeightInputPage(),
+        '/target-selection': (_) => const target_sel.TargetSelectionPage(),
         '/target-weight': (_) => const target_weight.TargetWeightInputPage(),
-        '/birth-date': (_) => const birth_date.BirthDatePage(),
-        '/sex': (_) => const sex_page.SexPage(),
+        '/health-goal': (_) => const health_goal.HealthGoalPage(),
         '/daily-activity': (_) => const daily_activity.DailyActivityPage(),
-        '/allergy': (_) => const allergy_page.AllergyPage(),
-        '/eat-frequency': (_) => const eat_freq.EatFrequencyPage(),
         '/sleep-schedule': (_) => const sleep_sched.SleepSchedulePage(),
+        '/eat-frequency': (_) => const eat_freq.EatFrequencyPage(),
+        '/allergy': (_) => const allergy_page.AllergyPage(),
+        '/challenge': (_) => const challenge.ChallengePage(),
         '/summary': (_) => const summary_page.SummaryPage(),
-        '/recommendation': (_) => const recomendation.RecommendationScreen(),
-        '/report': (_) => const report_page.ReportScreen(),
-        '/firestore-test': (_) => const FirestoreTestPage(),
-      },
-      onGenerateRoute: (settings) {
-        if (settings.name == '/detailMenu') {
-          final meal = settings.arguments as Map;
-          return MaterialPageRoute(
-            builder: (_) => detail_menu.DetailMenuPage(meal: meal),
-          );
-        }
-        return null;
       },
     );
   }
 }
 
-// AuthGate: Cek status login user
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -161,7 +163,6 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // Show loading while checking auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
@@ -172,12 +173,10 @@ class AuthGate extends StatelessWidget {
           );
         }
 
-        // If user is logged in, go to home
         if (snapshot.hasData && snapshot.data != null) {
           return const home.HomePage();
         }
 
-        // If user is not logged in, go to welcome page
         return const welcome.WelcomePage();
       },
     );
