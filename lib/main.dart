@@ -26,6 +26,16 @@ import 'package:nutrilink/features/meal/cartPage.dart';
 // Features - Report
 import 'package:nutrilink/features/report/reportPage.dart' as report_page;
 
+// Features - Profile
+import 'package:nutrilink/features/profile/viewProfilePage.dart'
+    as profile_view;
+import 'package:nutrilink/features/profile/editProfilePage.dart'
+    as profile_edit;
+import 'package:nutrilink/features/profile/nutritionNeedsPage.dart'
+    as profile_nutrition;
+import 'package:nutrilink/features/profile/bmrCalculationPage.dart'
+    as profile_bmr;
+
 // Pages - Auth
 import 'package:nutrilink/pages/auth/welcomePage.dart' as welcome;
 import 'package:nutrilink/pages/auth/loginPage.dart' as login;
@@ -39,19 +49,26 @@ import 'package:nutrilink/pages/main/homePage.dart' as home;
 import 'package:nutrilink/pages/onboarding/nameInputPage.dart' as name_input;
 import 'package:nutrilink/pages/onboarding/sexPage.dart' as sex_page;
 import 'package:nutrilink/pages/onboarding/birthDatePage.dart' as birth_date;
-import 'package:nutrilink/pages/onboarding/heightInputPage.dart' as height_input;
-import 'package:nutrilink/pages/onboarding/weightInputPage.dart' as weight_input;
-import 'package:nutrilink/pages/onboarding/targetSelectionPage.dart' as target_sel;
-import 'package:nutrilink/pages/onboarding/targetWeightInputPage.dart' as target_weight;
+import 'package:nutrilink/pages/onboarding/heightInputPage.dart'
+    as height_input;
+import 'package:nutrilink/pages/onboarding/weightInputPage.dart'
+    as weight_input;
+import 'package:nutrilink/pages/onboarding/targetSelectionPage.dart'
+    as target_sel;
+import 'package:nutrilink/pages/onboarding/targetWeightInputPage.dart'
+    as target_weight;
 import 'package:nutrilink/pages/onboarding/healthGoalPage.dart' as health_goal;
-import 'package:nutrilink/pages/onboarding/dailyActivityPage.dart' as daily_activity;
-import 'package:nutrilink/pages/onboarding/sleepSchedulePage.dart' as sleep_sched;
+import 'package:nutrilink/pages/onboarding/dailyActivityPage.dart'
+    as daily_activity;
+import 'package:nutrilink/pages/onboarding/sleepSchedulePage.dart'
+    as sleep_sched;
 import 'package:nutrilink/pages/onboarding/eatFrequencyPage.dart' as eat_freq;
 import 'package:nutrilink/pages/onboarding/allergyPage.dart' as allergy_page;
 import 'package:nutrilink/pages/onboarding/challengePage.dart' as challenge;
 import 'package:nutrilink/pages/onboarding/summaryPage.dart' as summary_page;
 
-const bool useDebugAppCheck = bool.fromEnvironment('USE_DEBUG_APPCHECK', defaultValue: !kReleaseMode);
+const bool useDebugAppCheck =
+    bool.fromEnvironment('USE_DEBUG_APPCHECK', defaultValue: !kReleaseMode);
 
 Future<void> main() async {
   runZonedGuarded(() async {
@@ -72,14 +89,14 @@ Future<void> main() async {
     }
 
     GeminiService.initialize();
-    
+
     await CartManager.loadCart();
     debugPrint('✅ Cart loaded');
 
     FlutterError.onError = (details) {
       FlutterError.presentError(details);
     };
-    
+
     PlatformDispatcher.instance.onError = (error, stack) {
       debugPrint('UNCAUGHT PLATFORM ERROR: $error\n$stack');
       return true;
@@ -103,7 +120,6 @@ class NutriLinkApp extends StatelessWidget {
     return MaterialApp(
       title: 'NutriLink x HealthyGo',
       debugShowCheckedModeBanner: false,
-      
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -113,7 +129,6 @@ class NutriLinkApp extends StatelessWidget {
         Locale('id', 'ID'),
         Locale('en', 'US'),
       ],
-      
       theme: ThemeData(
         primarySwatch: Colors.green,
         scaffoldBackgroundColor: Colors.white,
@@ -125,9 +140,7 @@ class NutriLinkApp extends StatelessWidget {
           centerTitle: true,
         ),
       ),
-
       home: const AuthGate(),
-
       routes: {
         '/welcome': (_) => const welcome.WelcomePage(),
         '/login': (_) => const login.LoginPage(),
@@ -150,6 +163,27 @@ class NutriLinkApp extends StatelessWidget {
         '/allergy': (_) => const allergy_page.AllergyPage(),
         '/challenge': (_) => const challenge.ChallengePage(),
         '/summary': (_) => const summary_page.SummaryPage(),
+        // Profile feature routes
+        '/profile/view': (ctx) {
+          final args = ModalRoute.of(ctx)!.settings.arguments;
+          return profile_view.ViewProfilePage(
+              userData: args as Map<String, dynamic>);
+        },
+        '/profile/edit': (ctx) {
+          final args = ModalRoute.of(ctx)!.settings.arguments;
+          return profile_edit.EditProfilePage(
+              userData: args as Map<String, dynamic>);
+        },
+        '/profile/nutrition': (ctx) {
+          final args = ModalRoute.of(ctx)!.settings.arguments;
+          return profile_nutrition.NutritionNeedsPage(
+              userData: args as Map<String, dynamic>);
+        },
+        '/profile/bmr': (ctx) {
+          final args = ModalRoute.of(ctx)!.settings.arguments;
+          return profile_bmr.BmrCalculationPage(
+              userData: args as Map<String, dynamic>);
+        },
       },
     );
   }
