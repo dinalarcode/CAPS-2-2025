@@ -31,42 +31,75 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   void initState() {
     super.initState();
-    
+
     // 1. Ambil data dari Root (luar) dan Profile (dalam) agar aman
-    final rootData = widget.userData; 
+    final rootData = widget.userData;
     final profileData = (rootData['profile'] as Map<String, dynamic>?) ?? {};
 
     // 2. Logika "Cari Data Sampai Dapat" (Fallback Logic)
     // Mencari nama di profile['name'], kalau null cari di root['name']
     String initName = profileData['name'] ?? rootData['name'] ?? '';
-    
+
     // Mencari tinggi (bisa 'height', 'heightCm', atau string/number)
-    var initHeight = profileData['heightCm'] ?? profileData['height'] ?? rootData['heightCm'] ?? rootData['height'] ?? 0;
-    
+    var initHeight = profileData['heightCm'] ??
+        profileData['height'] ??
+        rootData['heightCm'] ??
+        rootData['height'] ??
+        0;
+
     // Mencari berat
-    var initWeight = profileData['weightKg'] ?? profileData['weight'] ?? rootData['weightKg'] ?? rootData['weight'] ?? 0;
-    
+    var initWeight = profileData['weightKg'] ??
+        profileData['weight'] ??
+        rootData['weightKg'] ??
+        rootData['weight'] ??
+        0;
+
     // Mencari target berat
-    var initTarget = profileData['targetWeightKg'] ?? profileData['targetWeight'] ?? rootData['targetWeightKg'] ?? rootData['targetWeight'] ?? 0;
+    var initTarget = profileData['targetWeightKg'] ??
+        profileData['targetWeight'] ??
+        rootData['targetWeightKg'] ??
+        rootData['targetWeight'] ??
+        0;
 
     // 3. Masukkan ke Controller
     _nameController = TextEditingController(text: initName);
-    
+
     // Trik: Jika nilainya 0, kosongkan textfield agar user enak ngetiknya (tidak perlu hapus angka 0)
-    _heightController = TextEditingController(text: initHeight.toString() == '0' ? '' : initHeight.toString());
-    _weightController = TextEditingController(text: initWeight.toString() == '0' ? '' : initWeight.toString());
-    _targetWeightController = TextEditingController(text: initTarget.toString() == '0' ? '' : initTarget.toString());
+    _heightController = TextEditingController(
+        text: initHeight.toString() == '0' ? '' : initHeight.toString());
+    _weightController = TextEditingController(
+        text: initWeight.toString() == '0' ? '' : initWeight.toString());
+    _targetWeightController = TextEditingController(
+        text: initTarget.toString() == '0' ? '' : initTarget.toString());
 
     // 4. Dropdown (Pastikan value sesuai opsi yang ada)
-    _selectedActivityLevel = profileData['activityLevel'] ?? rootData['activityLevel'];
-    _selectedGoal = profileData['target'] ?? rootData['target'] ?? profileData['healthGoal']; 
-    
+    _selectedActivityLevel =
+        profileData['activityLevel'] ?? rootData['activityLevel'];
+    _selectedGoal = profileData['target'] ??
+        rootData['target'] ??
+        profileData['healthGoal'];
+
     // Validasi nilai dropdown (cegah error crash jika value di database tidak ada di list item)
-    const validActivities = ['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extremely_active'];
-    if (!validActivities.contains(_selectedActivityLevel)) _selectedActivityLevel = null;
-    
-    const validGoals = ['lose_weight', 'maintain_weight', 'gain_weight', 'gain_muscle'];
-    if (!validGoals.contains(_selectedGoal)) _selectedGoal = null;
+    const validActivities = [
+      'sedentary',
+      'lightly_active',
+      'moderately_active',
+      'very_active',
+      'extremely_active'
+    ];
+    if (!validActivities.contains(_selectedActivityLevel)) {
+      _selectedActivityLevel = null;
+    }
+
+    const validGoals = [
+      'lose_weight',
+      'maintain_weight',
+      'gain_weight',
+      'gain_muscle'
+    ];
+    if (!validGoals.contains(_selectedGoal)) {
+      _selectedGoal = null;
+    }
   }
 
   @override
@@ -90,11 +123,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
       // Konversi input ke tipe data yang benar (double/int)
       final double height = double.tryParse(_heightController.text) ?? 0;
       final double weight = double.tryParse(_weightController.text) ?? 0;
-      final double targetWeight = double.tryParse(_targetWeightController.text) ?? 0;
+      final double targetWeight =
+          double.tryParse(_targetWeightController.text) ?? 0;
 
       // Update Firestore
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'name': _nameController.text.trim(), // Update nama di root level juga jika perlu
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+        'name': _nameController.text
+            .trim(), // Update nama di root level juga jika perlu
         'profile.name': _nameController.text.trim(),
         'profile.heightCm': height,
         'profile.weightKg': weight,
@@ -115,7 +153,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       debugPrint("Error updating profile: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal update: $e"), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text("Gagal update: $e"), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -130,7 +169,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       appBar: AppBar(
         title: const Text(
           'Edit Profil',
-          style: TextStyle(fontFamily: 'Funnel Display', fontWeight: FontWeight.bold, color: Colors.black87),
+          style: TextStyle(
+              fontFamily: 'Funnel Display',
+              fontWeight: FontWeight.bold,
+              color: Colors.black87),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
@@ -142,9 +184,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
         actions: [
           TextButton(
             onPressed: _isLoading ? null : _saveProfile,
-            child: _isLoading 
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text("SIMPAN", style: TextStyle(color: kGreen, fontWeight: FontWeight.bold)),
+            child: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text("SIMPAN",
+                    style:
+                        TextStyle(color: kGreen, fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -157,40 +204,37 @@ class _EditProfilePageState extends State<EditProfilePage> {
             children: [
               _buildLabel("Nama Lengkap"),
               _buildTextField(_nameController, "Nama Anda"),
-              
               const SizedBox(height: 20),
               Row(
                 children: [
-                  Expanded(child: Column(
+                  Expanded(
+                      child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                       _buildLabel("Tinggi (cm)"),
-                       _buildNumberField(_heightController, "cm"),
+                      _buildLabel("Tinggi (cm)"),
+                      _buildNumberField(_heightController, "cm"),
                     ],
                   )),
                   const SizedBox(width: 15),
-                  Expanded(child: Column(
+                  Expanded(
+                      child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                       _buildLabel("Berat (kg)"),
-                       _buildNumberField(_weightController, "kg"),
+                      _buildLabel("Berat (kg)"),
+                      _buildNumberField(_weightController, "kg"),
                     ],
                   )),
                 ],
               ),
-
               const SizedBox(height: 20),
               _buildLabel("Target Berat (kg)"),
               _buildNumberField(_targetWeightController, "Target kg"),
-
               const SizedBox(height: 20),
               _buildLabel("Aktivitas Harian"),
               _buildDropdownActivity(),
-
               const SizedBox(height: 20),
               _buildLabel("Tujuan Utama"),
               _buildDropdownGoal(),
-
               const SizedBox(height: 40),
             ],
           ),
@@ -204,7 +248,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(fontFamily: 'Funnel Display', fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54),
+        style: const TextStyle(
+            fontFamily: 'Funnel Display',
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.black54),
       ),
     );
   }
@@ -214,8 +262,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
       controller: controller,
       decoration: InputDecoration(
         hintText: hint,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: kMutedBorderGrey)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kMutedBorderGrey)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       validator: (val) => val == null || val.isEmpty ? 'Wajib diisi' : null,
     );
@@ -227,8 +278,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(
         suffixText: suffix,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: kMutedBorderGrey)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kMutedBorderGrey)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       validator: (val) {
         if (val == null || val.isEmpty) return 'Wajib';
@@ -240,17 +294,22 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Widget _buildDropdownActivity() {
     return DropdownButtonFormField<String>(
-      value: _selectedActivityLevel,
+      initialValue: _selectedActivityLevel,
       decoration: InputDecoration(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: kMutedBorderGrey)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kMutedBorderGrey)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       items: const [
         DropdownMenuItem(value: 'sedentary', child: Text("Jarang Bergerak")),
         DropdownMenuItem(value: 'lightly_active', child: Text("Agak Aktif")),
-        DropdownMenuItem(value: 'moderately_active', child: Text("Cukup Aktif")),
+        DropdownMenuItem(
+            value: 'moderately_active', child: Text("Cukup Aktif")),
         DropdownMenuItem(value: 'very_active', child: Text("Sangat Aktif")),
-        DropdownMenuItem(value: 'extremely_active', child: Text("Ekstra Aktif")),
+        DropdownMenuItem(
+            value: 'extremely_active', child: Text("Ekstra Aktif")),
       ],
       onChanged: (val) => setState(() => _selectedActivityLevel = val),
     );
@@ -258,14 +317,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Widget _buildDropdownGoal() {
     return DropdownButtonFormField<String>(
-      value: _selectedGoal,
+      initialValue: _selectedGoal,
       decoration: InputDecoration(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: kMutedBorderGrey)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kMutedBorderGrey)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       items: const [
         DropdownMenuItem(value: 'lose_weight', child: Text("Menurunkan Berat")),
-        DropdownMenuItem(value: 'maintain_weight', child: Text("Jaga Berat Badan")),
+        DropdownMenuItem(
+            value: 'maintain_weight', child: Text("Jaga Berat Badan")),
         DropdownMenuItem(value: 'gain_weight', child: Text("Menambah Berat")),
         DropdownMenuItem(value: 'gain_muscle', child: Text("Membangun Otot")),
       ],

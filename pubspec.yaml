@@ -30,8 +30,8 @@ dependencies:
   flutter_cupertino_datetime_picker: ^3.0.0
 
   # File picker / image picker (buat upload ke Storage)
-  image_picker: ^1.1.2
-  # file_picker: ^8.0.0
+  image_picker: ^0.8.7+5
+  image_cropper: ^3.0.1
 
 dev_dependencies:
   flutter_test:

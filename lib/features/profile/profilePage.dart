@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'viewProfilePage.dart'; // Pastikan file ini ada!
 import 'editProfilePage.dart'; // Wajib ditambahkan!
 import 'nutritionNeedsPage.dart';
+import 'uploadProfilePicturePage.dart'; // <-- tambahkan import ini
 
 // Fallback implementation for MigrateScheduleData so the profile page can call migrateAllScheduleData()
 // Replace this with the real implementation in lib/services/migrate_schedule_data.dart if available.
@@ -104,18 +105,24 @@ class _ProfilePageState extends State<ProfilePage> {
     // ============================================================
     // 🛠️ LOGIKA TAMPILAN PROFIL
     // ============================================================
-    
+
     final rawProfile = userData?['profile'];
     final profileMap = rawProfile is Map ? rawProfile : null;
 
-    String fullName = profileMap?['name']?.toString() ?? userData?['name']?.toString() ?? 'Pengguna';
+    String fullName = profileMap?['name']?.toString() ??
+        userData?['name']?.toString() ??
+        'Pengguna';
     String email = FirebaseAuth.instance.currentUser?.email ?? '';
 
-    // Deteksi Gender untuk Avatar
-    String sex = (profileMap?['sex'] ?? userData?['sex'] ?? 'Laki-laki').toString().toLowerCase();
-    String assetImage = 'assets/images/Male Avatar.png'; 
-    if (sex.contains('female') || sex.contains('perempuan') || sex.contains('wanita')) {
-      assetImage = 'assets/images/Female Avatar.png';
+    // Deteksi Gender untuk Avatar Default
+    String sex = (profileMap?['sex'] ?? userData?['sex'] ?? 'Laki-laki')
+        .toString()
+        .toLowerCase();
+    String defaultAvatarAsset = 'assets/images/avatars/Male Avatar.png';
+    if (sex.contains('female') ||
+        sex.contains('perempuan') ||
+        sex.contains('wanita')) {
+      defaultAvatarAsset = 'assets/images/avatars/Female Avatar.png';
     }
 
     return Scaffold(
@@ -156,33 +163,53 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: Column(
                       children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: kGreen, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: kGreen.withValues(alpha: 0.2),
-                                blurRadius: 10,
-                                spreadRadius: 2,
-                              )
-                            ],
-                          ),
-                          child: CircleAvatar(
-                            radius: 60,
-                            backgroundColor: Colors.grey[200],
-                            backgroundImage: AssetImage(assetImage),
-                            onBackgroundImageError: (exception, stackTrace) {
-                               debugPrint("⚠️ Gagal load aset: $assetImage");
-                            },
-                            child: Image.asset(
-                              assetImage,
-                              width: 120,
-                              height: 120,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(Icons.person, size: 60, color: Colors.grey);
-                              },
+                        GestureDetector(
+                          onTap: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => UploadProfilePicturePage(
+                                    currentUserData: userData),
+                              ),
+                            );
+                            if (result == true) {
+                              await _loadUserData();
+                            }
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: kGreen, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: kGreen.withValues(alpha: 0.2),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                )
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              radius: 60,
+                              backgroundColor: Colors.grey[200],
+                              backgroundImage: (profileMap?['profilePicture']
+                                          is String &&
+                                      (profileMap!['profilePicture'] as String)
+                                          .isNotEmpty)
+                                  ? (profileMap['profilePicture']!
+                                          .toString()
+                                          .startsWith('http')
+                                      ? NetworkImage(
+                                          profileMap['profilePicture']
+                                              as String)
+                                      : AssetImage(profileMap['profilePicture']
+                                          as String) as ImageProvider)
+                                  : AssetImage(defaultAvatarAsset),
+                              child: (profileMap?['profilePicture'] == null ||
+                                      (profileMap?['profilePicture'] as String?)
+                                              ?.isEmpty !=
+                                          false)
+                                  ? null
+                                  : null,
                             ),
                           ),
                         ),
@@ -224,13 +251,14 @@ class _ProfilePageState extends State<ProfilePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ViewProfilePage(userData: userData!),
+                            builder: (context) =>
+                                ViewProfilePage(userData: userData!),
                           ),
                         );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                           const SnackBar(content: Text("Data profil sedang dimuat..."))
-                        );
+                            const SnackBar(
+                                content: Text("Data profil sedang dimuat...")));
                       }
                     },
                   ),
@@ -246,7 +274,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         final bool? result = await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => EditProfilePage(userData: userData!),
+                            builder: (context) =>
+                                EditProfilePage(userData: userData!),
                           ),
                         );
 
@@ -254,12 +283,13 @@ class _ProfilePageState extends State<ProfilePage> {
                         // Maka reload data profil agar tampilan ter-update
                         if (result == true) {
                           debugPrint("♻️ Data diedit, me-refresh profil...");
-                          _loadUserData(); 
+                          _loadUserData();
                         }
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                           const SnackBar(content: Text("Tunggu data profil termuat dulu."))
-                        );
+                            const SnackBar(
+                                content:
+                                    Text("Tunggu data profil termuat dulu.")));
                       }
                     },
                   ),
@@ -271,16 +301,16 @@ class _ProfilePageState extends State<ProfilePage> {
                     subtitle: 'Lihat target kalori & makronutrisi',
                     onTap: () {
                       if (userData != null) {
-                         Navigator.push(
+                        Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => NutritionNeedsPage(userData: userData!),
+                            builder: (context) =>
+                                NutritionNeedsPage(userData: userData!),
                           ),
                         );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                           const SnackBar(content: Text("Data belum siap."))
-                        );
+                            const SnackBar(content: Text("Data belum siap.")));
                       }
                     },
                   ),
@@ -304,48 +334,50 @@ class _ProfilePageState extends State<ProfilePage> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                         showDialog(
-                           context: context, 
-                           barrierDismissible: false,
-                           builder: (_) => const Center(child: CircularProgressIndicator())
-                         );
-                         
-                         await MigrateScheduleData.migrateAllScheduleData();
-                         
-                         if(context.mounted) {
-                           Navigator.pop(context);
-                           ScaffoldMessenger.of(context).showSnackBar(
-                             const SnackBar(content: Text("Data berhasil diperbarui"))
-                           );
-                         }
+                        showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => const Center(
+                                child: CircularProgressIndicator()));
+
+                        await MigrateScheduleData.migrateAllScheduleData();
+
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text("Data berhasil diperbarui")));
+                        }
                       },
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         side: BorderSide(color: Colors.blue.shade300),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       icon: Icon(Icons.sync, color: Colors.blue.shade700),
-                      label: Text("Perbaiki Data (Sync)", style: TextStyle(color: Colors.blue.shade700)),
+                      label: Text("Perbaiki Data (Sync)",
+                          style: TextStyle(color: Colors.blue.shade700)),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 12),
 
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.red.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        )
-                      ]
-                    ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withValues(alpha: 0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          )
+                        ]),
                     child: ElevatedButton.icon(
                       onPressed: () => _signOut(context),
-                      icon: const Icon(Icons.logout_rounded, color: Colors.white),
+                      icon:
+                          const Icon(Icons.logout_rounded, color: Colors.white),
                       label: const Text(
                         'Keluar Aplikasi',
                         style: TextStyle(
@@ -365,7 +397,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 30),
                   Text(
                     "NutriLink v1.0.0",
@@ -378,7 +410,8 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildMenuButton(BuildContext context, {
+  Widget _buildMenuButton(
+    BuildContext context, {
     required IconData icon,
     required String title,
     String? subtitle,
@@ -443,7 +476,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: Colors.grey[300], size: 24),
+                Icon(Icons.chevron_right_rounded,
+                    color: Colors.grey[300], size: 24),
               ],
             ),
           ),
