@@ -1,6 +1,9 @@
 // lib/viewProfilePage.dart
 
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'editProfilePage.dart';
 
 // Palet warna (Diambil dari theme aplikasi kamu)
 const Color kGreen = Color(0xFF5F9C3F);
@@ -8,10 +11,53 @@ const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
 const Color kMutedBorderGrey = Color(0xFFA9ABAD);
 
-class ViewProfilePage extends StatelessWidget {
+class ViewProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
 
   const ViewProfilePage({super.key, required this.userData});
+
+  @override
+  State<ViewProfilePage> createState() => _ViewProfilePageState();
+}
+
+class _ViewProfilePageState extends State<ViewProfilePage> {
+  late Map<String, dynamic> userData;
+
+  @override
+  void initState() {
+    super.initState();
+    userData = widget.userData;
+  }
+
+  Future<void> _navigateToEdit() async {
+    final bool? result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfilePage(userData: userData),
+      ),
+    );
+
+    // Jika data diubah, refresh halaman dengan data terbaru dari Firestore
+    if (result == true) {
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) return;
+
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (doc.exists && mounted) {
+          setState(() {
+            userData = doc.data() ?? {};
+          });
+        }
+      } catch (e) {
+        debugPrint('❌ Error loading updated profile: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +104,13 @@ class ViewProfilePage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, color: Colors.black87),
+            tooltip: 'Edit Profil',
+            onPressed: _navigateToEdit,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -158,6 +211,33 @@ class ViewProfilePage extends StatelessWidget {
             ]),
 
             const SizedBox(height: 40),
+
+            // Tombol Edit Profil (kuning dengan icon dan teks putih)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _navigateToEdit,
+                icon: const Icon(Icons.edit, color: Colors.white),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14.0),
+                  child: Text(
+                    'Edit Profil',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Funnel Display',
+                    ),
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber.shade700,
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

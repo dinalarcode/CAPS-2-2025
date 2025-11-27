@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'bmrCalculationPage.dart';
@@ -41,7 +41,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
           });
         }
       } catch (e) {
-        debugPrint("❌ Gagal refresh data: $e");
+        debugPrint("Γ¥î Gagal refresh data: $e");
       }
     }
   }
@@ -89,8 +89,14 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
 
     // --- 4. TARGET KALORI ---
     // Target selalu dihitung dari TDEE FINAL + Goal Modifier
-    final int dailyCalorieTarget =
+    int dailyCalorieTarget =
         _calculateGoalCalories(finalTdee, profile['target']);
+
+    // Jika ada manualTargetCalories, gunakan itu (tidak ditambah goal modifier)
+    if (profile['manualTargetCalories'] != null &&
+        (profile['manualTargetCalories'] as num) > 0) {
+      dailyCalorieTarget = (profile['manualTargetCalories'] as num).toInt();
+    }
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -124,7 +130,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                      color: kGreen.withValues(alpha: 0.3),
+                      color: kGreen.withOpacity(0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4))
                 ],
@@ -150,13 +156,25 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(20)),
-                    child: Text(_translateGoal(profile['target']),
-                        style: const TextStyle(
-                            fontFamily: 'Funnel Display',
-                            color: Colors.white,
-                            fontSize: 12)),
+                    child: Column(
+                      children: [
+                        Text(_translateGoal(profile['target']),
+                            style: const TextStyle(
+                                fontFamily: 'Funnel Display',
+                                color: Colors.white,
+                                fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Text(
+                          "(TDEE: ${finalTdee.toStringAsFixed(0)} kkal)",
+                          style: const TextStyle(
+                              fontFamily: 'Funnel Display',
+                              color: Colors.white70,
+                              fontSize: 10),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -195,7 +213,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.1),
+                            color: Colors.orange.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10)),
                         child: const Icon(Icons.local_fire_department,
                             color: Colors.orange, size: 20),
@@ -346,6 +364,33 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                     (dailyCalorieTarget * 0.3 / 4).round(), Colors.green),
                 _buildMacroRow("Lemak (20%)",
                     (dailyCalorieTarget * 0.2 / 9).round(), Colors.blue),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MacroCalculationDetailPage(
+                            dailyCalorieTarget: dailyCalorieTarget,
+                            target: profile['target'] ?? 'maintain_weight',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.calculate_outlined),
+                    label: const Text('Lihat Perhitungan Detail'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
 
@@ -389,7 +434,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.1),
+                    color: iconColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10)),
                 child: Icon(icon, color: iconColor, size: 20),
               ),
@@ -465,9 +510,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
     final today = DateTime.now();
     int age = today.year - birthDate.year;
     if (today.month < birthDate.month ||
-        (today.month == birthDate.month && today.day < birthDate.day)) {
-      age--;
-    }
+        (today.month == birthDate.month && today.day < birthDate.day)) age--;
     return age;
   }
 
@@ -511,11 +554,9 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
   int _calculateGoalCalories(double tdee, String? goal) {
     if (tdee == 0) return 2000;
     double target = tdee;
-    if (goal == 'lose_weight') {
+    if (goal == 'lose_weight')
       target -= 500;
-    } else if (goal == 'gain_weight' || goal == 'gain_muscle') {
-      target += 300;
-    }
+    else if (goal == 'gain_weight' || goal == 'gain_muscle') target += 300;
     return target.round();
   }
 
@@ -538,5 +579,615 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
       'gain_muscle': 'Membangun Otot',
     };
     return map[key] ?? 'Hidup Sehat';
+  }
+}
+
+// === MACRO CALCULATION DETAIL PAGE ===
+class MacroCalculationDetailPage extends StatefulWidget {
+  final int dailyCalorieTarget;
+  final String target; // "lose_weight", "maintain_weight", "gain_weight"
+
+  const MacroCalculationDetailPage({
+    super.key,
+    required this.dailyCalorieTarget,
+    required this.target,
+  });
+
+  @override
+  State<MacroCalculationDetailPage> createState() =>
+      _MacroCalculationDetailPageState();
+}
+
+class _MacroCalculationDetailPageState
+    extends State<MacroCalculationDetailPage> {
+  late double carbCalories;
+  late double proteinCalories;
+  late double fatCalories;
+  late double carbGrams;
+  late double proteinGrams;
+  late double fatGrams;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateMacros();
+  }
+
+  void _calculateMacros() {
+    // Alokasi kalori per nutrisi
+    carbCalories = widget.dailyCalorieTarget * 0.50; // 50%
+    proteinCalories = widget.dailyCalorieTarget * 0.30; // 30%
+    fatCalories = widget.dailyCalorieTarget * 0.20; // 20%
+
+    // Konversi ke gram (1g protein = 4 cal, 1g carbs = 4 cal, 1g fat = 9 cal)
+    carbGrams = carbCalories / 4;
+    proteinGrams = proteinCalories / 4;
+    fatGrams = fatCalories / 9;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text('Detail Perhitungan Makro',
+            style: TextStyle(
+                fontFamily: 'Funnel Display',
+                fontWeight: FontWeight.bold,
+                color: Colors.black87)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // === STEP 1: TARGET KALORI ===
+            _buildStepCard(
+              step: '1',
+              title: 'Target Kalori Harian',
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.blue.shade200,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Total Kalori Target',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${widget.dailyCalorieTarget} kkal/hari',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            size: 16, color: Colors.orange.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Target Kalori = TDEE + Goal Modifier (${_getGoalModifier(widget.target)})',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.orange.shade700,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // === STEP 2: ALOKASI KALORI PER MACRO ===
+            _buildStepCard(
+              step: '2',
+              title: 'Alokasi Kalori Per Makronutrisi',
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Pembagian kalori berdasarkan kebutuhan nutrisi optimal:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMacroAllocationRow(
+                    'Karbohidrat',
+                    '50%',
+                    carbCalories,
+                    Colors.orange,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMacroAllocationRow(
+                    'Protein',
+                    '30%',
+                    proteinCalories,
+                    Colors.red,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMacroAllocationRow(
+                    'Lemak',
+                    '20%',
+                    fatCalories,
+                    Colors.amber,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // === STEP 3: KONVERSI KE GRAM ===
+            _buildStepCard(
+              step: '3',
+              title: 'Konversi ke Gram',
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Menggunakan konversi kalori per gram untuk menghitung jumlah gram yang dibutuhkan:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildFormulaRowWithExplanation(
+                    'Karbohidrat',
+                    '4 kkal/gram',
+                    '${carbCalories.toStringAsFixed(0)} ÷ 4 = ${carbGrams.toStringAsFixed(1)}g',
+                    'Setiap gram karbohidrat mengandung 4 kalori energi',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildFormulaRowWithExplanation(
+                    'Protein',
+                    '4 kkal/gram',
+                    '${proteinCalories.toStringAsFixed(0)} ÷ 4 = ${proteinGrams.toStringAsFixed(1)}g',
+                    'Setiap gram protein mengandung 4 kalori energi',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildFormulaRowWithExplanation(
+                    'Lemak',
+                    '9 kkal/gram',
+                    '${fatCalories.toStringAsFixed(0)} ÷ 9 = ${fatGrams.toStringAsFixed(1)}g',
+                    'Setiap gram lemak mengandung 9 kalori energi (lebih padat energi)',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // === HASIL AKHIR ===
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green.shade100, Colors.green.shade50],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.green.shade300,
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green),
+                      SizedBox(width: 8),
+                      Text(
+                        'Rekomendasi Makro Harian',
+                        style: TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildMacroResultRow(
+                    'Karbohidrat',
+                    '${carbGrams.toStringAsFixed(1)}g',
+                    Colors.orange,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildMacroResultRow(
+                    'Protein',
+                    '${proteinGrams.toStringAsFixed(1)}g',
+                    Colors.red,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildMacroResultRow(
+                    'Lemak',
+                    '${fatGrams.toStringAsFixed(1)}g',
+                    Colors.amber,
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Total Kalori',
+                        style: TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        '${widget.dailyCalorieTarget} kkal',
+                        style: const TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // === TIPS ===
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.blue.shade200,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline,
+                          color: Colors.blue.shade600),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Tips Praktis',
+                        style: TextStyle(
+                          fontFamily: 'Funnel Display',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.blue.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildTipRow(
+                    '🥩 Protein: Daging, telur, kacang-kacangan, susu',
+                  ),
+                  const SizedBox(height: 8),
+                  _buildTipRow(
+                    '🍚 Karbohidrat: Nasi, roti, pasta, buah-buahan',
+                  ),
+                  const SizedBox(height: 8),
+                  _buildTipRow(
+                    '🥑 Lemak: Minyak zaitun, kacang, alpukat, ikan',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepCard({
+    required String step,
+    required String title,
+    required Widget content,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    color: kGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      step,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontFamily: 'Funnel Display',
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: content,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMacroAllocationRow(
+    String label,
+    String percent,
+    double calories,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'Funnel Display',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                percent,
+                style: TextStyle(
+                  fontFamily: 'Funnel Display',
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${calories.toStringAsFixed(0)} kkal',
+            style: TextStyle(
+              fontSize: 18,
+              fontFamily: 'Funnel Display',
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormulaRowWithExplanation(
+    String macro,
+    String conversion,
+    String formula,
+    String explanation,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            macro,
+            style: const TextStyle(
+              fontFamily: 'Funnel Display',
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            conversion,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Text(
+              formula,
+              style: const TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    explanation,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.blue.shade700,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMacroResultRow(String label, String value, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontFamily: 'Funnel Display',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontFamily: 'Funnel Display',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTipRow(String tip) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            tip,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getGoalModifier(String target) {
+    switch (target) {
+      case 'lose_weight':
+        return '-500 kkal';
+      case 'gain_weight':
+      case 'gain_muscle':
+        return '+300 kkal';
+      default:
+        return '±0 kkal';
+    }
   }
 }

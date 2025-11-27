@@ -135,26 +135,36 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
           double.tryParse(_manualTdeeController.text.replaceAll(',', '.'));
       double saveManualTdee = manualVal ?? 0;
 
-      // UPDATE FIRESTORE: Simpan Manual TDEE (jika ada) DAN Level Aktivitas Baru
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .update({
         'profile.manualTdee': saveManualTdee,
         'profile.activityLevel': _selectedActivity,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("Data TDEE & Aktivitas berhasil diperbarui!")),
+          SnackBar(
+            content: const Text("✅ Data TDEE & Aktivitas berhasil diperbarui!"),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
-        Navigator.pop(context, true); // Refresh halaman sebelumnya
+
+        // 🔄 Return true untuk trigger reload
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Error: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("❌ Error: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

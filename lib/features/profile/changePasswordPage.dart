@@ -505,8 +505,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     if (RegExp(r'[a-z]').hasMatch(password)) strength++;
     if (RegExp(r'[A-Z]').hasMatch(password)) strength++;
     if (RegExp(r'[0-9]').hasMatch(password)) strength++;
-    if (RegExp(r'[!@#$%^&*()_+\-=\[\]{};:,.<>?]').hasMatch(password))
+    if (RegExp(r'[!@#$%^&*()_+\-=\[\]{};:,.<>?]').hasMatch(password)) {
       strength++;
+    }
 
     // Determine strength level
     if (strength <= 2) {

@@ -107,20 +107,34 @@ class _BmrCalculationPageState extends State<BmrCalculationPage> {
           .doc(user.uid)
           .update({
         'profile.manualBmr': saveVal,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(saveVal == 0
-                ? "BMR dikembalikan ke Otomatis"
-                : "BMR Manual disimpan!")),
+          content: Text(
+            saveVal == 0
+                ? "✅ BMR dikembalikan ke Otomatis"
+                : "✅ BMR Manual disimpan!",
+          ),
+          backgroundColor: Colors.green[600],
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
+
+      // 🔄 Return true untuk trigger reload di NutritionNeedsPage
       Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Error: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("❌ Error: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

@@ -243,7 +243,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                           ),
                         ),
                         onTap: () {
-                          // TODO: Implement quiet hours settings
+                          // Quiet hours settings - future implementation
                         },
                       ),
                     ),
