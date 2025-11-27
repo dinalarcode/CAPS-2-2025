@@ -36,6 +36,8 @@ import 'package:nutrilink/features/profile/nutritionNeedsPage.dart'
     as profile_nutrition;
 import 'package:nutrilink/features/profile/bmrCalculationPage.dart'
     as profile_bmr;
+import 'package:nutrilink/features/profile/changePasswordPage.dart'
+    as change_password;
 
 // Pages - Auth
 import 'package:nutrilink/pages/auth/welcomePage.dart' as welcome;
@@ -186,6 +188,8 @@ class NutriLinkApp extends StatelessWidget {
           return profile_bmr.BmrCalculationPage(
               userData: args as Map<String, dynamic>);
         },
+        '/change-password': (context) =>
+            const change_password.ChangePasswordPage(),
       },
     );
   }

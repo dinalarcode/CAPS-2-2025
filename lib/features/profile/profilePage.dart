@@ -9,6 +9,7 @@ import 'package:nutrilink/features/settings/notificationSettingsPage.dart';
 import 'uploadProfilePicturePage.dart'; // <-- tambahkan import ini
 import 'editProfilePage.dart';
 import 'nutritionNeedsPage.dart';
+import 'package:nutrilink/features/profile/changePasswordPage.dart';
 
 // Fallback implementation for MigrateScheduleData so the profile page can call migrateAllScheduleData()
 // Replace this with the real implementation in lib/services/migrate_schedule_data.dart if available.
@@ -334,7 +335,23 @@ class _ProfilePageState extends State<ProfilePage> {
                     context,
                     icon: Icons.lock_outline,
                     title: 'Ganti Password',
-                    onTap: () => _showComingSoon(context),
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChangePasswordPage(),
+                        ),
+                      );
+                      if (result == true && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✅ Password berhasil diubah'),
+                            backgroundColor: kGreen,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
                   ),
 
                   const SizedBox(height: 30),
