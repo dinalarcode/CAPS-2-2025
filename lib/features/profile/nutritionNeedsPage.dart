@@ -130,7 +130,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                      color: kGreen.withOpacity(0.3),
+                      color: kGreen.withValues(alpha: 0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4))
                 ],
@@ -156,7 +156,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20)),
                     child: Column(
                       children: [
@@ -213,7 +213,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
+                            color: Colors.orange.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10)),
                         child: const Icon(Icons.local_fire_department,
                             color: Colors.orange, size: 20),
@@ -434,7 +434,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
+                    color: iconColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10)),
                 child: Icon(icon, color: iconColor, size: 20),
               ),
@@ -510,6 +510,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
     final today = DateTime.now();
     int age = today.year - birthDate.year;
     if (today.month < birthDate.month ||
+        // ignore: curly_braces_in_flow_control_structures
         (today.month == birthDate.month && today.day < birthDate.day)) age--;
     return age;
   }
@@ -552,11 +553,18 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
   }
 
   int _calculateGoalCalories(double tdee, String? goal) {
-    if (tdee == 0) return 2000;
+    if (tdee == 0) {
+      return 2000;
+    }
+
     double target = tdee;
-    if (goal == 'lose_weight')
+
+    if (goal == 'lose_weight') {
       target -= 500;
-    else if (goal == 'gain_weight' || goal == 'gain_muscle') target += 300;
+    } else if (goal == 'gain_weight' || goal == 'gain_muscle') {
+      target += 300;
+    }
+
     return target.round();
   }
 
