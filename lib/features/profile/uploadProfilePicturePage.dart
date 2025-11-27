@@ -302,7 +302,7 @@ class _CropDialogState extends State<_CropDialog> {
                 onPressed: () async {
                   // Capture and return file
                   final cropped = await _captureCroppedImage();
-                  if (mounted) {
+                  if (mounted && context.mounted) {
                     Navigator.pop(context, cropped);
                   }
                 },

@@ -18,6 +18,7 @@ import 'package:nutrilink/config/firebaseOptions.dart';
 
 // Services
 import 'package:nutrilink/services/geminiService.dart';
+import 'package:nutrilink/services/notificationService.dart';
 
 // Features - Meal
 import 'package:nutrilink/features/meal/mealPage.dart' as meal_page;
@@ -89,6 +90,7 @@ Future<void> main() async {
     }
 
     GeminiService.initialize();
+    await NotificationService.initialize();
 
     await CartManager.loadCart();
     debugPrint('✅ Cart loaded');

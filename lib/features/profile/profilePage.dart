@@ -5,9 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // migrate_schedule_data.dart was missing; provide a local fallback implementation to avoid compile errors.
 // If you later add the real file at lib/services/migrate_schedule_data.dart, remove this fallback and restore the import.
 import 'viewProfilePage.dart'; // Pastikan file ini ada!
-import 'editProfilePage.dart'; // Wajib ditambahkan!
-import 'nutritionNeedsPage.dart';
+import 'package:nutrilink/features/settings/notificationSettingsPage.dart';
 import 'uploadProfilePicturePage.dart'; // <-- tambahkan import ini
+import 'editProfilePage.dart';
+import 'nutritionNeedsPage.dart';
 
 // Fallback implementation for MigrateScheduleData so the profile page can call migrateAllScheduleData()
 // Replace this with the real implementation in lib/services/migrate_schedule_data.dart if available.
@@ -318,7 +319,16 @@ class _ProfilePageState extends State<ProfilePage> {
                     context,
                     icon: Icons.notifications_outlined,
                     title: 'Notifikasi',
-                    onTap: () => _showComingSoon(context),
+                    subtitle: 'Atur pengingat waktu makan',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const NotificationSettingsPage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildMenuButton(
                     context,
