@@ -144,19 +144,22 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text("✅ Data TDEE & Aktivitas berhasil diperbarui!"),
-            backgroundColor: Colors.green[600],
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      if (!mounted) return;
 
-        // 🔄 Return true untuk trigger reload
-        Navigator.pop(context, true);
-      }
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text("✅ Data TDEE & Aktivitas berhasil diperbarui!"),
+          backgroundColor: Colors.green[600],
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      // 🔄 Return true untuk trigger reload
+      navigator.pop(true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
