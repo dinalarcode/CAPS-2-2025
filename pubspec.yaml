@@ -24,14 +24,16 @@ dependencies:
   shared_preferences: ^2.5.3
   firebase_storage: ^12.4.10
   cached_network_image: ^3.4.1
-  google_generative_ai: ^0.4.7
+  flutter_local_notifications: ^17.1.2
+  timezone: ^0.9.4
+  google_generative_ai: ^0.4.4
 
   # UI helper
   flutter_cupertino_datetime_picker: ^3.0.0
 
   # File picker / image picker (buat upload ke Storage)
-  image_picker: ^1.1.2
-  # file_picker: ^8.0.0
+  image_picker: ^0.8.7+5
+  image_cropper: ^11.0.0
 
 dev_dependencies:
   flutter_test:

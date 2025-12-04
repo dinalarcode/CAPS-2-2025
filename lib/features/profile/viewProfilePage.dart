@@ -1,6 +1,9 @@
 // lib/viewProfilePage.dart
 
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'editProfilePage.dart';
 
 // Palet warna (Diambil dari theme aplikasi kamu)
 const Color kGreen = Color(0xFF5F9C3F);
@@ -8,30 +11,74 @@ const Color kGreyText = Color(0xFF494949);
 const Color kLightGreyText = Color(0xFF888888);
 const Color kMutedBorderGrey = Color(0xFFA9ABAD);
 
-class ViewProfilePage extends StatelessWidget {
+class ViewProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
 
   const ViewProfilePage({super.key, required this.userData});
 
   @override
+  State<ViewProfilePage> createState() => _ViewProfilePageState();
+}
+
+class _ViewProfilePageState extends State<ViewProfilePage> {
+  late Map<String, dynamic> userData;
+
+  @override
+  void initState() {
+    super.initState();
+    userData = widget.userData;
+  }
+
+  Future<void> _navigateToEdit() async {
+    final bool? result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfilePage(userData: userData),
+      ),
+    );
+
+    // Jika data diubah, refresh halaman dengan data terbaru dari Firestore
+    if (result == true) {
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) return;
+
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (doc.exists && mounted) {
+          setState(() {
+            userData = doc.data() ?? {};
+          });
+        }
+      } catch (e) {
+        debugPrint('❌ Error loading updated profile: $e');
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     // 1. Ekstraksi Data Aman (Defensive Programming)
     final profile = (userData['profile'] as Map<String, dynamic>?) ?? userData;
-    
+
     final String name = profile['name'] ?? userData['name'] ?? 'Pengguna';
     final String sex = profile['sex'] ?? '-';
     final double height = (profile['heightCm'] as num?)?.toDouble() ?? 0;
     final double weight = (profile['weightKg'] as num?)?.toDouble() ?? 0;
-    final double targetWeight = (profile['targetWeightKg'] as num?)?.toDouble() ?? 0;
-    
+    final double targetWeight =
+        (profile['targetWeightKg'] as num?)?.toDouble() ?? 0;
+
     // Konversi Timestamp/String ke DateTime untuk Umur
     DateTime? birthDate;
     if (profile['birthDate'] != null) {
       if (profile['birthDate'] is String) {
         birthDate = DateTime.tryParse(profile['birthDate']);
       } else if (profile['birthDate'].toString().contains('Timestamp')) {
-         // Handle jika formatnya Firestore Timestamp
-         // birthDate = (profile['birthDate'] as Timestamp).toDate();
+        // Handle jika formatnya Firestore Timestamp
+        // birthDate = (profile['birthDate'] as Timestamp).toDate();
       }
     }
 
@@ -57,6 +104,13 @@ class ViewProfilePage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, color: Colors.black87),
+            tooltip: 'Edit Profil',
+            onPressed: _navigateToEdit,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -69,14 +123,14 @@ class ViewProfilePage extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [kGreen, kGreen.withOpacity(0.8)],
+                  colors: [kGreen, kGreen.withValues(alpha: 0.8)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: kGreen.withOpacity(0.3),
+                    color: kGreen.withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -103,9 +157,10 @@ class ViewProfilePage extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -138,8 +193,10 @@ class ViewProfilePage extends StatelessWidget {
             _buildSectionTitle('Target & Kesehatan'),
             _buildInfoContainer([
               _buildRow('Tujuan Utama', _translateGoal(profile['target'])),
-              _buildRow('Target Berat', '${targetWeight.toStringAsFixed(1)} kg'),
-              _buildRow('Aktivitas', _translateActivity(profile['activityLevel'])),
+              _buildRow(
+                  'Target Berat', '${targetWeight.toStringAsFixed(1)} kg'),
+              _buildRow(
+                  'Aktivitas', _translateActivity(profile['activityLevel'])),
             ]),
 
             const SizedBox(height: 24),
@@ -147,12 +204,40 @@ class ViewProfilePage extends StatelessWidget {
             // === PREFERENSI ===
             _buildSectionTitle('Preferensi & Lainnya'),
             _buildInfoContainer([
-              _buildRow('Frekuensi Makan', '${profile['eatFrequency'] ?? '-'}x sehari'),
+              _buildRow('Frekuensi Makan',
+                  '${profile['eatFrequency'] ?? '-'}x sehari'),
               _buildListRow('Alergi', profile['allergies']),
               _buildListRow('Tantangan', profile['challenges']),
             ]),
-            
+
             const SizedBox(height: 40),
+
+            // Tombol Edit Profil (kuning dengan icon dan teks putih)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _navigateToEdit,
+                icon: const Icon(Icons.edit, color: Colors.white),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14.0),
+                  child: Text(
+                    'Edit Profil',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Funnel Display',
+                    ),
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber.shade700,
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -183,10 +268,10 @@ class ViewProfilePage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kMutedBorderGrey.withOpacity(0.5)),
+        border: Border.all(color: kMutedBorderGrey.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 5,
             offset: const Offset(0, 2),
           ),
@@ -253,16 +338,18 @@ class ViewProfilePage extends StatelessWidget {
                 ? const Text('-', style: TextStyle(fontWeight: FontWeight.w600))
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
-                    children: listItems.map((item) => Text(
-                      item,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        fontFamily: 'Funnel Display',
-                        color: Colors.black87,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    )).toList(),
+                    children: listItems
+                        .map((item) => Text(
+                              item,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                fontFamily: 'Funnel Display',
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ))
+                        .toList(),
                   ),
           ),
         ],
@@ -271,12 +358,12 @@ class ViewProfilePage extends StatelessWidget {
   }
 
   // --- LOGIC HELPERS ---
-  
+
   int _calculateAge(DateTime? birthDate) {
     if (birthDate == null) return 0;
     final today = DateTime.now();
     int age = today.year - birthDate.year;
-    if (today.month < birthDate.month || 
+    if (today.month < birthDate.month ||
         (today.month == birthDate.month && today.day < birthDate.day)) {
       age--;
     }

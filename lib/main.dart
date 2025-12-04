@@ -18,6 +18,7 @@ import 'package:nutrilink/config/firebaseOptions.dart';
 
 // Services
 import 'package:nutrilink/services/geminiService.dart';
+import 'package:nutrilink/services/notificationService.dart';
 
 // Features - Meal
 import 'package:nutrilink/features/meal/mealPage.dart' as meal_page;
@@ -35,6 +36,8 @@ import 'package:nutrilink/features/profile/nutritionNeedsPage.dart'
     as profile_nutrition;
 import 'package:nutrilink/features/profile/bmrCalculationPage.dart'
     as profile_bmr;
+import 'package:nutrilink/features/profile/changePasswordPage.dart'
+    as change_password;
 
 // Pages - Auth
 import 'package:nutrilink/pages/auth/welcomePage.dart' as welcome;
@@ -89,6 +92,7 @@ Future<void> main() async {
     }
 
     GeminiService.initialize();
+    await NotificationService.initialize();
 
     await CartManager.loadCart();
     debugPrint('✅ Cart loaded');
@@ -184,6 +188,8 @@ class NutriLinkApp extends StatelessWidget {
           return profile_bmr.BmrCalculationPage(
               userData: args as Map<String, dynamic>);
         },
+        '/change-password': (context) =>
+            const change_password.ChangePasswordPage(),
       },
     );
   }
