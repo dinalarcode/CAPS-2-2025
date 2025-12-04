@@ -338,8 +338,12 @@ flutter pub get
 
 ## 👥 Tim Pengembang
 
-- **Amalia Utamima** - Developer
-- **Andre Parvian Aristio** - Developer
+- **Muhammad Iqbal Baiduri Yamani (5026221103)**
+- **Dicky Febri Primadhani (5026221036)**
+- **Yeremia Maydinata Narana (5026221068)**
+- **Baringga Aurico De Erwada (5026221133)**
+- **Airlangga Bayu Taqwa (5026221204)**
+
 
 ---
 
@@ -358,6 +362,7 @@ Untuk pertanyaan atau dukungan, hubungi:
 ---
 
 **NutriLink x HealthyGo** - Smart Nutrition Assistant 🥗✨
+
 
 
 
