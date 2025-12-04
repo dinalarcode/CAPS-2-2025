@@ -112,7 +112,10 @@ class _BmrCalculationPageState extends State<BmrCalculationPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+
+      messenger.showSnackBar(
         SnackBar(
           content: Text(
             saveVal == 0
@@ -126,7 +129,7 @@ class _BmrCalculationPageState extends State<BmrCalculationPage> {
       );
 
       // 🔄 Return true untuk trigger reload di NutritionNeedsPage
-      Navigator.pop(context, true);
+      navigator.pop(true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
