@@ -6,6 +6,7 @@ import 'package:nutrilink/features/settings/notificationSettingsPage.dart';
 import 'uploadProfilePicturePage.dart';
 import 'nutritionNeedsPage.dart';
 import 'package:nutrilink/features/profile/changePasswordPage.dart';
+import 'package:nutrilink/pages/auth/welcomePage.dart';
 
 const Color kGreen = Color(0xFF5F9C3F);
 
@@ -59,14 +60,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => const Scaffold(
-              body: Center(
-                child: Text(
-                  'Welcome',
-                  style: TextStyle(fontSize: 20),
-                ),
-              ),
-            ),
+            builder: (context) => const WelcomePage(),
           ),
           (route) => false,
         );
@@ -354,7 +348,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
-                          'NutriLink v1.0.0',
+                          'NutriLink v1.4.0',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,

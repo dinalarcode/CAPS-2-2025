@@ -152,7 +152,7 @@ class WelcomePage extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      'Version 1.3.0',
+                      'Version 1.4.0',
                       textAlign: TextAlign.center,
                       style: AppTextStyles.bodySmall.copyWith(
                         color: AppColors.black.withValues(alpha: 0.50),
