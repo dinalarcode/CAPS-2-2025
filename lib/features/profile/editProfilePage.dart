@@ -240,7 +240,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Widget _buildDropdownActivity() {
     return DropdownButtonFormField<String>(
-      value: _selectedActivityLevel,
+      initialValue: _selectedActivityLevel,
       decoration: InputDecoration(
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: kMutedBorderGrey)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -258,7 +258,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Widget _buildDropdownGoal() {
     return DropdownButtonFormField<String>(
-      value: _selectedGoal,
+      initialValue: _selectedGoal,
       decoration: InputDecoration(
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: kMutedBorderGrey)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

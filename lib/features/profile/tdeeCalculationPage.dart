@@ -134,7 +134,9 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
         Navigator.pop(context, true); // Refresh halaman sebelumnya
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -163,7 +165,7 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: isManual ? kOrange.withOpacity(0.1) : kGreen.withOpacity(0.1),
+                color: isManual ? kOrange.withValues(alpha: 0.1) : kGreen.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: isManual ? kOrange : kGreen),
               ),
@@ -199,7 +201,7 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
               ),
               child: Column(
                 children: [
@@ -379,20 +381,14 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
         });
       },
       child: Container(
-        color: isSelected ? kGreen.withOpacity(0.05) : Colors.transparent,
+        color: isSelected ? kGreen.withValues(alpha: 0.05) : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
             Radio<String>(
               value: value,
-              groupValue: _selectedActivity,
               activeColor: kGreen,
-              onChanged: (val) {
-                setState(() {
-                  _selectedActivity = val!;
-                  _calculateValues();
-                });
-              },
+              toggleable: false,
             ),
             const SizedBox(width: 8),
             Expanded(

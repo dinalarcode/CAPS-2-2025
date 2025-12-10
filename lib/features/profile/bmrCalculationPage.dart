@@ -107,7 +107,9 @@ class _BmrCalculationPageState extends State<BmrCalculationPage> {
         Navigator.pop(context, true); 
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -136,7 +138,7 @@ class _BmrCalculationPageState extends State<BmrCalculationPage> {
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: isManual ? kOrange.withOpacity(0.1) : kGreen.withOpacity(0.1),
+                color: isManual ? kOrange.withValues(alpha: 0.1) : kGreen.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: isManual ? kOrange : kGreen),
               ),
@@ -173,7 +175,7 @@ class _BmrCalculationPageState extends State<BmrCalculationPage> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
               ),
               child: Column(
                 children: [

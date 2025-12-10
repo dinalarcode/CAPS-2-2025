@@ -116,7 +116,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                 ),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
-                  BoxShadow(color: kGreen.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))
+                  BoxShadow(color: kGreen.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))
                 ],
               ),
               child: Column(
@@ -130,7 +130,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
                     child: Text(_translateGoal(profile['target']), style: const TextStyle(fontFamily: 'Funnel Display', color: Colors.white, fontSize: 12)),
                   ),
                 ],
@@ -166,7 +166,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                        decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                         child: const Icon(Icons.local_fire_department, color: Colors.orange, size: 20),
                       ),
                       const SizedBox(width: 12),
@@ -304,7 +304,7 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: iconColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                 child: Icon(icon, color: iconColor, size: 20),
               ),
               const SizedBox(width: 12),
@@ -398,8 +398,11 @@ class _NutritionNeedsPageState extends State<NutritionNeedsPage> {
   int _calculateGoalCalories(double tdee, String? goal) {
     if (tdee == 0) return 2000;
     double target = tdee;
-    if (goal == 'lose_weight') target -= 500;
-    else if (goal == 'gain_weight' || goal == 'gain_muscle') target += 300;
+    if (goal == 'lose_weight') {
+      target -= 500;
+    } else if (goal == 'gain_weight' || goal == 'gain_muscle') {
+      target += 300;
+    }
     return target.round();
   }
 
