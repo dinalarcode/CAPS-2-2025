@@ -38,8 +38,12 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  mockito: ^5.4.4
+  build_runner: ^2.4.8
   flutter_lints: ^6.0.0
   flutter_launcher_icons: "^0.14.4"
+  fake_cloud_firestore: ^2.5.0 # Untuk simulasi database tanpa koneksi internet
+  firebase_auth_mocks: ^0.13.0 # Untuk simulasi login user
 
 flutter_launcher_icons:
   android: "launcher_icon"
