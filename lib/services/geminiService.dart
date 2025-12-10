@@ -21,7 +21,7 @@ class GeminiService {
     debugPrint('   API Key starts with: ${apiKey.substring(0, min(20, apiKey.length))}...');
     
     _model = GenerativeModel(
-      model: 'gemini-2.0-flash-exp', // Use latest experimental model
+      model: 'gemini-2.5-flash-lite', // Use latest experimental model
       apiKey: apiKey,
       generationConfig: GenerationConfig(
         temperature: 0.4,

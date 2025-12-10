@@ -19,9 +19,9 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
   bool _isLoading = false;
 
   // Data Hitungan
-  late double bmr; 
+  late double bmr;
   String _selectedActivity = 'sedentary'; // Default activity
-  
+
   // Nilai TDEE
   late double autoTdee;
   late double activeTdee;
@@ -69,7 +69,7 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
       autoTdee = bmr * multiplier;
       // Jika user TIDAK sedang dalam mode manual, update TDEE aktif secara real-time
       if (!isManual) {
-        activeTdee = autoTdee; 
+        activeTdee = autoTdee;
       }
     });
   }
@@ -79,7 +79,7 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
     double weight = (profile['weightKg'] as num?)?.toDouble() ?? 0;
     double height = (profile['heightCm'] as num?)?.toDouble() ?? 0;
     String sex = (profile['sex'] ?? 'Laki-laki').toString();
-    
+
     DateTime? birthDate;
     if (profile['birthDate'] is Timestamp) {
       birthDate = (profile['birthDate'] as Timestamp).toDate();
@@ -90,25 +90,38 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
 
     if (weight == 0 || height == 0) return 0;
     double val = (10 * weight) + (6.25 * height) - (5 * age);
-    return (sex.toLowerCase().contains('female') || sex.toLowerCase().contains('wanita') || sex.toLowerCase().contains('perempuan')) ? val - 161 : val + 5;
+    return (sex.toLowerCase().contains('female') ||
+            sex.toLowerCase().contains('wanita') ||
+            sex.toLowerCase().contains('perempuan'))
+        ? val - 161
+        : val + 5;
   }
 
   int _calculateAge(DateTime? birthDate) {
     if (birthDate == null) return 25;
     final today = DateTime.now();
     int age = today.year - birthDate.year;
-    if (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)) age--;
+    if (today.month < birthDate.month ||
+        (today.month == birthDate.month && today.day < birthDate.day)) {
+      age--;
+    }
     return age;
   }
 
   double _getMultiplier(String level) {
     switch (level) {
-      case 'sedentary': return 1.2;
-      case 'lightly_active': return 1.375;
-      case 'moderately_active': return 1.55;
-      case 'very_active': return 1.725;
-      case 'extremely_active': return 1.9;
-      default: return 1.2;
+      case 'sedentary':
+        return 1.2;
+      case 'lightly_active':
+        return 1.375;
+      case 'moderately_active':
+        return 1.55;
+      case 'very_active':
+        return 1.725;
+      case 'extremely_active':
+        return 1.9;
+      default:
+        return 1.2;
     }
   }
 
@@ -118,24 +131,43 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      double? manualVal = double.tryParse(_manualTdeeController.text.replaceAll(',', '.'));
+      double? manualVal =
+          double.tryParse(_manualTdeeController.text.replaceAll(',', '.'));
       double saveManualTdee = manualVal ?? 0;
 
-      // UPDATE FIRESTORE: Simpan Manual TDEE (jika ada) DAN Level Aktivitas Baru
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
         'profile.manualTdee': saveManualTdee,
-        'profile.activityLevel': _selectedActivity, 
+        'profile.activityLevel': _selectedActivity,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Data TDEE & Aktivitas berhasil diperbarui!")),
-        );
-        Navigator.pop(context, true); // Refresh halaman sebelumnya
-      }
+      if (!mounted) return;
+
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text("✅ Data TDEE & Aktivitas berhasil diperbarui!"),
+          backgroundColor: Colors.green[600],
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      // 🔄 Return true untuk trigger reload
+      navigator.pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("❌ Error: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -147,7 +179,11 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Perhitungan TDEE', style: TextStyle(fontFamily: 'Funnel Display', fontWeight: FontWeight.bold, color: Colors.black87)),
+        title: const Text('Perhitungan TDEE',
+            style: TextStyle(
+                fontFamily: 'Funnel Display',
+                fontWeight: FontWeight.bold,
+                color: Colors.black87)),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -165,24 +201,36 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: isManual ? kOrange.withValues(alpha: 0.1) : kGreen.withValues(alpha: 0.1),
+                color: isManual
+                    ? kOrange.withValues(alpha: 0.1)
+                    : kGreen.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: isManual ? kOrange : kGreen),
               ),
               child: Row(
                 children: [
-                  Icon(isManual ? Icons.edit : Icons.directions_run, color: isManual ? kOrange : kGreen, size: 28),
+                  Icon(isManual ? Icons.edit : Icons.directions_run,
+                      color: isManual ? kOrange : kGreen, size: 28),
                   const SizedBox(width: 15),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isManual ? "Anda menggunakan TDEE Manual" : "Menggunakan Kalkulasi Otomatis",
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isManual ? Colors.deepOrange : kGreen),
+                        isManual
+                            ? "Anda menggunakan TDEE Manual"
+                            : "Menggunakan Kalkulasi Otomatis",
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isManual ? Colors.deepOrange : kGreen),
                       ),
                       Text(
                         "${activeTdee.toStringAsFixed(0)} kkal",
-                        style: const TextStyle(fontFamily: 'Funnel Display', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                        style: const TextStyle(
+                            fontFamily: 'Funnel Display',
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87),
                       ),
                     ],
                   )
@@ -193,15 +241,24 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
             // 2. PILIHAN AKTIVITAS (INTERAKTIF)
             const Text(
               "Pilih Tingkat Aktivitas",
-              style: TextStyle(fontFamily: 'Funnel Display', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54),
+              style: TextStyle(
+                  fontFamily: 'Funnel Display',
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black54),
             ),
             const SizedBox(height: 10),
-            
+
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5))
+                ],
               ),
               child: Column(
                 children: [
@@ -246,7 +303,7 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
             const SizedBox(height: 20),
 
             // HASIL KALKULASI RUMUS (Live Update)
-             Container(
+            Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.grey[100],
@@ -259,13 +316,24 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Hasil Rumus (BMR x Aktivitas)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                      Text("${bmr.toStringAsFixed(0)} x ${_getMultiplier(_selectedActivity)}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      const Text("Hasil Rumus (BMR x Aktivitas)",
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey)),
+                      Text(
+                          "${bmr.toStringAsFixed(0)} x ${_getMultiplier(_selectedActivity)}",
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.grey)),
                     ],
                   ),
                   Text(
                     "${autoTdee.toStringAsFixed(0)} kkal",
-                    style: TextStyle(fontFamily: 'Funnel Display', fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                    style: TextStyle(
+                        fontFamily: 'Funnel Display',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[700]),
                   ),
                 ],
               ),
@@ -276,7 +344,11 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
             // 3. INPUT MANUAL
             const Text(
               "Override Manual (Opsional)",
-              style: TextStyle(fontFamily: 'Funnel Display', fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+              style: TextStyle(
+                  fontFamily: 'Funnel Display',
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -284,10 +356,11 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 15),
-            
+
             TextFormField(
               controller: _manualTdeeController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               onChanged: (val) {
                 // Realtime: jika user ketik, switch ke mode manual
                 setState(() {
@@ -303,13 +376,16 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
                 labelText: "Input TDEE Manual",
                 suffixText: "kkal",
                 hintText: autoTdee.toStringAsFixed(0),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: kGreen, width: 2)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: kGreen, width: 2)),
               ),
             ),
 
             const SizedBox(height: 30),
-            
+
             // 4. TOMBOL SIMPAN
             SizedBox(
               width: double.infinity,
@@ -318,29 +394,35 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
                 onPressed: _isLoading ? null : _saveChanges,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kGreen,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   elevation: 2,
                 ),
-                child: _isLoading 
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Simpan & Update Profil", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Simpan & Update Profil",
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold)),
               ),
             ),
-            
+
             // Tombol Reset
-             if (_manualTdeeController.text.isNotEmpty)
+            if (_manualTdeeController.text.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: TextButton.icon(
                   onPressed: () {
-                     _manualTdeeController.clear();
-                     setState(() {
-                       isManual = false;
-                       activeTdee = autoTdee; // Kembalikan ke nilai rumus
-                     });
+                    _manualTdeeController.clear();
+                    setState(() {
+                      isManual = false;
+                      activeTdee = autoTdee; // Kembalikan ke nilai rumus
+                    });
                   },
                   icon: const Icon(Icons.refresh, size: 16, color: Colors.grey),
-                  label: const Text("Hapus Manual & Gunakan Rumus", style: TextStyle(color: Colors.grey)),
+                  label: const Text("Hapus Manual & Gunakan Rumus",
+                      style: TextStyle(color: Colors.grey)),
                 ),
               ),
 
@@ -348,17 +430,19 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
             const SizedBox(height: 40),
             const Divider(),
             const SizedBox(height: 20),
-            
+
             _buildInfoNote(
               title: "Apa itu TDEE?",
-              content: "TDEE (Total Daily Energy Expenditure) adalah total kalori yang Anda bakar dalam 24 jam. Ini mencakup BMR (energi istirahat) ditambah semua aktivitas fisik seperti berjalan, bekerja, dan berolahraga.",
+              content:
+                  "TDEE (Total Daily Energy Expenditure) adalah total kalori yang Anda bakar dalam 24 jam. Ini mencakup BMR (energi istirahat) ditambah semua aktivitas fisik seperti berjalan, bekerja, dan berolahraga.",
             ),
             const SizedBox(height: 16),
-             _buildInfoNote(
+            _buildInfoNote(
               title: "Kenapa Ini Penting?",
-              content: "TDEE adalah angka 'Maintenance'. Makan di bawah angka ini akan membakar lemak (defisit), dan makan di atas angka ini akan menambah berat badan (surplus).",
+              content:
+                  "TDEE adalah angka 'Maintenance'. Makan di bawah angka ini akan membakar lemak (defisit), dan makan di atas angka ini akan menambah berat badan (surplus).",
             ),
-             const SizedBox(height: 30),
+            const SizedBox(height: 30),
           ],
         ),
       ),
@@ -385,10 +469,12 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Radio<String>(
-              value: value,
-              activeColor: kGreen,
-              toggleable: false,
+            // Selection indicator: replace deprecated Radio API with tappable Icon
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected ? kGreen : Colors.grey,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -398,16 +484,26 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(title,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14)),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4)),
-                        child: Text(multiplier, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(4)),
+                        child: Text(multiplier,
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black54)),
                       )
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  Text(subtitle,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 ],
               ),
             ),
@@ -433,11 +529,18 @@ class _TdeeCalculationPageState extends State<TdeeCalculationPage> {
             children: [
               const Icon(Icons.lightbulb_outline, size: 20, color: Colors.grey),
               const SizedBox(width: 8),
-              Text(title, style: const TextStyle(fontFamily: 'Funnel Display', fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+              Text(title,
+                  style: const TextStyle(
+                      fontFamily: 'Funnel Display',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black87)),
             ],
           ),
           const SizedBox(height: 8),
-          Text(content, style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.black54)),
+          Text(content,
+              style: const TextStyle(
+                  fontSize: 13, height: 1.5, color: Colors.black54)),
         ],
       ),
     );

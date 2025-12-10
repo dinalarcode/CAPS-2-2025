@@ -2,13 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import 'package:nutrilink/services/notificationService.dart';
 
 class ScheduleService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// Calculate meal time based on user's sleep schedule
-  static String _calculateMealTime(String mealType, String wakeTime, String sleepTime) {
+  static String _calculateMealTime(
+      String mealType, String wakeTime, String sleepTime) {
     try {
       int wakeHour = int.parse(wakeTime.split(':')[0]);
       int wakeMinute = int.parse(wakeTime.split(':')[1]);
@@ -41,13 +43,16 @@ class ScheduleService {
       } else {
         // 2-3 jam sebelum tidur
         final startMinutes = sleepMinutes - 180; // 3 jam sebelum
-        final endMinutes = sleepMinutes - 120;  // 2 jam sebelum
+        final endMinutes = sleepMinutes - 120; // 2 jam sebelum
         return '${formatTime(startMinutes)} - ${formatTime(endMinutes)}';
       }
     } catch (e) {
       // Fallback jika parsing gagal
-      return mealType == 'Sarapan' ? '07:00 - 08:00' : 
-            mealType == 'Makan Siang' ? '12:00 - 13:00' : '18:00 - 19:00';
+      return mealType == 'Sarapan'
+          ? '07:00 - 08:00'
+          : mealType == 'Makan Siang'
+              ? '12:00 - 13:00'
+              : '18:00 - 19:00';
     }
   }
 
@@ -61,12 +66,14 @@ class ScheduleService {
       final userDoc = await _db.collection('users').doc(uid).get();
       String wakeTime = '06:00';
       String sleepTime = '22:00';
-      
+
       if (userDoc.exists && userDoc.data()?['sleepSchedule'] != null) {
-        final sleepSchedule = userDoc.data()!['sleepSchedule'] as Map<String, dynamic>;
+        final sleepSchedule =
+            userDoc.data()!['sleepSchedule'] as Map<String, dynamic>;
         wakeTime = sleepSchedule['wakeTime'] ?? '06:00';
         sleepTime = sleepSchedule['sleepTime'] ?? '22:00';
-        debugPrint('👤 [SCHEDULE] User sleep schedule: Wake=$wakeTime Sleep=$sleepTime');
+        debugPrint(
+            '👤 [SCHEDULE] User sleep schedule: Wake=$wakeTime Sleep=$sleepTime');
       } else {
         debugPrint('⚠️ [SCHEDULE] No sleep schedule found, using defaults');
       }
@@ -94,24 +101,31 @@ class ScheduleService {
         if (!mealsByDate.containsKey(date)) {
           mealsByDate[date] = [];
         }
-        
+
         // Get nutritional data from item or fallback to menuData
         final menuData = item['menuData'] as Map<String, dynamic>?;
         final protein = item['protein'] ?? menuData?['protein'] ?? 0;
-        final carbs = item['carbs'] ?? item['carbohydrate'] ?? menuData?['carbs'] ?? menuData?['carbohydrate'] ?? 0;
+        final carbs = item['carbs'] ??
+            item['carbohydrate'] ??
+            menuData?['carbs'] ??
+            menuData?['carbohydrate'] ??
+            0;
         final fat = item['fat'] ?? menuData?['fat'] ?? 0;
         final mealType = item['mealType'] as String;
-        
+
         // Calculate clock time based on meal type and sleep schedule
-        final calculatedClock = _calculateMealTime(mealType, wakeTime, sleepTime);
-        
-        debugPrint('📊 [SCHEDULE] Item: ${item['name']} - Type:$mealType Clock:$calculatedClock P:$protein C:$carbs F:$fat');
-        
+        final calculatedClock =
+            _calculateMealTime(mealType, wakeTime, sleepTime);
+
+        debugPrint(
+            '📊 [SCHEDULE] Item: ${item['name']} - Type:$mealType Clock:$calculatedClock P:$protein C:$carbs F:$fat');
+
         mealsByDate[date]!.add({
           'orderId': orderId,
           'name': item['name'],
           'time': mealType,
-          'clock': calculatedClock, // Use calculated clock instead of stored value
+          'clock':
+              calculatedClock, // Use calculated clock instead of stored value
           'calories': item['calories'],
           'protein': protein,
           // Store both for compatibility
@@ -128,23 +142,20 @@ class ScheduleService {
       for (var entry in mealsByDate.entries) {
         final date = entry.key;
         final newMeals = entry.value;
-        
-        final scheduleRef = _db
-            .collection('users')
-            .doc(uid)
-            .collection('schedule')
-            .doc(date);
+
+        final scheduleRef =
+            _db.collection('users').doc(uid).collection('schedule').doc(date);
 
         // Get existing meals first
         final existingDoc = await scheduleRef.get();
         Map<String, Map<String, dynamic>> mealsByType = {};
-        
+
         // Load existing meals and organize by meal type
         if (existingDoc.exists && existingDoc.data()?['meals'] != null) {
           final existingMeals = List<Map<String, dynamic>>.from(
-            (existingDoc.data()!['meals'] as List<dynamic>).map((m) => Map<String, dynamic>.from(m))
-          );
-          
+              (existingDoc.data()!['meals'] as List<dynamic>)
+                  .map((m) => Map<String, dynamic>.from(m)));
+
           for (var meal in existingMeals) {
             final mealType = meal['time'] as String? ?? '';
             if (mealType.isNotEmpty) {
@@ -152,16 +163,17 @@ class ScheduleService {
             }
           }
         }
-        
+
         // Add/Replace new meals by type (won't overwrite different meal types)
         for (var newMeal in newMeals) {
           final mealType = newMeal['time'] as String? ?? '';
           if (mealType.isNotEmpty) {
-            mealsByType[mealType] = newMeal; // Replace if same type, add if new type
+            mealsByType[mealType] =
+                newMeal; // Replace if same type, add if new type
             debugPrint('  📝 Updated $mealType for $date: ${newMeal['name']}');
           }
         }
-        
+
         // Convert back to list and sort by meal type order
         final mealOrder = {'Sarapan': 1, 'Makan Siang': 2, 'Makan Malam': 3};
         final allMeals = mealsByType.values.toList();
@@ -170,16 +182,30 @@ class ScheduleService {
           final bOrder = mealOrder[b['time']] ?? 99;
           return aOrder.compareTo(bOrder);
         });
-        
-        debugPrint('  ✅ Final meals for $date: ${allMeals.map((m) => m['time']).join(', ')}');
-        
+
+        debugPrint(
+            '  ✅ Final meals for $date: ${allMeals.map((m) => m['time']).join(', ')}');
+
         // Save merged and sorted meals
         await scheduleRef.set({
           'meals': allMeals,
           'updatedAt': FieldValue.serverTimestamp(),
         });
+
+        // Schedule notifications for this date
+        try {
+          final scheduleDate = DateFormat('yyyy-MM-dd').parse(date);
+          await NotificationService.scheduleAllMealNotifications(
+            date: scheduleDate,
+            meals: allMeals,
+          );
+          debugPrint('🔔 Notifications scheduled for $date');
+        } catch (e) {
+          debugPrint('⚠️ Error scheduling notifications: $e');
+        }
       }
-      debugPrint('✅ Schedule populated for ${mealsByDate.length} dates from order $orderId');
+      debugPrint(
+          '✅ Schedule populated for ${mealsByDate.length} dates from order $orderId');
       return true;
     } catch (e) {
       debugPrint('❌ Error populating schedule: $e');
@@ -188,7 +214,8 @@ class ScheduleService {
   }
 
   /// Get meals untuk tanggal tertentu
-  static Future<List<Map<String, dynamic>>> getScheduleByDate(DateTime date) async {
+  static Future<List<Map<String, dynamic>>> getScheduleByDate(
+      DateTime date) async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) {
@@ -197,8 +224,9 @@ class ScheduleService {
       }
 
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      debugPrint('🔍 [ScheduleService] Fetching meals for date: $dateStr, uid: $uid');
-      
+      debugPrint(
+          '🔍 [ScheduleService] Fetching meals for date: $dateStr, uid: $uid');
+
       final doc = await _db
           .collection('users')
           .doc(uid)
@@ -207,25 +235,28 @@ class ScheduleService {
           .get();
 
       if (!doc.exists || doc.data()?['meals'] == null) {
-        debugPrint('⚠️ [ScheduleService] No schedule document found for $dateStr');
+        debugPrint(
+            '⚠️ [ScheduleService] No schedule document found for $dateStr');
         return [];
       }
 
       final meals = doc.data()!['meals'] as List<dynamic>;
-      debugPrint('✅ [ScheduleService] Found ${meals.length} meals for $dateStr');
-      
+      debugPrint(
+          '✅ [ScheduleService] Found ${meals.length} meals for $dateStr');
+
       // Validate each meal's orderId still exists
       final validMeals = <Map<String, dynamic>>[];
-      
+
       for (var i = 0; i < meals.length; i++) {
         final meal = Map<String, dynamic>.from(meals[i]);
         final orderId = meal['orderId'] as String?;
-        
+
         if (orderId == null || orderId.isEmpty) {
-          debugPrint('   ⚠️ ${i+1}. ${meal['time']}: ${meal['name']} - No orderId, skipping');
+          debugPrint(
+              '   ⚠️ ${i + 1}. ${meal['time']}: ${meal['name']} - No orderId, skipping');
           continue;
         }
-        
+
         // Check if order still exists
         final orderDoc = await _db
             .collection('users')
@@ -233,21 +264,25 @@ class ScheduleService {
             .collection('orders')
             .doc(orderId)
             .get();
-        
+
         if (!orderDoc.exists) {
-          debugPrint('   ❌ ${i+1}. ${meal['time']}: ${meal['name']} - Order $orderId not found, skipping');
+          debugPrint(
+              '   ❌ ${i + 1}. ${meal['time']}: ${meal['name']} - Order $orderId not found, skipping');
           continue;
         }
-        
-        debugPrint('   ✅ ${i+1}. ${meal['time']}: ${meal['name']} - Valid order');
+
+        debugPrint(
+            '   ✅ ${i + 1}. ${meal['time']}: ${meal['name']} - Valid order');
         validMeals.add(meal);
       }
-      
-      debugPrint('🔍 [ScheduleService] Validated ${validMeals.length}/${meals.length} meals');
-      
+
+      debugPrint(
+          '🔍 [ScheduleService] Validated ${validMeals.length}/${meals.length} meals');
+
       // If some meals were filtered out, update the document to remove invalid entries
       if (validMeals.length < meals.length) {
-        debugPrint('🧹 [ScheduleService] Cleaning up ${meals.length - validMeals.length} invalid meals from schedule');
+        debugPrint(
+            '🧹 [ScheduleService] Cleaning up ${meals.length - validMeals.length} invalid meals from schedule');
         await _db
             .collection('users')
             .doc(uid)
@@ -255,7 +290,7 @@ class ScheduleService {
             .doc(dateStr)
             .update({'meals': validMeals});
       }
-      
+
       return validMeals;
     } catch (e) {
       debugPrint('❌ Error getting schedule: $e');
@@ -264,7 +299,8 @@ class ScheduleService {
   }
 
   /// Mark meal as done/undone
-  static Future<bool> markMealAsDone(DateTime date, int mealIndex, bool isDone) async {
+  static Future<bool> markMealAsDone(
+      DateTime date, int mealIndex, bool isDone) async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return false;
@@ -280,8 +316,8 @@ class ScheduleService {
       if (!doc.exists) return false;
 
       final meals = List<Map<String, dynamic>>.from(
-        (doc.data()!['meals'] as List<dynamic>).map((m) => Map<String, dynamic>.from(m))
-      );
+          (doc.data()!['meals'] as List<dynamic>)
+              .map((m) => Map<String, dynamic>.from(m)));
 
       if (mealIndex >= meals.length) return false;
 
@@ -306,25 +342,23 @@ class ScheduleService {
   }
 
   /// Add single meal to schedule (untuk tambah manual)
-  static Future<bool> addMealToSchedule(DateTime date, Map<String, dynamic> mealData) async {
+  static Future<bool> addMealToSchedule(
+      DateTime date, Map<String, dynamic> mealData) async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return false;
 
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final scheduleRef = _db
-          .collection('users')
-          .doc(uid)
-          .collection('schedule')
-          .doc(dateStr);
+      final scheduleRef =
+          _db.collection('users').doc(uid).collection('schedule').doc(dateStr);
 
       final doc = await scheduleRef.get();
-      
+
       List<Map<String, dynamic>> meals = [];
       if (doc.exists && doc.data()?['meals'] != null) {
         meals = List<Map<String, dynamic>>.from(
-          (doc.data()!['meals'] as List<dynamic>).map((m) => Map<String, dynamic>.from(m))
-        );
+            (doc.data()!['meals'] as List<dynamic>)
+                .map((m) => Map<String, dynamic>.from(m)));
       }
 
       meals.add(mealData);
@@ -343,7 +377,8 @@ class ScheduleService {
   }
 
   /// Remove meal from schedule
-  static Future<bool> removeMealFromSchedule(DateTime date, int mealIndex) async {
+  static Future<bool> removeMealFromSchedule(
+      DateTime date, int mealIndex) async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return false;
@@ -359,8 +394,8 @@ class ScheduleService {
       if (!doc.exists) return false;
 
       final meals = List<Map<String, dynamic>>.from(
-        (doc.data()!['meals'] as List<dynamic>).map((m) => Map<String, dynamic>.from(m))
-      );
+          (doc.data()!['meals'] as List<dynamic>)
+              .map((m) => Map<String, dynamic>.from(m)));
 
       if (mealIndex >= meals.length) return false;
 
@@ -439,11 +474,8 @@ class ScheduleService {
       debugPrint('🔄 [SCHEDULE] Starting re-population of all schedules...');
 
       // Get all orders
-      final ordersSnapshot = await _db
-          .collection('users')
-          .doc(uid)
-          .collection('orders')
-          .get();
+      final ordersSnapshot =
+          await _db.collection('users').doc(uid).collection('orders').get();
 
       if (ordersSnapshot.docs.isEmpty) {
         debugPrint('⚠️ [SCHEDULE] No orders found to re-populate');
@@ -457,7 +489,7 @@ class ScheduleService {
       for (var orderDoc in ordersSnapshot.docs) {
         final orderId = orderDoc.id;
         debugPrint('  📦 Re-populating from order: $orderId');
-        
+
         final success = await populateScheduleFromOrder(orderId);
         if (success) {
           successCount++;
@@ -466,7 +498,8 @@ class ScheduleService {
         }
       }
 
-      debugPrint('✅ [SCHEDULE] Re-population complete: $successCount succeeded, $failCount failed');
+      debugPrint(
+          '✅ [SCHEDULE] Re-population complete: $successCount succeeded, $failCount failed');
       return failCount == 0;
     } catch (e) {
       debugPrint('❌ Error re-populating schedules: $e');

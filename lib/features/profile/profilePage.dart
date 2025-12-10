@@ -1,22 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// WelcomePage import removed because the package file wasn't found; using an internal placeholder on sign-out instead.
-// migrate_schedule_data.dart was missing; provide a local fallback implementation to avoid compile errors.
-// If you later add the real file at lib/services/migrate_schedule_data.dart, remove this fallback and restore the import.
-import 'viewProfilePage.dart'; // Pastikan file ini ada!
-import 'editProfilePage.dart'; // Wajib ditambahkan!
+import 'viewProfilePage.dart';
+import 'package:nutrilink/features/settings/notificationSettingsPage.dart';
+import 'uploadProfilePicturePage.dart';
 import 'nutritionNeedsPage.dart';
-
-// Fallback implementation for MigrateScheduleData so the profile page can call migrateAllScheduleData()
-// Replace this with the real implementation in lib/services/migrate_schedule_data.dart if available.
-class MigrateScheduleData {
-  static Future<void> migrateAllScheduleData() async {
-    // No-op fallback: perform minimal async work and log for debugging.
-    debugPrint('⚠️ MigrateScheduleData fallback called.');
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-  }
-}
+import 'package:nutrilink/features/profile/changePasswordPage.dart';
 
 const Color kGreen = Color(0xFF5F9C3F);
 
@@ -87,35 +76,24 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Fitur ini akan segera tersedia!'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.grey[800],
-        duration: const Duration(seconds: 1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    // ============================================================
-    // 🛠️ LOGIKA TAMPILAN PROFIL
-    // ============================================================
-    
     final rawProfile = userData?['profile'];
     final profileMap = rawProfile is Map ? rawProfile : null;
 
-    String fullName = profileMap?['name']?.toString() ?? userData?['name']?.toString() ?? 'Pengguna';
+    String fullName = profileMap?['name']?.toString() ??
+        userData?['name']?.toString() ??
+        'Pengguna';
     String email = FirebaseAuth.instance.currentUser?.email ?? '';
 
-    // Deteksi Gender untuk Avatar
-    String sex = (profileMap?['sex'] ?? userData?['sex'] ?? 'Laki-laki').toString().toLowerCase();
-    String assetImage = 'assets/images/Male Avatar.png'; 
-    if (sex.contains('female') || sex.contains('perempuan') || sex.contains('wanita')) {
-      assetImage = 'assets/images/Female Avatar.png';
+    String sex = (profileMap?['sex'] ?? userData?['sex'] ?? 'Laki-laki')
+        .toString()
+        .toLowerCase();
+    String defaultAvatarAsset = 'assets/images/avatars/Male Avatar.png';
+    if (sex.contains('female') ||
+        sex.contains('perempuan') ||
+        sex.contains('wanita')) {
+      defaultAvatarAsset = 'assets/images/avatars/Female Avatar.png';
     }
 
     return Scaffold(
@@ -156,33 +134,47 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: Column(
                       children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: kGreen, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: kGreen.withValues(alpha: 0.2),
-                                blurRadius: 10,
-                                spreadRadius: 2,
-                              )
-                            ],
-                          ),
-                          child: CircleAvatar(
-                            radius: 60,
-                            backgroundColor: Colors.grey[200],
-                            backgroundImage: AssetImage(assetImage),
-                            onBackgroundImageError: (exception, stackTrace) {
-                               debugPrint("⚠️ Gagal load aset: $assetImage");
-                            },
-                            child: Image.asset(
-                              assetImage,
-                              width: 120,
-                              height: 120,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(Icons.person, size: 60, color: Colors.grey);
-                              },
+                        GestureDetector(
+                          onTap: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => UploadProfilePicturePage(
+                                    currentUserData: userData),
+                              ),
+                            );
+                            if (result == true) {
+                              // 🔄 Reload data otomatis setelah upload foto
+                              await _loadUserData();
+                            }
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: kGreen, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: kGreen.withValues(alpha: 0.2),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                )
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              radius: 60,
+                              backgroundColor: Colors.grey[200],
+                              backgroundImage: (profileMap?['profilePicture']
+                                          is String &&
+                                      (profileMap!['profilePicture'] as String)
+                                          .isNotEmpty)
+                                  ? ((profileMap['profilePicture'] as String)
+                                          .startsWith('http')
+                                      ? NetworkImage(
+                                          profileMap['profilePicture']
+                                              as String)
+                                      : AssetImage(profileMap['profilePicture']
+                                          as String)) as ImageProvider
+                                  : AssetImage(defaultAvatarAsset),
                             ),
                           ),
                         ),
@@ -195,15 +187,30 @@ class _ProfilePageState extends State<ProfilePage> {
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
                           ),
-                          textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 4),
                         Text(
                           email,
                           style: TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontSize: 14,
+                            fontSize: 13,
                             color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: kGreen.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            '✅ Email Terverifikasi',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: kGreen,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -216,54 +223,27 @@ class _ProfilePageState extends State<ProfilePage> {
                   _buildMenuButton(
                     context,
                     icon: Icons.person_outline,
-                    title: 'Lihat Profil',
-                    subtitle: 'Detail data diri & BMI',
-                    // ✅ NAVIGASI KE ViewProfilePage
-                    onTap: () {
-                      if (userData != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ViewProfilePage(userData: userData!),
-                          ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                           const SnackBar(content: Text("Data profil sedang dimuat..."))
-                        );
-                      }
-                    },
-                  ),
-                  // 2. TOMBOL EDIT PROFIL (SUDAH AKTIF)
-                  _buildMenuButton(
-                    context,
-                    icon: Icons.edit_outlined,
                     title: 'Edit Profil',
-                    subtitle: 'Ubah nama, berat, & tinggi',
+                    subtitle: 'Detail data diri & BMI',
                     onTap: () async {
                       if (userData != null) {
-                        // Navigasi ke Edit Page dan TUNGGU hasilnya
-                        final bool? result = await Navigator.push(
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => EditProfilePage(userData: userData!),
+                            builder: (context) =>
+                                ViewProfilePage(userData: userData!),
                           ),
                         );
-
-                        // Jika result == true (berarti user menekan tombol SIMPAN)
-                        // Maka reload data profil agar tampilan ter-update
-                        if (result == true) {
-                          debugPrint("♻️ Data diedit, me-refresh profil...");
-                          _loadUserData(); 
-                        }
+                        // Reload data setelah kembali dari ViewProfilePage
+                        await _loadUserData();
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                           const SnackBar(content: Text("Tunggu data profil termuat dulu."))
-                        );
+                            const SnackBar(
+                                content: Text("Data profil sedang dimuat...")));
                       }
                     },
                   ),
-                  // 3. TOMBOL KEBUTUHAN NUTRISI (SUDAH AKTIF)
+
                   _buildMenuButton(
                     context,
                     icon: Icons.health_and_safety_outlined,
@@ -271,106 +251,128 @@ class _ProfilePageState extends State<ProfilePage> {
                     subtitle: 'Lihat target kalori & makronutrisi',
                     onTap: () {
                       if (userData != null) {
-                         Navigator.push(
+                        Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => NutritionNeedsPage(userData: userData!),
+                            builder: (context) =>
+                                NutritionNeedsPage(userData: userData!),
                           ),
                         );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                           const SnackBar(content: Text("Data belum siap."))
-                        );
+                            const SnackBar(content: Text("Data belum siap.")));
                       }
                     },
                   ),
+
                   _buildMenuButton(
                     context,
                     icon: Icons.notifications_outlined,
                     title: 'Notifikasi',
-                    onTap: () => _showComingSoon(context),
+                    subtitle: 'Atur pengingat waktu makan',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const NotificationSettingsPage(),
+                        ),
+                      );
+                    },
                   ),
+
                   _buildMenuButton(
                     context,
                     icon: Icons.lock_outline,
                     title: 'Ganti Password',
-                    onTap: () => _showComingSoon(context),
+                    subtitle: 'Ubah password akun Anda',
+                    onTap: () async {
+                      if (!mounted) return;
+                      // ignore: use_build_context_synchronously
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChangePasswordPage(),
+                        ),
+                      );
+                      if (!mounted) return;
+                      if (result == true) {
+                        // ignore: use_build_context_synchronously
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✅ Password berhasil diubah'),
+                            backgroundColor: kGreen,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
                   ),
 
                   const SizedBox(height: 30),
 
-                  // --- SYNC & LOGOUT ---
+                  // --- LOGOUT BUTTON ---
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                         showDialog(
-                           context: context, 
-                           barrierDismissible: false,
-                           builder: (_) => const Center(child: CircularProgressIndicator())
-                         );
-                         
-                         await MigrateScheduleData.migrateAllScheduleData();
-                         
-                         if(context.mounted) {
-                           Navigator.pop(context);
-                           ScaffoldMessenger.of(context).showSnackBar(
-                             const SnackBar(content: Text("Data berhasil diperbarui"))
-                           );
-                         }
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(color: Colors.blue.shade300),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      icon: Icon(Icons.sync, color: Colors.blue.shade700),
-                      label: Text("Perbaiki Data (Sync)", style: TextStyle(color: Colors.blue.shade700)),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 12),
-
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.red.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        )
-                      ]
-                    ),
                     child: ElevatedButton.icon(
                       onPressed: () => _signOut(context),
-                      icon: const Icon(Icons.logout_rounded, color: Colors.white),
+                      icon: const Icon(Icons.logout_rounded),
                       label: const Text(
                         'Keluar Aplikasi',
                         style: TextStyle(
                           fontFamily: 'Funnel Display',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF5252),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.red[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 0,
+                        elevation: 2,
                       ),
                     ),
                   ),
-                  
-                  const SizedBox(height: 30),
-                  Text(
-                    "NutriLink v1.0.0",
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+
+                  const SizedBox(height: 16),
+
+                  // --- VERSION INFO ---
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.grey[300]!,
+                        width: 1,
+                      ),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'NutriLink v1.0.0',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Asisten Nutrisi Cerdas',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+
                   const SizedBox(height: 20),
                 ],
               ),
@@ -378,76 +380,68 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildMenuButton(BuildContext context, {
+  /// Helper widget untuk menu button
+  Widget _buildMenuButton(
+    BuildContext context, {
     required IconData icon,
     required String title,
-    String? subtitle,
+    required String subtitle,
     required VoidCallback onTap,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey[200]!,
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.06),
-            spreadRadius: 2,
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: kGreen.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: kGreen, size: 22),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontFamily: 'Funnel Display',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontFamily: 'Funnel Display',
-                            fontSize: 12,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded, color: Colors.grey[300], size: 24),
-              ],
-            ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: kGreen.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            color: kGreen,
+            size: 24,
           ),
         ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontFamily: 'Funnel Display',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+        trailing: Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.grey[400],
+        ),
+        onTap: onTap,
       ),
     );
   }

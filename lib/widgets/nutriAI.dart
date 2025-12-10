@@ -5,11 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:nutrilink/config/appTheme.dart';
 import '../services/geminiService.dart';
+import '../features/profile/uploadProfilePicturePage.dart'; // <-- tambahkan import
 
 /// AI Chatbot untuk estimasi kalori makanan
 class CalorieChatbot extends StatefulWidget {
   final VoidCallback? onFoodLogSaved; // BARU: Callback setelah save
-  
+
   const CalorieChatbot({super.key, this.onFoodLogSaved});
 
   @override
@@ -29,18 +30,18 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
     _loadUserPhoto();
     _loadChatHistory();
   }
-  
+
   // Load user photo dari Firestore users collection
   Future<void> _loadUserPhoto() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-      
+
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
-      
+
       if (userDoc.exists && mounted) {
         final data = userDoc.data();
         if (data != null && data.containsKey('profile')) {
@@ -69,7 +70,8 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
               });
             }
             if (_userPhotoUrl == null) {
-              debugPrint('⚠️ Tidak menemukan profilePicture/photoUrl di profile map');
+              debugPrint(
+                  '⚠️ Tidak menemukan profilePicture/photoUrl di profile map');
             }
           } else {
             debugPrint('⚠️ Profile map null');
@@ -82,7 +84,8 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
           final topProfilePic = data?['profilePicture'];
           if (topProfilePic is String && topProfilePic.isNotEmpty) {
             setState(() => _userPhotoUrl = topProfilePic);
-            debugPrint('📸 Fallback top-level profilePicture loaded: $topProfilePic');
+            debugPrint(
+                '📸 Fallback top-level profilePicture loaded: $topProfilePic');
           }
         }
         if (_userPhotoUrl == null) {
@@ -94,7 +97,9 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
         }
       }
       // Fallback terakhir: gunakan FirebaseAuth user.photoURL
-      if (_userPhotoUrl == null && user.photoURL != null && user.photoURL!.isNotEmpty) {
+      if (_userPhotoUrl == null &&
+          user.photoURL != null &&
+          user.photoURL!.isNotEmpty) {
         setState(() => _userPhotoUrl = user.photoURL);
         debugPrint('📸 Fallback auth photoURL loaded');
       }
@@ -102,16 +107,16 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
       debugPrint('❌ Error loading user photo: $e');
     }
   }
-  
+
   // Load riwayat chat dari Firestore
   Future<void> _loadChatHistory() async {
     // Tampilkan welcome message dulu untuk UX yang lebih baik
     _addWelcomeMessage();
-    
+
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
-      
+
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final chatDoc = await FirebaseFirestore.instance
           .collection('users')
@@ -119,27 +124,29 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
           .collection('ai_chat_history')
           .doc(today)
           .get();
-      
+
       if (chatDoc.exists && mounted) {
         final data = chatDoc.data()!;
         final messages = (data['messages'] as List<dynamic>?)?.map((m) {
-          return ChatMessage(
-            text: m['text'] ?? '',
-            isUser: m['isUser'] ?? false,
-            timestamp: (m['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-            calorieData: m['calorieData'] as Map<String, dynamic>?,
-          );
-        }).toList() ?? [];
-        
+              return ChatMessage(
+                text: m['text'] ?? '',
+                isUser: m['isUser'] ?? false,
+                timestamp:
+                    (m['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                calorieData: m['calorieData'] as Map<String, dynamic>?,
+              );
+            }).toList() ??
+            [];
+
         // Jika ada history, replace welcome message dengan history
         if (messages.isNotEmpty) {
           setState(() {
             _messages.clear();
             _messages.addAll(messages);
           });
-          
+
           debugPrint('✅ Loaded ${messages.length} chat messages from history');
-          
+
           // PENTING: Scroll ke bawah setelah load history
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _scrollToBottom();
@@ -151,12 +158,13 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
       // Keep welcome message if error
     }
   }
-  
+
   void _addWelcomeMessage() {
     if (_messages.isEmpty && mounted) {
       setState(() {
         _messages.add(ChatMessage(
-          text: 'Halo! 👋\n\nSaya asisten AI untuk menghitung kalori makanan. Ceritakan makanan apa yang kamu makan di luar, dan saya akan bantu estimasi kalorinya!\n\nContoh:\n"Aku makan nasi goreng + telur ceplok"\n"2 potong ayam goreng sama es teh manis"',
+          text:
+              'Halo! 👋\n\nSaya asisten AI untuk menghitung kalori makanan. Ceritakan makanan apa yang kamu makan di luar, dan saya akan bantu estimasi kalorinya!\n\nContoh:\n"Aku makan nasi goreng + telur ceplok"\n"2 potong ayam goreng sama es teh manis"',
           isUser: false,
           timestamp: DateTime.now(),
         ));
@@ -164,21 +172,23 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
       _scrollToBottom();
     }
   }
-  
+
   // Simpan riwayat chat ke Firestore
   Future<void> _saveChatHistory() async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
-      
+
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      final messagesData = _messages.map((m) => {
-        'text': m.text,
-        'isUser': m.isUser,
-        'timestamp': Timestamp.fromDate(m.timestamp),
-        'calorieData': m.calorieData,
-      }).toList();
-      
+      final messagesData = _messages
+          .map((m) => {
+                'text': m.text,
+                'isUser': m.isUser,
+                'timestamp': Timestamp.fromDate(m.timestamp),
+                'calorieData': m.calorieData,
+              })
+          .toList();
+
       await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -188,7 +198,7 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
         'messages': messagesData,
         'lastUpdated': FieldValue.serverTimestamp(),
       });
-      
+
       debugPrint('💾 Chat history saved');
     } catch (e) {
       debugPrint('❌ Error saving chat history: $e');
@@ -205,12 +215,12 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
   // Edit dan resend message
   Future<void> _editAndResendMessage(int messageIndex, String newText) async {
     if (newText.trim().isEmpty) return;
-    
+
     // Remove messages dari index yang diedit sampai akhir (termasuk response AI)
     setState(() {
       _messages.removeRange(messageIndex, _messages.length);
     });
-    
+
     // Resend dengan text baru
     _controller.text = newText;
     await _sendMessage();
@@ -241,13 +251,15 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
 
       // Build response message
       final responseText = _buildResponseText(result);
-      
+
       // Check if it's valid food data (has calories > 0 AND has items)
       final totalCalories = result['totalCalories'] ?? 0;
       final items = result['items'] as List?;
-      final hasValidData = totalCalories > 0 && items != null && items.isNotEmpty;
-      
-      debugPrint('🐞 Debug: totalCalories=$totalCalories, items=${items?.length ?? 0}, hasValidData=$hasValidData');
+      final hasValidData =
+          totalCalories > 0 && items != null && items.isNotEmpty;
+
+      debugPrint(
+          '🐞 Debug: totalCalories=$totalCalories, items=${items?.length ?? 0}, hasValidData=$hasValidData');
 
       setState(() {
         _messages.add(ChatMessage(
@@ -260,19 +272,20 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
       });
 
       _scrollToBottom();
-      
+
       // Simpan riwayat chat
       await _saveChatHistory();
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
-          text: 'Maaf, terjadi kesalahan saat menghubungi server AI. Silakan coba lagi dalam beberapa saat. 🙏',
+          text:
+              'Maaf, terjadi kesalahan saat menghubungi server AI. Silakan coba lagi dalam beberapa saat. 🙏',
           isUser: false,
           timestamp: DateTime.now(),
         ));
         _isLoading = false;
       });
-      
+
       // Simpan error message juga
       await _saveChatHistory();
     }
@@ -282,9 +295,11 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
     final isFood = result['isFood'] as bool? ?? true;
     final totalCalories = result['totalCalories'] ?? 0;
     final items = result['items'] as List<dynamic>? ?? [];
-    final summary = result['summary'] as String? ?? result['response'] as String? ?? '';
+    final summary =
+        result['summary'] as String? ?? result['response'] as String? ?? '';
 
-    debugPrint('🐛 Parse result: isFood=$isFood, calories=$totalCalories, items count=${items.length}');
+    debugPrint(
+        '🐛 Parse result: isFood=$isFood, calories=$totalCalories, items count=${items.length}');
 
     // Handle non-food queries
     if (isFood == false) {
@@ -301,13 +316,13 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
     }
 
     final buffer = StringBuffer();
-    
+
     // Opening dengan summary yang friendly
     if (summary.isNotEmpty) {
       buffer.writeln(summary);
       buffer.writeln();
     }
-    
+
     buffer.writeln('📊 Rincian Kalori:');
 
     // Breakdown PER item makanan/minuman
@@ -319,14 +334,16 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
       final protein = item['protein'] ?? item['proteins'] ?? 0;
       final carbohydrate = item['carbohydrate'] ?? item['carbs'] ?? 0;
       final fat = item['fat'] ?? item['fats'] ?? 0;
-      
+
       buffer.writeln();
-      buffer.writeln('${i + 1}. $name${portion.isNotEmpty ? " ($portion)" : ""}');
+      buffer
+          .writeln('${i + 1}. $name${portion.isNotEmpty ? " ($portion)" : ""}');
       buffer.writeln('   Kalori: $calories kkal');
-      
+
       // Only show macros if at least one is non-zero
       if (protein > 0 || carbohydrate > 0 || fat > 0) {
-        buffer.writeln('   Protein: ${protein}g | Karbo: ${carbohydrate}g | Lemak: ${fat}g');
+        buffer.writeln(
+            '   Protein: ${protein}g | Karbo: ${carbohydrate}g | Lemak: ${fat}g');
       } else {
         buffer.writeln('   (Informasi nutrisi tidak tersedia)');
       }
@@ -341,7 +358,8 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
     buffer.writeln('━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('TOTAL:');
     buffer.writeln('Kalori: $totalCalories kkal');
-    buffer.writeln('Protein: ${totalProtein}g | Karbo: ${totalCarbohydrate}g | Lemak: ${totalFat}g');
+    buffer.writeln(
+        'Protein: ${totalProtein}g | Karbo: ${totalCarbohydrate}g | Lemak: ${totalFat}g');
 
     return buffer.toString();
   }
@@ -380,7 +398,7 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
     final hour = now.hour;
     final minute = now.minute;
     final timeInMinutes = hour * 60 + minute;
-    
+
     String mealType;
     if (timeInMinutes >= 181 && timeInMinutes <= 600) {
       // 03:01 - 10:00 = Sarapan
@@ -392,9 +410,10 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
       // 17:01 - 03:00 = Makan Malam
       mealType = 'Makan Malam';
     }
-    
-    debugPrint('🕐 Current time: ${DateFormat('HH:mm').format(now)} → Meal type: $mealType');
-    
+
+    debugPrint(
+        '🕐 Current time: ${DateFormat('HH:mm').format(now)} → Meal type: $mealType');
+
     // Save to Firestore
     final success = await GeminiService.saveFoodLog(
       calories: totalCalories,
@@ -428,20 +447,20 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
         ));
       });
       _scrollToBottom();
-      
+
       // Simpan chat history
       await _saveChatHistory();
-      
+
       // BARU: Trigger callback untuk refresh homepage
       widget.onFoodLogSaved?.call();
     }
   }
-  
+
   // Helper untuk check sama hari atau tidak
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
-  
+
   // Helper untuk format tanggal
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -471,15 +490,17 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[index];
-                final showDateSeparator = index == 0 || 
-                    !_isSameDay(_messages[index - 1].timestamp, message.timestamp);
-                
+                final showDateSeparator = index == 0 ||
+                    !_isSameDay(
+                        _messages[index - 1].timestamp, message.timestamp);
+
                 return Column(
                   children: [
                     // Date separator
                     if (showDateSeparator)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: AppSpacing.lg),
                         child: Text(
                           _formatDate(message.timestamp),
                           style: AppTextStyles.caption.copyWith(
@@ -487,7 +508,7 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
                           ),
                         ),
                       ),
-                    
+
                     // Message bubble
                     _MessageBubble(
                       message: message,
@@ -602,7 +623,8 @@ class _CalorieChatbotState extends State<CalorieChatbot> {
                       boxShadow: AppShadows.button,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.send, color: AppColors.white, size: 20),
+                      icon: const Icon(Icons.send,
+                          color: AppColors.white, size: 20),
                       onPressed: _isLoading ? null : _sendMessage,
                     ),
                   ),
@@ -647,7 +669,8 @@ class _MessageBubble extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xlarge)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadius.xlarge)),
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -671,7 +694,8 @@ class _MessageBubble extends StatelessWidget {
             if (onEdit != null)
               ListTile(
                 leading: const Icon(Icons.edit, color: AppColors.green),
-                title: Text('Edit dan Kirim Ulang', style: AppTextStyles.bodyLarge),
+                title: Text('Edit dan Kirim Ulang',
+                    style: AppTextStyles.bodyLarge),
                 onTap: () {
                   Navigator.pop(context);
                   _showEditDialog(context);
@@ -685,7 +709,7 @@ class _MessageBubble extends StatelessWidget {
 
   void _showEditDialog(BuildContext context) {
     final controller = TextEditingController(text: message.text);
-    
+
     showDialog(
       context: context,
       builder: (context) => Theme(
@@ -814,7 +838,8 @@ class _MessageBubble extends StatelessWidget {
                       vertical: AppSpacing.md,
                     ),
                     decoration: BoxDecoration(
-                      gradient: message.isUser ? AppColors.primaryGradient : null,
+                      gradient:
+                          message.isUser ? AppColors.primaryGradient : null,
                       color: message.isUser ? null : AppColors.white,
                       borderRadius: AppRadius.xlargeRadius,
                       boxShadow: AppShadows.small,
@@ -822,13 +847,15 @@ class _MessageBubble extends StatelessWidget {
                     child: Text(
                       message.text,
                       style: AppTextStyles.bodyMedium.copyWith(
-                        color: message.isUser ? AppColors.white : AppColors.black87,
+                        color: message.isUser
+                            ? AppColors.white
+                            : AppColors.black87,
                         height: 1.4,
                       ),
                     ),
                   ),
                 ),
-                
+
                 // Timestamp
                 Padding(
                   padding: const EdgeInsets.only(
@@ -852,8 +879,10 @@ class _MessageBubble extends StatelessWidget {
                     children: [
                       IconButton(
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                        icon: const Icon(Icons.copy, size: 18, color: AppColors.green),
+                        constraints:
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
+                        icon: const Icon(Icons.copy,
+                            size: 18, color: AppColors.green),
                         tooltip: 'Salin',
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: message.text));
@@ -869,23 +898,27 @@ class _MessageBubble extends StatelessWidget {
                       if (onEdit != null)
                         IconButton(
                           padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                          icon: const Icon(Icons.edit, size: 18, color: AppColors.green),
+                          constraints:
+                              const BoxConstraints(minWidth: 32, minHeight: 32),
+                          icon: const Icon(Icons.edit,
+                              size: 18, color: AppColors.green),
                           tooltip: 'Edit & Kirim Ulang',
                           onPressed: () => _showEditDialog(context),
                         ),
                       if (onSaveLog != null)
                         IconButton(
                           padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                          icon: const Icon(Icons.save, size: 18, color: AppColors.green),
+                          constraints:
+                              const BoxConstraints(minWidth: 32, minHeight: 32),
+                          icon: const Icon(Icons.save,
+                              size: 18, color: AppColors.green),
                           tooltip: 'Simpan ke Log',
                           onPressed: onSaveLog,
                         ),
                     ],
                   ),
                 ),
-                
+
                 // Save button (hanya untuk AI response dengan valid data)
                 if (onSaveLog != null) ...[
                   const SizedBox(height: AppSpacing.sm),
@@ -894,7 +927,8 @@ class _MessageBubble extends StatelessWidget {
                     child: ElevatedButton.icon(
                       onPressed: onSaveLog,
                       icon: const Icon(Icons.save, size: 16),
-                      label: Text('Simpan ke Log Harian', style: AppTextStyles.buttonSmall),
+                      label: Text('Simpan ke Log Harian',
+                          style: AppTextStyles.buttonSmall),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         foregroundColor: AppColors.white,
@@ -937,17 +971,30 @@ class _ProfileAvatar extends StatelessWidget {
         provider = NetworkImage(photo!);
       }
     }
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: AppColors.green,
-      backgroundImage: provider,
-      child: provider == null
-          ? const Icon(
-              Icons.person,
-              size: 18,
-              color: AppColors.white,
-            )
-          : null,
+
+    // Default avatar logic aligned with homepage/profilePage
+    String defaultAsset = 'assets/images/avatars/Male Avatar.png';
+    // Try to infer female from parent context? skip — keep default male to avoid unexpected behavior.
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => UploadProfilePicturePage(currentUserData: null)),
+        );
+      },
+      child: CircleAvatar(
+        radius: 16,
+        backgroundColor: AppColors.green,
+        backgroundImage: provider ?? AssetImage(defaultAsset),
+        child: provider == null
+            ? const Icon(
+                Icons.person,
+                size: 18,
+                color: AppColors.white,
+              )
+            : null,
+      ),
     );
   }
 }
